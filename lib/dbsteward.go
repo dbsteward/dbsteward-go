@@ -391,9 +391,40 @@ func (self *DBSteward) reconcileSqlFormat(target, requested format.SqlFormat) fo
 	return format.DefaultSqlFormat
 }
 
-func (self *DBSteward) defineSqlFormatDefaultValues(format format.SqlFormat, args *Args) uint {
-	// TODO(go,core)
-	return 0
+func (self *DBSteward) defineSqlFormatDefaultValues(sqlFormat format.SqlFormat, args *Args) uint {
+	var dbPort uint
+	switch sqlFormat {
+	case format.SqlFormatPgsql8:
+		self.createLanguages = true
+		self.quoteSchemaNames = false
+		self.quoteTableNames = false
+		self.quoteColumnNames = false
+		dbPort = 5432
+
+		// TODO(go,mssql)
+		// case format.SqlFormatMssql10:
+		// 	self.quoteTableNames = true
+		// 	self.quoteColumnNames = true
+		// 	dbPort = 1433
+
+		// TODO(go,mysql)
+		// case format.SqlFormatMysql5:
+		// 	self.quoteSchemaNames = true
+		// 	self.quoteTableNames = true
+		// 	self.quoteColumnNames = true
+		// 	dbPort = 3306
+
+		// 	mysql5.GlobalMysql5.UseAutoIncrementTableOptions = args.UseAutoIncrementOptions
+		// 	mysql5.GlobalMysql5.UseSchemaNamePrefix = args.UseSchemaPrefix
+	}
+
+	if sqlFormat != format.SqlFormatPgsql8 {
+		if len(args.PgDataXml) > 0 {
+			self.Fatal("pgdataxml parameter is not supported by %s driver", sqlFormat)
+		}
+	}
+
+	return dbPort
 }
 
 func (self *DBSteward) calculateFileOutputPrefix(files []string) string {

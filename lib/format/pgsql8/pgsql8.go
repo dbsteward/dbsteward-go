@@ -14,29 +14,29 @@ func NewPgsql8() *Pgsql8 {
 }
 
 func (self *Pgsql8) Build(outputPrefix string, dbDoc xml.DocumentTBD) {
-	// TODO(go,core)
+	// TODO(go,pgsql)
 }
 func (self *Pgsql8) BuildUpgrade(
 	oldOutputPrefix string, oldCompositeFile string, oldDbDoc xml.DocumentTBD, oldFiles []string,
 	newOutputPrefix string, newCompositeFile string, newDbDoc xml.DocumentTBD, newFiles []string,
 ) {
-	// TODO(go,core)
+	// TODO(go,pgsql)
 }
 func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass string) xml.DocumentTBD {
-	// TODO(go,core)
+	// TODO(go,pgsql)
 	return nil
 }
 func (self *Pgsql8) CompareDbData(dbDoc xml.DocumentTBD, host string, port uint, name, user, pass string) xml.DocumentTBD {
-	// TODO(go,core)
+	// TODO(go,pgsql)
 	return nil
 }
 func (self *Pgsql8) SqlDiff(old, new, outputFile string) {
-	// TODO(go,core)
+	// TODO(go,pgsql)
 }
 
 func (self *Pgsql8) SlonyCompare(file string) {
-	// TODO(go,core)
+	// TODO(go,slony)
 }
 func (self *Pgsql8) SlonyDiff(oldFile string, newFile string) {
-	// TODO(go,core)
+	// TODO(go,slony)
 }
