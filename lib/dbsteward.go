@@ -3,6 +3,7 @@ package lib
 import (
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
@@ -428,8 +429,13 @@ func (self *DBSteward) defineSqlFormatDefaultValues(sqlFormat format.SqlFormat, 
 }
 
 func (self *DBSteward) calculateFileOutputPrefix(files []string) string {
-	// TODO(go,core)
-	return ""
+	return path.Join(
+		self.calculateFileOutputDirectory(files[0]),
+		CoalesceStr(self.fileOutputPrefix, Basename(files[0], ".xml")),
+	)
+}
+func (self *DBSteward) calculateFileOutputDirectory(file string) string {
+	return CoalesceStr(self.fileOutputDirectory, path.Dir(file))
 }
 
 func (self *DBSteward) doXmlDataInsert(defFile string, dataFile string) {

@@ -3,6 +3,7 @@ package lib
 import (
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 )
 
@@ -36,4 +37,18 @@ func IsDir(path string) bool {
 
 func WriteFile(content string, file string) error {
 	return ioutil.WriteFile(file, []byte(content), 0644)
+}
+
+func Basename(file string, ext string) string {
+	return strings.TrimSuffix(path.Base(file), ext)
+}
+
+// returns the first non-empty string, or the empty string
+func CoalesceStr(strs ...string) string {
+	for _, s := range strs {
+		if len(s) > 0 {
+			return s
+		}
+	}
+	return ""
 }
