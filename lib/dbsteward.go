@@ -5,6 +5,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
+
+	"github.com/dbsteward/dbsteward/lib/format"
+
 	"github.com/alexflint/go-arg"
 	"github.com/rs/zerolog"
 )
@@ -21,7 +25,7 @@ var GlobalDBSteward *DBSteward = NewDBSteward()
 type DBSteward struct {
 	logger zerolog.Logger
 
-	sqlFormat Dialect
+	sqlFormat format.SqlFormat
 
 	createLanguages                bool
 	requireSlonyId                 bool
@@ -65,7 +69,7 @@ func NewDBSteward() *DBSteward {
 	dbsteward := &DBSteward{
 		logger: zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
 
-		sqlFormat: DialectUnknown,
+		sqlFormat: format.SqlFormatUnknown,
 
 		createLanguages:                false,
 		requireSlonyId:                 false,
@@ -106,6 +110,10 @@ func NewDBSteward() *DBSteward {
 	}
 
 	return dbsteward
+}
+
+func (self *DBSteward) FormatGeneral() format.GeneralOperations {
+	return format.GlobalGeneralOperations[self.sqlFormat]
 }
 
 // correlates to dbsteward->arg_parse()
@@ -196,6 +204,8 @@ func (self *DBSteward) ArgParse() {
 	if mode == ModeXmlDataInsert {
 		if len(args.XmlFiles) == 0 {
 			self.Fatal("xmldatainsert needs xml parameter defined")
+		} else if len(args.XmlFiles) > 1 {
+			self.Fatal("xmldatainsert only supports one xml file")
 		}
 	}
 	if mode == ModeExtract || mode == ModeDbDataDiff {
@@ -234,14 +244,14 @@ func (self *DBSteward) ArgParse() {
 
 	// For the appropriate modes, composite the input xml
 	// and figure out the sql format of it
-	targetSqlFormat := DialectUnknown
+	targetSqlFormat := format.SqlFormatUnknown
 	switch mode {
 	case ModeBuild:
 		targetSqlFormat = GlobalXmlParser.GetSqlFormat(args.XmlFiles)
 	case ModeDiff:
 		// prefer new format over old
 		targetSqlFormat = GlobalXmlParser.GetSqlFormat(args.NewXmlFiles)
-		if targetSqlFormat == DialectUnknown {
+		if targetSqlFormat == format.SqlFormatUnknown {
 			targetSqlFormat = GlobalXmlParser.GetSqlFormat(args.OldXmlFiles)
 		}
 	}
@@ -278,7 +288,7 @@ func (self *DBSteward) ArgParse() {
 	// TODO(go,3) move all of these to separate subcommands
 	switch mode {
 	case ModeXmlDataInsert:
-		self.doXmlDataInsert(args.XmlFiles, args.XmlDataInsert)
+		self.doXmlDataInsert(args.XmlFiles[0], args.XmlDataInsert)
 	case ModeXmlSort:
 		self.doXmlSort(args.XmlSort)
 	case ModeXmlConvert:
@@ -290,9 +300,9 @@ func (self *DBSteward) ArgParse() {
 	case ModeDiff:
 		self.doDiff(args.OldXmlFiles, args.NewXmlFiles, args.PgDataXml)
 	case ModeExtract:
-		self.doExtract(args.OutputFile)
+		self.doExtract(args.DbHost, args.DbPort, args.DbName, args.DbUser, args.DbPassword, args.OutputFile)
 	case ModeDbDataDiff:
-		self.doDbDataDiff(args.XmlFiles, args.PgDataXml, args.XmlCollectDataAddendums)
+		self.doDbDataDiff(args.XmlFiles, args.PgDataXml, args.XmlCollectDataAddendums, args.DbHost, args.DbPort, args.DbName, args.DbUser, args.DbPassword)
 	case ModeSqlDiff:
 		self.doSqlDiff(args.OldSql, args.NewSql, args.OutputFile)
 	case ModeSlonikConvert:
@@ -355,12 +365,12 @@ func (self *DBSteward) setVerbosity(args *Args) {
 	self.logger = self.logger.Level(level)
 }
 
-func (self *DBSteward) reconcileSqlFormat(target, requested Dialect) Dialect {
+func (self *DBSteward) reconcileSqlFormat(target, requested format.SqlFormat) format.SqlFormat {
 	// TODO(go,core)
-	return DialectUnknown
+	return format.SqlFormatUnknown
 }
 
-func (self *DBSteward) defineSqlFormatDefaultValues(format Dialect, args *Args) uint {
+func (self *DBSteward) defineSqlFormatDefaultValues(format format.SqlFormat, args *Args) uint {
 	// TODO(go,core)
 	return 0
 }
@@ -370,14 +380,14 @@ func (self *DBSteward) calculateFileOutputPrefix(files []string) string {
 	return ""
 }
 
-func (self *DBSteward) doXmlDataInsert(files []string, dataInsert string) {
-
+func (self *DBSteward) doXmlDataInsert(defFile string, dataFile string) {
+	// TODO(go,core)
 }
-func (self *DBSteward) doXmlSort(xmlSort string) {
-
+func (self *DBSteward) doXmlSort(files []string) {
+	// TODO(go,core)
 }
-func (self *DBSteward) doXmlConvert(xmlConvert string) {
-
+func (self *DBSteward) doXmlConvert(files []string) {
+	// TODO(go,core)
 }
 func (self *DBSteward) doXmlSlonyId(files []string, slonyOut string) {
 	self.Info("Compositing XML file for Slony ID processing")
@@ -430,8 +440,7 @@ func (self *DBSteward) doBuild(files []string, dataFiles []string, addendums uin
 		GlobalXmlParser.SaveDoc(compositeFile, addendumsDoc)
 	}
 
-	// TODO(go,core)
-	// format::build($output_prefix, $db_doc)
+	self.FormatGeneral().Build(outputPrefix, dbDoc)
 }
 func (self *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []string) {
 	self.Info("Compositing old XML files...")
@@ -461,17 +470,17 @@ func (self *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []
 	self.Notice("Saving composite as %s", newCompositeFile)
 	GlobalXmlParser.SaveDoc(newCompositeFile, newDbDoc)
 
-	// TODO(core,go)
-	// format::build_upgrade($old_output_prefix, $old_composite_file, $old_db_doc, $old_files, $new_output_prefix, $new_composite_file, $new_db_doc, $new_files);
+	self.FormatGeneral().BuildUpgrade(
+		oldOutputPrefix, oldCompositeFile, oldDbDoc, oldFiles,
+		newOutputPrefix, newCompositeFile, newDbDoc, newFiles,
+	)
 }
-func (self *DBSteward) doExtract(outputFile string) {
-	// TODO(go,core)
-	// format::extract_schema($dbhost, $dbport, $dbname, $dbuser, $this->cli_dbpassword);
-	var output DocumentTBD
+func (self *DBSteward) doExtract(dbHost string, dbPort uint, dbName, dbUser, dbPass string, outputFile string) {
+	output := self.FormatGeneral().ExtractSchema(dbHost, dbPort, dbName, dbUser, dbPass)
 	self.Notice("Saving extracted database schema to %s", outputFile)
 	GlobalXmlParser.SaveDoc(outputFile, output)
 }
-func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendums uint) {
+func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendums uint, dbHost string, dbPort uint, dbName, dbUser, dbPass string) {
 	self.Info("Compositing XML files...")
 	if addendums > 0 {
 		self.Info("Collecting %d data addendums", addendums)
@@ -494,14 +503,11 @@ func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendum
 	self.Notice("Saving composite as %s", compositeFile)
 	GlobalXmlParser.SaveDoc(compositeFile, dbDoc)
 
-	// TODO(go,core)
-	// format::compare_db_data($db_doc, $dbhost, $dbport, $dbname, $dbuser, $this->cli_dbpassword);
-	var output DocumentTBD
+	output := self.FormatGeneral().CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
 	GlobalXmlParser.SaveDoc(compositeFile, output)
 }
 func (self *DBSteward) doSqlDiff(oldSql string, newSql string, outputFile string) {
-	// TODO(go,core)
-	// format::sql_diff($options["oldsql"], $options["newsql"], $output_file);
+	self.FormatGeneral().SqlDiff(oldSql, newSql, outputFile)
 }
 func (self *DBSteward) doSlonikConvert(file string, outputFile string) {
 	// TODO(go,nth) is there a nicer way to handle this output idiom?
@@ -516,10 +522,8 @@ func (self *DBSteward) doSlonikConvert(file string, outputFile string) {
 	}
 }
 func (self *DBSteward) doSlonyCompare(file string) {
-	// TODO(go,core)
-	// pgsql8::slony_compare($options["slonycompare"]);
+	pgsql8.GlobalPgsql8.SlonyCompare(file)
 }
 func (self *DBSteward) doSlonyDiff(oldFile string, newFile string) {
-	// TODO(go,core)
-	// pgsql8::slony_diff($options["slonydiffold"], $options["slonydiffnew"]);
+	pgsql8.GlobalPgsql8.SlonyDiff(oldFile, newFile)
 }

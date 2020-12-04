@@ -1,12 +1,5 @@
 package lib
 
-type Dialect string
-
-const (
-	DialectUnknown Dialect = ""
-	DialectPgsql   Dialect = "pgsql"
-)
-
 type Mode uint
 
 const (
