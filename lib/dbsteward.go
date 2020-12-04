@@ -319,6 +319,10 @@ func (self *DBSteward) ArgParse() {
 func (self *DBSteward) Fatal(s string, args ...interface{}) {
 	self.logger.Fatal().Msgf(s, args...)
 }
+
+func (self *DBSteward) Warning(s string, args ...interface{}) {
+	self.logger.Warn().Msgf(s, args...)
+}
 func (self *DBSteward) Notice(s string, args ...interface{}) {
 	// TODO(go,nth) differentiate between notice and info
 	self.Info(s, args...)
@@ -366,8 +370,25 @@ func (self *DBSteward) setVerbosity(args *Args) {
 }
 
 func (self *DBSteward) reconcileSqlFormat(target, requested format.SqlFormat) format.SqlFormat {
-	// TODO(go,core)
-	return format.SqlFormatUnknown
+	if target != format.SqlFormatUnknown {
+		if requested != format.SqlFormatUnknown {
+			if target == requested {
+				return target
+			}
+
+			self.Warning("XML is targeted for %s but you are forcing %s. Things will probably break!", target, requested)
+			return requested
+		}
+
+		self.Notice("XML file(s) are targetd for sqlformat=%s", target)
+		return target
+	}
+
+	if requested != format.SqlFormatUnknown {
+		return requested
+	}
+
+	return format.DefaultSqlFormat
 }
 
 func (self *DBSteward) defineSqlFormatDefaultValues(format format.SqlFormat, args *Args) uint {
