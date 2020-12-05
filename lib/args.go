@@ -16,7 +16,7 @@ type Args struct {
 	// Help bool `arg:"-h,--help" help:"show this usage information"`
 	QuoteSchemaNames bool `arg:"--quoteschemanames" help:"quote schema names in SQL output"`
 	QuoteTableNames  bool `arg:"--quotetablenames" help:"quote table names in SQL output"`
-	// TODO: fill out rest of arg/help tags, this is very tedious
+	// TODO(go,core): fill out rest of arg/help tags, this is very tedious
 	QuoteColumnNames   bool
 	QuoteAllNames      bool
 	QuoteIllegalNames  bool
