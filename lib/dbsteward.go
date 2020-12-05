@@ -498,10 +498,27 @@ func (self *DBSteward) doXmlDataInsert(defFile string, dataFile string) {
 	GlobalXmlParser.SaveDoc(defFileModified, defDoc)
 }
 func (self *DBSteward) doXmlSort(files []string) {
-	// TODO(go,xmlutil)
+	for _, file := range files {
+		sortedFileName := file + ".xmlsorted"
+		self.Info("Sorting XML definition file: %s", file)
+		self.Info("Sorted XML output file: %s", sortedFileName)
+		GlobalXmlParser.FileSort(file, sortedFileName)
+	}
 }
 func (self *DBSteward) doXmlConvert(files []string) {
-	// TODO(go,xmlutil)
+	for _, file := range files {
+		convertedFileName := file + ".xmlconverted"
+		self.Info("Upconverting XML definition file: %s", file)
+		self.Info("Upconvert XML output file: %s", convertedFileName)
+
+		doc, err := xml.LoadDbXmlFile(file)
+		self.FatalIfError(err, "Could not load %s", file)
+		GlobalXmlParser.SqlFormatConvert(doc)
+		convertedXml := GlobalXmlParser.FormatXml(doc)
+		convertedXml = strings.Replace(convertedXml, "pgdbxml>", "dbsteward>", -1)
+		err = WriteFile(convertedXml, convertedFileName)
+		self.FatalIfError(err, "Could not write converted xml to %s", convertedFileName)
+	}
 }
 func (self *DBSteward) doXmlSlonyId(files []string, slonyOut string) {
 	self.Info("Compositing XML file for Slony ID processing")

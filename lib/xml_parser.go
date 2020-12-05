@@ -48,6 +48,15 @@ func (self *XmlParser) SaveDoc(filename string, doc xml.DocumentTBD) {
 }
 
 func (self *XmlParser) SlonyIdNumber(doc xml.DocumentTBD) xml.DocumentTBD {
-	// TODO(go,core)
+	// TODO(go,slony)
 	return nil
+}
+
+func (self *XmlParser) FileSort(file, sortedFile string) {
+	// TODO(go,xmlutil)
+}
+
+func (self *XmlParser) FormatXml(doc xml.DocumentTBD) string {
+	// TODO(go,xmlutil)
+	return ""
 }
