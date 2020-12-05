@@ -58,7 +58,7 @@ So, anywhere PHP uses e.g. `format::build()` or `format_column::get_definition()
 
 Yes, this is extremely verbose, but I don't have a better/cleaner solution right now, and I'd want this to all go away in 3.0 anyways.
 
-### XML documents
+### [Major Change] XML documents
 
 The PHP codebase directly operated on SimpleXML documents and nodes. Aside from coupling issues, this also made it super annoying to test and led to lots of duplicated code (I'm looking at you, tables-named-x xpath).
 
@@ -71,3 +71,56 @@ This object model lives in the `model` package. Operations that traverse and man
 After modifications are made, the `XmlParser` can marshal that data structure back out to XML, and no one is the wiser.
 
 This is maybe the most significant departure from the PHP codebase so far
+
+### [Major Change] SQL building
+
+The PHP codebase directly manipulates and builds SQL strings. Not only are these places a PITA to read and write, they're finnicky to test as well, and are prohibitive in terms of potential post-processing optimizations, like compacting and reordering `ALTER TABLE` statements in mysql.
+
+Instead of directly manipulating SQL, we should build custom objects for each DML/DDL clause and emit these, and marshal them to SQL at the last minute.
+
+I haven't figured out exactly what this looks like yet, but I'm aiming for something like:
+
+```go
+type SqlStatement interface {
+  ToSql(q Quoter) string
+}
+
+type AlterTableSetOwner struct {
+	Table TableRef
+	Role  string
+}
+
+func (self *AlterTableSetOwner) ToSql(q Quoter) string {
+	return fmt.Sprintf(
+		"ALTER TABLE %s OWNER TO %s;\n",
+		self.Table.Qualified(q),
+		q.QuoteRole(self.Role),
+	)
+}
+
+func DoSomethingWithTable() []SqlStatement {
+  ...
+  output = append(output, &AlterTableOwner{
+    Table: TableRef{schema, table},
+    Role: someRole,
+  })
+  ...
+}
+```
+
+Maybe could have intermediate objects for e.g. `ALTER TABLE` statements like
+```go
+type AlterTable struct {
+  Table TableRef
+  Clauses []AlterTablePart
+}
+
+type AlterTablePart interface {
+  GetAlterTableSqlClause(q Quoter) string
+}
+type AlterTableSetOwnerClause struct {
+  Role string
+}
+```
+
+This is all still up in the air, though. I think for the first pass we should do what's straightforward and observe where things are rough and mark those for refactor in 3.0.
