@@ -1,4 +1,4 @@
-package xml
+package model
 
 import (
 	"encoding/xml"
@@ -7,7 +7,7 @@ import (
 
 type DelimitedList []string
 
-var spaceCommaRegex = regexp.MustCompile("[\\,\\s]+")
+var spaceCommaRegex = regexp.MustCompile(`[\,\s]+`)
 
 func (self DelimitedList) UnmarshalXMLAttr(attr xml.Attr) error {
 	copy(spaceCommaRegex.Split(attr.Value, -1), self)

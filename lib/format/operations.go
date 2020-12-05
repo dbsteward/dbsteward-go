@@ -2,17 +2,17 @@ package format
 
 import (
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
-	"github.com/dbsteward/dbsteward/lib/xml"
+	"github.com/dbsteward/dbsteward/lib/model"
 )
 
 type GeneralOperations interface {
-	Build(outputPrefix string, dbDoc xml.DocumentTBD)
+	Build(outputPrefix string, dbDoc *model.Definition)
 	BuildUpgrade(
-		oldOutputPrefix string, oldCompositeFile string, oldDbDoc xml.DocumentTBD, oldFiles []string,
-		newOutputPrefix string, newCompositeFile string, newDbDoc xml.DocumentTBD, newFiles []string,
+		oldOutputPrefix string, oldCompositeFile string, oldDbDoc *model.Definition, oldFiles []string,
+		newOutputPrefix string, newCompositeFile string, newDbDoc *model.Definition, newFiles []string,
 	)
-	ExtractSchema(host string, port uint, name, user, pass string) xml.DocumentTBD
-	CompareDbData(dbDoc xml.DocumentTBD, host string, port uint, name, user, pass string) xml.DocumentTBD
+	ExtractSchema(host string, port uint, name, user, pass string) *model.Definition
+	CompareDbData(dbDoc *model.Definition, host string, port uint, name, user, pass string) *model.Definition
 	SqlDiff(old, new, outputFile string)
 }
 

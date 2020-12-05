@@ -1,8 +1,6 @@
 package pgsql8
 
-import (
-	"github.com/dbsteward/dbsteward/lib/xml"
-)
+import "github.com/dbsteward/dbsteward/lib/model"
 
 var GlobalPgsql8 *Pgsql8 = NewPgsql8()
 
@@ -13,20 +11,20 @@ func NewPgsql8() *Pgsql8 {
 	return &Pgsql8{}
 }
 
-func (self *Pgsql8) Build(outputPrefix string, dbDoc xml.DocumentTBD) {
+func (self *Pgsql8) Build(outputPrefix string, dbDoc *model.Definition) {
 	// TODO(go,pgsql)
 }
 func (self *Pgsql8) BuildUpgrade(
-	oldOutputPrefix string, oldCompositeFile string, oldDbDoc xml.DocumentTBD, oldFiles []string,
-	newOutputPrefix string, newCompositeFile string, newDbDoc xml.DocumentTBD, newFiles []string,
+	oldOutputPrefix string, oldCompositeFile string, oldDbDoc *model.Definition, oldFiles []string,
+	newOutputPrefix string, newCompositeFile string, newDbDoc *model.Definition, newFiles []string,
 ) {
 	// TODO(go,pgsql)
 }
-func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass string) xml.DocumentTBD {
+func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass string) *model.Definition {
 	// TODO(go,pgsql)
 	return nil
 }
-func (self *Pgsql8) CompareDbData(dbDoc xml.DocumentTBD, host string, port uint, name, user, pass string) xml.DocumentTBD {
+func (self *Pgsql8) CompareDbData(dbDoc *model.Definition, host string, port uint, name, user, pass string) *model.Definition {
 	// TODO(go,pgsql)
 	return nil
 }

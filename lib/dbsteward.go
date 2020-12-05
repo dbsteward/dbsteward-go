@@ -6,11 +6,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/xml"
-
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
-
 	"github.com/dbsteward/dbsteward/lib/format"
+	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
+	"github.com/dbsteward/dbsteward/lib/model"
 
 	"github.com/alexflint/go-arg"
 	"github.com/rs/zerolog"
@@ -448,10 +446,10 @@ func (self *DBSteward) calculateFileOutputDirectory(file string) string {
 func (self *DBSteward) doXmlDataInsert(defFile string, dataFile string) {
 	// TODO(go,xmlutil) verify this behavior is correct, add tests. need to change fatals to returns
 	self.Info("Automatic insert data into %s from %s", defFile, dataFile)
-	defDoc, err := xml.LoadDbXmlFile(defFile)
+	defDoc, err := GlobalXmlParser.LoadDefintion(defFile)
 	self.FatalIfError(err, "Failed to load %s", defFile)
 
-	dataDoc, err := xml.LoadDbXmlFile(dataFile)
+	dataDoc, err := GlobalXmlParser.LoadDefintion(dataFile)
 	self.FatalIfError(err, "Failed to load %s", dataFile)
 
 	for _, dataSchema := range dataDoc.Schemas {
@@ -483,7 +481,7 @@ func (self *DBSteward) doXmlDataInsert(defFile string, dataFile string) {
 				self.Info("Adding rows column %s to definition table %s", newColumn, defTable.Name)
 
 				if defTable.Rows == nil {
-					defTable.Rows = &xml.DbRows{}
+					defTable.Rows = &model.DataRows{}
 				}
 				err = defTable.Rows.AddColumn(newColumn, dataRows.Columns[i])
 				self.FatalIfError(err, "Could not add column %s to %s in %s", newColumn, dataTable.Name, dataFile)
@@ -509,7 +507,7 @@ func (self *DBSteward) doXmlConvert(files []string) {
 		self.Info("Upconverting XML definition file: %s", file)
 		self.Info("Upconvert XML output file: %s", convertedFileName)
 
-		doc, err := xml.LoadDbXmlFile(file)
+		doc, err := GlobalXmlParser.LoadDefintion(file)
 		self.FatalIfError(err, "Could not load %s", file)
 		GlobalXmlParser.SqlFormatConvert(doc)
 		convertedXml := GlobalXmlParser.FormatXml(doc)

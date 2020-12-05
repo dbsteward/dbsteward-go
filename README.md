@@ -64,9 +64,9 @@ The PHP codebase directly operated on SimpleXML documents and nodes. Aside from 
 
 Attempting to replicate this in Go will lead to all kinds of heartache, because Go _really_ wants you to decode your document to a custom data structure and operate on that. Accessing the document directly is possible, but probably more pain than its worth.
 
-So, given that almost all XML reads and writes go through `xml_parser` anyways, I've chosen to use that as an abstraction boundary from raw XML to an actual object model.
+So, given that almost all XML reads and writes go through `XmlParser` anyways, I've chosen to use that as an abstraction boundary from raw XML to an actual object model.
 
-This object model, for now, lives in the `xml` package. Operations that traverse and manipulate this model can live either on methods on the model (like the very frequently used xpath lookups), or in external operations (like `DBSteward.doXmlDataInsert()`).
+This object model lives in the `model` package. Operations that traverse and manipulate this model can live either on methods on the model (like the very frequently used `x.GetYNamed(z)`/xpath lookups), or in external operations (like `DBSteward.doXmlDataInsert()`).
 
 After modifications are made, the `XmlParser` can marshal that data structure back out to XML, and no one is the wiser.
 
