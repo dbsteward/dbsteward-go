@@ -6,6 +6,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/dbsteward/dbsteward/lib/xml"
+
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 
 	"github.com/dbsteward/dbsteward/lib/format"
@@ -320,6 +322,12 @@ func (self *DBSteward) ArgParse() {
 func (self *DBSteward) Fatal(s string, args ...interface{}) {
 	self.logger.Fatal().Msgf(s, args...)
 }
+func (self *DBSteward) FatalIfError(err error, s string, args ...interface{}) {
+	if err != nil {
+		args = append(args, err)
+		self.Fatal(s+": %s", args...)
+	}
+}
 
 func (self *DBSteward) Warning(s string, args ...interface{}) {
 	self.logger.Warn().Msgf(s, args...)
@@ -438,14 +446,62 @@ func (self *DBSteward) calculateFileOutputDirectory(file string) string {
 	return CoalesceStr(self.fileOutputDirectory, path.Dir(file))
 }
 
+// Append columns in a table's rows collection, based on a simplified XML definition of what to insert
 func (self *DBSteward) doXmlDataInsert(defFile string, dataFile string) {
-	// TODO(go,core)
+	// TODO(go,xmlutil) verify this behavior is correct, add tests. need to change fatals to returns
+	self.Info("Automatic insert data into %s from %s", defFile, dataFile)
+	defDoc, err := xml.LoadDbXmlFile(defFile)
+	self.FatalIfError(err, "Failed to load %s", defFile)
+
+	dataDoc, err := xml.LoadDbXmlFile(dataFile)
+	self.FatalIfError(err, "Failed to load %s", dataFile)
+
+	for _, dataSchema := range dataDoc.Schemas {
+		defSchema, err := defDoc.GetSchemaNamed(dataSchema.Name)
+		self.FatalIfError(err, "while searching %s", defFile)
+		for _, dataTable := range dataSchema.Tables {
+			defTable, err := defSchema.GetTableNamed(dataTable.Name)
+			self.FatalIfError(err, "while searching %s", defFile)
+
+			dataRows := dataTable.Rows
+			if dataRows == nil {
+				self.Fatal("table %s in %s does not have a <rows> element", dataTable.Name, dataFile)
+			}
+
+			if len(dataRows.Columns) == 0 {
+				self.Fatal("Unexpected: no rows[columns] found in table %s in file %s", dataTable.Name, dataFile)
+			}
+
+			if len(dataRows.Rows) > 1 {
+				self.Fatal("Unexpected: more than one rows->row found in table %s in file %s", dataTable.Name, dataFile)
+			}
+
+			if len(dataRows.Rows[0].Columns) != len(dataRows.Columns) {
+				self.Fatal("Unexpected: Table %s in %s defines %d colums but has %d <col> elements",
+					dataTable.Name, dataFile, len(dataRows.Columns), len(dataRows.Rows[0].Columns))
+			}
+
+			for i, newColumn := range dataRows.Columns {
+				self.Info("Adding rows column %s to definition table %s", newColumn, defTable.Name)
+
+				if defTable.Rows == nil {
+					defTable.Rows = &xml.DbRows{}
+				}
+				err = defTable.Rows.AddColumn(newColumn, dataRows.Columns[i])
+				self.FatalIfError(err, "Could not add column %s to %s in %s", newColumn, dataTable.Name, dataFile)
+			}
+		}
+	}
+
+	defFileModified := defFile + ".xmldatainserted"
+	self.Notice("Saving modified dbsteward definition as %s", defFileModified)
+	GlobalXmlParser.SaveDoc(defFileModified, defDoc)
 }
 func (self *DBSteward) doXmlSort(files []string) {
-	// TODO(go,core)
+	// TODO(go,xmlutil)
 }
 func (self *DBSteward) doXmlConvert(files []string) {
-	// TODO(go,core)
+	// TODO(go,xmlutil)
 }
 func (self *DBSteward) doXmlSlonyId(files []string, slonyOut string) {
 	self.Info("Compositing XML file for Slony ID processing")
