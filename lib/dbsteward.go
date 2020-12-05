@@ -162,7 +162,7 @@ func (self *DBSteward) ArgParse() {
 	self.singleStageUpgrade = args.SingleStageUpgrade
 	if self.singleStageUpgrade {
 		// don't recreate views when in single stage upgrade mode
-		// TODO make view diffing smart enough that this doesn't need to be done
+		// TODO(feat) make view diffing smart enough that this doesn't need to be done
 		self.alwaysRecreateViews = false
 	}
 	self.ignoreOldNames = args.IgnoreOldNames
@@ -230,8 +230,8 @@ func (self *DBSteward) ArgParse() {
 	if mode == ModeXmlSlonyId {
 		if len(args.SlonyIdOut) > 0 {
 			if args.SlonyIdIn[0] == args.SlonyIdOut {
-				// TODO resolve filepaths to do this correctly
-				// TODO check all SlonyIdIn elements
+				// TODO(go,nth) resolve filepaths to do this correctly
+				// TODO(go,nth) check all SlonyIdIn elements
 				self.Fatal("slonyidin and slonyidout file paths should not be the same")
 			}
 		}
@@ -410,19 +410,17 @@ func (self *DBSteward) defineSqlFormatDefaultValues(sqlFormat format.SqlFormat, 
 		self.quoteColumnNames = false
 		dbPort = 5432
 
-		// TODO(go,mssql)
-		// case format.SqlFormatMssql10:
-		// 	self.quoteTableNames = true
-		// 	self.quoteColumnNames = true
-		// 	dbPort = 1433
+	case format.SqlFormatMssql10:
+		self.quoteTableNames = true
+		self.quoteColumnNames = true
+		dbPort = 1433
 
+	case format.SqlFormatMysql5:
+		self.quoteSchemaNames = true
+		self.quoteTableNames = true
+		self.quoteColumnNames = true
+		dbPort = 3306
 		// TODO(go,mysql)
-		// case format.SqlFormatMysql5:
-		// 	self.quoteSchemaNames = true
-		// 	self.quoteTableNames = true
-		// 	self.quoteColumnNames = true
-		// 	dbPort = 3306
-
 		// 	mysql5.GlobalMysql5.UseAutoIncrementTableOptions = args.UseAutoIncrementOptions
 		// 	mysql5.GlobalMysql5.UseSchemaNamePrefix = args.UseSchemaPrefix
 	}
@@ -616,7 +614,7 @@ func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendum
 	if addendums > 0 {
 		self.Info("Collecting %d data addendums", addendums)
 	}
-	// TODO(go,nth) can this just be XmlComposite(files)? why do we need addendums?
+	// TODO(feat) can this just be XmlComposite(files)? why do we need addendums?
 	dbDoc, _ := GlobalXmlParser.XmlCompositeAddendums(files, addendums)
 
 	if len(dataFiles) > 0 {
@@ -645,9 +643,7 @@ func (self *DBSteward) doSlonikConvert(file string, outputFile string) {
 	output := GlobalSlonik.Convert(file)
 	if len(outputFile) > 0 {
 		err := WriteFile(output, outputFile)
-		if err != nil {
-			self.Fatal("Failed to save slonikconvert output to %s: %s", outputFile, err.Error())
-		}
+		self.FatalIfError(err, "Failed to save slonikconvert output to %s", outputFile)
 	} else {
 		fmt.Println(output)
 	}
