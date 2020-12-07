@@ -5,7 +5,9 @@ import (
 )
 
 type Definition struct {
-	Schemas []*Schema `xml:"schema"`
+	Schemas   []*Schema   `xml:"schema"`
+	Languages []*Language `xml:"language"`
+	Functions []*Function `xml:"function"`
 }
 
 func (self *Definition) GetSchemaNamed(name string) (*Schema, error) {

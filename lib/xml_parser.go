@@ -79,3 +79,8 @@ func (self *XmlParser) FormatXml(doc *model.Definition) string {
 	// TODO(go,xmlutil)
 	return ""
 }
+
+func (self *XmlParser) TableDependencyOrder(doc *model.Definition) interface{} {
+	// TODO(go,core)
+	return nil
+}

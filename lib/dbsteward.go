@@ -28,10 +28,10 @@ type DBSteward struct {
 
 	sqlFormat format.SqlFormat
 
-	createLanguages                bool
+	CreateLanguages                bool
 	requireSlonyId                 bool
 	requireSlonySetId              bool
-	generateSlonik                 bool
+	GenerateSlonik                 bool
 	slonyIdStartValue              uint
 	slonyIdSetValue                uint
 	outputFileStatementLimit       uint
@@ -46,9 +46,9 @@ type DBSteward struct {
 	quoteAllNames                  bool
 	quoteIllegalIdentifiers        bool
 	quoteReservedIdentifiers       bool
-	onlySchemaSql                  bool
-	onlyDataSql                    bool
-	limitToTables                  map[string][]string
+	OnlySchemaSql                  bool
+	OnlyDataSql                    bool
+	LimitToTables                  map[string][]string
 	singleStageUpgrade             bool
 	fileOutputDirectory            string
 	fileOutputPrefix               string
@@ -62,8 +62,8 @@ type DBSteward struct {
 	dbUser string
 	dbPass string
 
-	oldDatabase interface{} // TODO(go,core)
-	newDatabase interface{} // TODO(go,core)
+	OldDatabase interface{} // TODO(go,core)
+	NewDatabase interface{} // TODO(go,core)
 }
 
 func NewDBSteward(operations FormatOperationMap) *DBSteward {
@@ -73,10 +73,10 @@ func NewDBSteward(operations FormatOperationMap) *DBSteward {
 
 		sqlFormat: format.SqlFormatUnknown,
 
-		createLanguages:                false,
+		CreateLanguages:                false,
 		requireSlonyId:                 false,
 		requireSlonySetId:              false,
-		generateSlonik:                 false,
+		GenerateSlonik:                 false,
 		slonyIdStartValue:              1,
 		slonyIdSetValue:                1,
 		outputFileStatementLimit:       900,
@@ -91,9 +91,9 @@ func NewDBSteward(operations FormatOperationMap) *DBSteward {
 		quoteAllNames:                  false,
 		quoteIllegalIdentifiers:        false,
 		quoteReservedIdentifiers:       false,
-		onlySchemaSql:                  false,
-		onlyDataSql:                    false,
-		limitToTables:                  map[string][]string{},
+		OnlySchemaSql:                  false,
+		OnlyDataSql:                    false,
+		LimitToTables:                  map[string][]string{},
 		singleStageUpgrade:             false,
 		fileOutputDirectory:            "",
 		fileOutputPrefix:               "",
@@ -107,8 +107,8 @@ func NewDBSteward(operations FormatOperationMap) *DBSteward {
 		dbUser: "",
 		dbPass: "",
 
-		oldDatabase: nil, // TODO(go,core)
-		newDatabase: nil, // TODO(go,core)
+		OldDatabase: nil, // TODO(go,core)
+		NewDatabase: nil, // TODO(go,core)
 	}
 
 	return dbsteward
@@ -150,11 +150,11 @@ func (self *DBSteward) ArgParse() {
 	self.dbPass = args.DbPassword
 
 	// SQL DDL DML DCL output flags
-	self.onlySchemaSql = args.OnlySchemaSql
-	self.onlyDataSql = args.OnlyDataSql
+	self.OnlySchemaSql = args.OnlySchemaSql
+	self.OnlyDataSql = args.OnlyDataSql
 	for _, onlyTable := range args.OnlyTables {
 		table := ParseQualifiedTableName(onlyTable)
-		self.limitToTables[table.Schema] = append(self.limitToTables[table.Schema], table.Table)
+		self.LimitToTables[table.Schema] = append(self.LimitToTables[table.Schema], table.Table)
 	}
 
 	// XML parsing switches
@@ -169,7 +169,7 @@ func (self *DBSteward) ArgParse() {
 	self.ignorePrimaryKeyErrors = args.IgnorePrimaryKeyErrors
 	self.requireSlonyId = args.RequireSlonyId
 	self.requireSlonySetId = args.RequireSlonySetId
-	self.generateSlonik = args.GenerateSlonik
+	self.GenerateSlonik = args.GenerateSlonik
 	self.slonyIdStartValue = args.SlonyIdStartValue
 	self.slonyIdSetValue = args.SlonyIdSetValue
 
@@ -403,7 +403,7 @@ func (self *DBSteward) defineSqlFormatDefaultValues(sqlFormat format.SqlFormat, 
 	var dbPort uint
 	switch sqlFormat {
 	case format.SqlFormatPgsql8:
-		self.createLanguages = true
+		self.CreateLanguages = true
 		self.quoteSchemaNames = false
 		self.quoteTableNames = false
 		self.quoteColumnNames = false
