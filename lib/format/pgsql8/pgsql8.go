@@ -1,6 +1,9 @@
 package pgsql8
 
-import "github.com/dbsteward/dbsteward/lib/model"
+import (
+	"github.com/dbsteward/dbsteward/lib"
+	"github.com/dbsteward/dbsteward/lib/model"
+)
 
 var GlobalPgsql8 *Pgsql8 = NewPgsql8()
 
@@ -12,7 +15,8 @@ func NewPgsql8() *Pgsql8 {
 }
 
 func (self *Pgsql8) Build(outputPrefix string, dbDoc *model.Definition) {
-	// TODO(go,pgsql)
+	buildFile := outputPrefix + "_build.sql"
+	lib.GlobalDBSteward.Info("Building complete file %s", buildFile)
 }
 func (self *Pgsql8) BuildUpgrade(
 	oldOutputPrefix string, oldCompositeFile string, oldDbDoc *model.Definition, oldFiles []string,

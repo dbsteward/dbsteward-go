@@ -46,17 +46,22 @@ func NewDBSteward() *DBSteward {
 
 Anywhere that PHP uses e.g. `xml_parser::something()` or `dbsteward::$FOO`, we want to replace that with the global singleton call/lookup: `GlobalXmlParser.Something()` or `GlobalDBStewawrd.Foo`
 
-### Magic format classes
+### Magic format classes & circular dependencies
 
-There's simply no way to replicate the old magic classname autoloader that would dynamically replace e.g. `format_column::foo()` with `mysql5_column::foo()` according to `dbsteward::$sql_format`.
+There's simply no way to replicate the old magic classname autoloader that would dynamically replace e.g. `format_column::foo()` with `mysql5_column::foo()` according to `dbsteward::$sql_format`. This was due to our use of inheriting common functionality from e.g. `sql99_table`, which needs to invoke e.g. `pgsql8_column`, but without that extra step of indirection, because it's all static class methods, there's no way to know, from `sql99_table`, that you need to call `pgsql8_column` and not `mysql5_column`.
 
-Instead, as described above, each format will export a global singleton object, like `format/pgsql8.GlobalPgsql8` or `format/mysql5.GlobalMysql5Column`. Then the `format` package will export interfaces for all the methods that callers need, as well as a global map from `format.SqlFormat` to that interface.
+Instead, as described above, each format will export a global singleton object, like `format/pgsql8.GlobalPgsql8` or `format/mysql5.GlobalMysql5Column`.
 
-The `DBSteward` object will expose helper methods for each of the format objects, like `FormatGeneral()` or `FormatColumn()`, which will return an instance of that exported interface.
+_tbd: this is still up in the air, will evolve as we fill more out_
 
-So, anywhere PHP uses e.g. `format::build()` or `format_column::get_definition()`, we'd replace that with `GlobalDBSteward.FormatGeneral().Build()` or `GlobalDBSteward.FormatColumn().GetDefinition()`.
+The catch is, that as written in the legacy codebase, `dbsteward` depends on e.g. `pgsql8` and vice versa, creating a circular dependency. Because these live in different packages in the Go rewrite, we can't do this - Go doesn't allow circular dependencies.
 
-Yes, this is extremely verbose, but I don't have a better/cleaner solution right now, and I'd want this to all go away in 3.0 anyways.
+So, we have a somewhat janky setup until we can rectify this:
+
+- `main.go` depends on both `lib` and `lib/format/*`
+- `main.go` creates the global dbsteward instance, with pointers to the format objects
+- `lib` depends on `lib/format` but not `lib/format/*`
+- `lib/format/*` depends on `lib` to call global dbsteward/xmlparser objects
 
 ### [Major Change] XML documents
 
