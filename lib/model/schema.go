@@ -3,8 +3,14 @@ package model
 import "github.com/pkg/errors"
 
 type Schema struct {
-	Name   string   `xml:"name,attr"`
-	Tables []*Table `xml:"table"`
+	Name      string      `xml:"name,attr"`
+	Tables    []*Table    `xml:"table"`
+	Grants    []*Grant    `xml:"grant"`
+	Types     []*DataType `xml:"type"`
+	Sequences []*Sequence `xml:"sequence"`
+	Functions []*Function `xml:"function"`
+	Triggers  []*Trigger  `xml:"trigger"`
+	Views     []*View     `xml:"view"`
 }
 
 func (self *Schema) GetTableNamed(name string) (*Table, error) {

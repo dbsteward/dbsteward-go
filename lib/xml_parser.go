@@ -14,6 +14,12 @@ var GlobalXmlParser *XmlParser = NewXmlParser()
 
 type XmlParser struct{}
 
+type TableDepEntry struct {
+	Schema      *model.Schema
+	Table       *model.Table
+	IgnoreEntry bool
+}
+
 func NewXmlParser() *XmlParser {
 	return &XmlParser{}
 }
@@ -80,7 +86,7 @@ func (self *XmlParser) FormatXml(doc *model.Definition) string {
 	return ""
 }
 
-func (self *XmlParser) TableDependencyOrder(doc *model.Definition) interface{} {
+func (self *XmlParser) TableDependencyOrder(doc *model.Definition) []*TableDepEntry {
 	// TODO(go,core)
 	return nil
 }

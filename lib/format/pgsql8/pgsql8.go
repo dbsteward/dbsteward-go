@@ -65,7 +65,7 @@ func (self *Pgsql8) Build(outputPrefix string, dbDoc *model.Definition) {
 	setCheckFunctionBodiesInfo := ""
 outer:
 	for _, schema := range dbDoc.Schemas {
-		for _, function := range dbDoc.Functions {
+		for _, function := range schema.Functions {
 			if definition, ok := function.TryGetDefinition(); ok {
 				if strings.EqualFold(definition.Language, "sql") && definition.SqlFormat == format.SqlFormatPgsql8 {
 					referencedTableName := self.FunctionDefinitionReferencesTable(definition)
@@ -141,8 +141,126 @@ func (self *Pgsql8) FunctionDefinitionReferencesTable(definition *model.Function
 	return ""
 }
 
-func (self *Pgsql8) BuildSchema(doc *model.Definition, ofs lib.OutputFileSegmenter, tableDep interface{}) {
-	// TODO(go,pgsql)
+func (self *Pgsql8) BuildSchema(doc *model.Definition, ofs lib.OutputFileSegmenter, tableDep []*lib.TableDepEntry) {
+	// schema creation
+	for _, schema := range doc.Schemas {
+		ofs.WriteSql(GlobalSchema.GetCreationSql(schema)...)
+
+		// schema grants
+		for _, grant := range schema.Grants {
+			ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, schema, grant)...)
+		}
+	}
+
+	// types: enumerated list, etc
+	for _, schema := range doc.Schemas {
+		for _, datatype := range schema.Types {
+			ofs.WriteSql(GlobalDataType.GetCreationSql(schema, datatype)...)
+		}
+	}
+
+	// table structure creation
+	for _, schema := range doc.Schemas {
+		// create defined tables
+		GlobalTable.IncludeColumnDefaultNextvalInCreateSql = false
+		for _, table := range schema.Tables {
+			// table definition
+			ofs.WriteSql(GlobalTable.GetCreationSql(schema, table)...)
+
+			// table indexes
+			GlobalDiffIndexes.DiffIndexesTable(ofs, nil, nil, schema, table)
+
+			// table grants
+			for _, grant := range table.Grants {
+				ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, table, grant)...)
+			}
+		}
+		GlobalTable.IncludeColumnDefaultNextvalInCreateSql = true
+
+		// sequences contained in the schema
+		for _, sequence := range schema.Sequences {
+			ofs.WriteSql(GlobalSequence.GetCreationSql(schema, sequence)...)
+
+			// sequence permission grants
+			for _, grant := range sequence.Grants {
+				ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, sequence, grant)...)
+			}
+		}
+
+		// add table nextvals that were omitted
+		for _, table := range schema.Tables {
+			if table.HasDefaultNextVal() {
+				ofs.WriteSql(GlobalTable.GetDefaultNextvalSql(schema, table)...)
+			}
+		}
+	}
+
+	// function definitions
+	for _, schema := range doc.Schemas {
+		for _, function := range schema.Functions {
+			if function.HasDefinition() {
+				ofs.WriteSql(GlobalFunction.GetCreationSql(schema, function)...)
+				// when pg:build_schema() is doing its thing for straight builds, include function permissions
+				// they are not included in pg_function::get_creation_sql()
+
+				// TODO(feat) functions generate sql for both grant and revoke, but other objects only do grant? can we unify this?
+				// TODO(go,pgsql) verify that order of this doesn't matter. this code does grants then revokes, orig does them in xpath order
+				for _, grant := range function.Grants {
+					ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, function, grant)...)
+				}
+				for _, revoke := range function.Revokes {
+					ofs.WriteSql(GlobalPermission.GetRevokeSql(doc, schema, function, revoke)...)
+				}
+			}
+		}
+	}
+
+	// maybe move this but here we're defining column defaults fo realz
+	for _, schema := range doc.Schemas {
+		for _, table := range schema.Tables {
+			// TODO(go,nth) method name consistency - should be GetColumnDefaultsSql?
+			ofs.WriteSql(GlobalTable.DefineTableColumnDefaults(schema, table)...)
+		}
+	}
+
+	// define table primary keys before foreign keys so unique requirements are always met for FOREIGN KEY constraints
+	for _, schema := range doc.Schemas {
+		for _, table := range schema.Tables {
+			GlobalDiffTables.DiffConstraintsTable(ofs, nil, nil, schema, table, "primaryKey", false)
+		}
+	}
+
+	// foreign key references
+	// use the dependency order to specify foreign keys in an order that will satisfy nested foreign keys and etc
+	for _, entry := range tableDep {
+		if entry.IgnoreEntry {
+			continue
+		}
+
+		GlobalDiffTables.DiffConstraintsTable(ofs, nil, nil, entry.Schema, entry.Table, "constraint", false)
+	}
+
+	// trigger definitions
+	for _, schema := range doc.Schemas {
+		for _, trigger := range schema.Triggers {
+			if trigger.SqlFormat == format.SqlFormatPgsql8 {
+				ofs.WriteSql(GlobalTrigger.GetCreationSql(schema, trigger)...)
+			}
+		}
+	}
+
+	GlobalDiffViews.CreateViewsOrdered(ofs, nil, doc)
+
+	// view permission grants
+	for _, schema := range doc.Schemas {
+		for _, view := range schema.Views {
+			for _, grant := range view.Grants {
+				ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, view, grant)...)
+			}
+		}
+	}
+
+	GlobalDiff.UpdateDatabaseConfigParameters(ofs, nil, doc)
 }
 
 func (self *Pgsql8) BuildData(doc *model.Definition, ofs lib.OutputFileSegmenter, tableDep interface{}) {
