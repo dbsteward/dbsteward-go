@@ -131,12 +131,104 @@ func (self *Pgsql8) BuildUpgrade(
 	}
 }
 func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass string) *model.Definition {
-	// TODO(go,pgsql)
+	// TODO(go,pgsql) this one's gonna be a whole thing, probably need its own file
 	return nil
 }
-func (self *Pgsql8) CompareDbData(dbDoc *model.Definition, host string, port uint, name, user, pass string) *model.Definition {
+func (self *Pgsql8) CompareDbData(doc *model.Definition, host string, port uint, name, user, pass string) *model.Definition {
+	dbsteward := lib.GlobalDBSteward
+
+	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as user %s", host, port, name, user)
+	GlobalDb.Connect(host, port, name, user, pass)
+
+	dbsteward.Info("Comparing composited dbsteward definition data rows to postgresql database connection table contents")
+	// compare the composited dbsteward document to the established database connection
+	// effectively looking to see if rows are found that match primary keys, and if their contents are the same
+	for _, schema := range doc.Schemas {
+		for _, table := range schema.Tables {
+			if table.Rows != nil {
+				// TODO(go,nth) quote this
+				tableName := fmt.Sprintf("%s.%s", schema.Name, table.Name)
+				pkCols := table.PrimaryKey
+				cols := table.Rows.Columns
+
+				colTypes := map[string]string{}
+				for _, column := range table.Columns {
+					colType := column.Type
+
+					// foreign keyed columns inherit their foreign reference type
+					// TODO(go,3) this seems like something nice to have on the model
+					if len(column.ForeignTable) > 0 && len(column.ForeignColumn) > 0 {
+						if len(colType) > 0 {
+							dbsteward.Fatal("type of %s was found for column %s but it is foreign keyed", colType, column)
+						}
+						foreign := lib.GlobalDBX.ForeignKey(doc, schema, table, column)
+						colType = foreign.Column.Type
+					}
+
+					if len(colType) == 0 {
+						dbsteward.Fatal("%s column %s type was not found", table.Name, column.Name)
+					}
+
+					colTypes[column.Name] = colType
+				}
+
+				for _, row := range table.Rows.Rows {
+					// TODO(go,nth) can we fix this direct sql construction with a ToSql struct?
+					pkExprs := []string{}
+					for _, pkCol := range pkCols {
+						// TODO(go,nth) can we put this column lookup in the model? `row.GetValueForColumn(pkCol)`
+						pkIndex := lib.IndexOfStr(pkCol, cols)
+						if pkIndex < 0 {
+							dbsteward.Fatal("failed to find %s.%s primary key column %s in cols list %v",
+								schema.Name, table.Name, pkCol, cols)
+						}
+
+						expr := fmt.Sprintf(
+							"%s = %s",
+							self.GetQuotedColumnName(pkCol),
+							self.ValueEscape(colTypes[pkCol], row.Columns[pkIndex], doc),
+						)
+						pkExprs = append(pkExprs, expr)
+					}
+					pkExpr := strings.Join(pkExprs, " AND ")
+
+					// TODO(go,nth) use parameterized queries
+					sql := fmt.Sprintf(`SELECT * FROM %s WHERE %s`, tableName, pkExpr)
+					res := GlobalDb.Query(sql)
+
+					if row.Delete {
+						if res.RowCount() > 0 {
+							dbsteward.Notice("%s row marked for DELETE found WHERE %s", tableName, pkExpr)
+						}
+					} else if res.RowCount() == 0 {
+						dbsteward.Notice("%s does not contain row WHERE %s", tableName, pkExpr)
+					} else if res.RowCount() > 1 {
+						dbsteward.Notice("%s contains more than one row WHERE %s", tableName, pkExpr)
+						for res.Next() {
+							dbRow := res.FetchRowStringMap()
+							dbsteward.Notice("\t%v", dbRow)
+						}
+						// TODO(go,nth) error handling
+					} else {
+						res.Next()
+						dbRow := res.FetchRowStringMap()
+						for i, col := range cols {
+							valuesMatch, xmlValue, dbValue := self.compareDbDataRow(colTypes[col], row.Columns[i], dbRow[col])
+							if !valuesMatch {
+								dbsteward.Warning("%s row column WHERE (%s) %s data does not match database row column: '%s' vs '%s'",
+									tableName, pkExpr, col, xmlValue, dbValue)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return doc
+}
+func (self *Pgsql8) compareDbDataRow(colType, xmlValue, dbValue string) (bool, string, string) {
 	// TODO(go,pgsql)
-	return nil
+	return false, xmlValue, dbValue
 }
 func (self *Pgsql8) SqlDiff(old, new, outputFile string) {
 	// TODO(go,pgsql)
@@ -345,4 +437,15 @@ func (self *Pgsql8) BuildData(doc *model.Definition, ofs lib.OutputFileSegmenter
 
 	// include all of the unstaged sql elements
 	lib.GlobalDBX.BuildStagedSql(doc, ofs, -1)
+}
+
+func (self *Pgsql8) GetQuotedColumnName(name string) string {
+	// TODO(go,pgsql8) quoting
+	return name
+}
+
+func (self *Pgsql8) ValueEscape(datatype string, value string, doc *model.Definition) string {
+	// TODO(go,pgsql8) see pgsql8::value_escape()
+	// TODO(go,3) it'd be amazing to have a dedicated Value type that encapsulates this logic and is type-aware, instead of the mishmash of string parsing and type matching we do
+	return value
 }

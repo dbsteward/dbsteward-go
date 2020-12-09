@@ -45,7 +45,7 @@ type Args struct {
 	DbPort       uint
 	DbName       string
 	DbUser       string
-	DbPassword   string
+	DbPassword   *string
 
 	// XML utilities
 	XmlSort                 []string

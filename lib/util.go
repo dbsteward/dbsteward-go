@@ -1,10 +1,13 @@
 package lib
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"strings"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 type QualifiedTable struct {
@@ -60,4 +63,20 @@ func InArrayStr(target string, list []string) bool {
 		}
 	}
 	return false
+}
+
+func IndexOfStr(target string, list []string) int {
+	for i, el := range list {
+		if el == target {
+			return i
+		}
+	}
+	return -1
+}
+
+// prompts user for input on the console, hiding input
+func PromptPassword(prompt string) (string, error) {
+	fmt.Printf("Password: ")
+	d, err := terminal.ReadPassword(0)
+	return string(d), err
 }

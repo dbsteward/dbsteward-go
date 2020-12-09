@@ -143,11 +143,11 @@ func (self *DBSteward) ArgParse() {
 	}
 
 	// database connectivity values
-	self.dbHost = args.DbHost
-	self.dbPort = args.DbPort
-	self.dbName = args.DbName
-	self.dbUser = args.DbUser
-	self.dbPass = args.DbPassword
+	// self.dbHost = args.DbHost
+	// self.dbPort = args.DbPort
+	// self.dbName = args.DbName
+	// self.dbUser = args.DbUser
+	// self.dbPass = args.DbPassword
 
 	// SQL DDL DML DCL output flags
 	self.OnlySchemaSql = args.OnlySchemaSql
@@ -219,6 +219,11 @@ func (self *DBSteward) ArgParse() {
 		}
 		if len(args.DbUser) == 0 {
 			self.Fatal("dbuser not specified")
+		}
+		if args.DbPassword == nil {
+			p, err := PromptPassword("Connection password: ")
+			self.FatalIfError(err, "Could not read password input")
+			args.DbPassword = &p
 		}
 	}
 	if mode == ModeExtract || mode == ModeSqlDiff {
@@ -302,9 +307,9 @@ func (self *DBSteward) ArgParse() {
 	case ModeDiff:
 		self.doDiff(args.OldXmlFiles, args.NewXmlFiles, args.PgDataXml)
 	case ModeExtract:
-		self.doExtract(args.DbHost, args.DbPort, args.DbName, args.DbUser, args.DbPassword, args.OutputFile)
+		self.doExtract(args.DbHost, args.DbPort, args.DbName, args.DbUser, *args.DbPassword, args.OutputFile)
 	case ModeDbDataDiff:
-		self.doDbDataDiff(args.XmlFiles, args.PgDataXml, args.XmlCollectDataAddendums, args.DbHost, args.DbPort, args.DbName, args.DbUser, args.DbPassword)
+		self.doDbDataDiff(args.XmlFiles, args.PgDataXml, args.XmlCollectDataAddendums, args.DbHost, args.DbPort, args.DbName, args.DbUser, *args.DbPassword)
 	case ModeSqlDiff:
 		self.doSqlDiff(args.OldSql, args.NewSql, args.OutputFile)
 	case ModeSlonikConvert:

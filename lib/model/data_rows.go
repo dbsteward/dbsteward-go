@@ -29,4 +29,5 @@ func (self *DataRows) HasColumn(name string) bool {
 
 type DataRow struct {
 	Columns []string `xml:"col"`
+	Delete  bool     `xml:"delete,attr"` // TODO(go,core) does this un/marshal properly?
 }
