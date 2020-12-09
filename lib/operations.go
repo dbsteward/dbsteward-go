@@ -13,7 +13,7 @@ type FormatOperations interface {
 	)
 	ExtractSchema(host string, port uint, name, user, pass string) *model.Definition
 	CompareDbData(dbDoc *model.Definition, host string, port uint, name, user, pass string) *model.Definition
-	SqlDiff(old, new, outputFile string)
+	SqlDiff(old, new []string, outputFile string)
 }
 
 type FormatOperationMap = map[format.SqlFormat]FormatOperations

@@ -23,3 +23,7 @@ func (self *Diff) UpdateDatabaseConfigParameters(ofs lib.OutputFileSegmenter, ol
 func (self *Diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *model.Definition, upgradePrefix string) {
 	// TODO(go,pgsql)
 }
+
+func (self *Diff) DiffSql(old, new []string, upgradePrefix string) {
+	// TODO(go,pgsql)
+}

@@ -262,8 +262,12 @@ func (self *Pgsql8) pgdataHomogenize(colType string, value string) string {
 	}
 }
 
-func (self *Pgsql8) SqlDiff(old, new, outputFile string) {
-	// TODO(go,pgsql)
+func (self *Pgsql8) SqlDiff(old, new []string, upgradePrefix string) {
+	lib.GlobalDBSteward.Notice("Calculating sql differences:")
+	lib.GlobalDBSteward.Notice("Old set: %v", old)
+	lib.GlobalDBSteward.Notice("New set: %v", new)
+	lib.GlobalDBSteward.Notice("Upgrade: %s", upgradePrefix)
+	GlobalDiff.DiffSql(old, new, upgradePrefix)
 }
 
 func (self *Pgsql8) SlonyCompare(file string) {

@@ -639,7 +639,7 @@ func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendum
 	output := self.FormatOperations().CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
 	GlobalXmlParser.SaveDoc(compositeFile, output)
 }
-func (self *DBSteward) doSqlDiff(oldSql string, newSql string, outputFile string) {
+func (self *DBSteward) doSqlDiff(oldSql, newSql []string, outputFile string) {
 	self.FormatOperations().SqlDiff(oldSql, newSql, outputFile)
 }
 func (self *DBSteward) doSlonikConvert(file string, outputFile string) {

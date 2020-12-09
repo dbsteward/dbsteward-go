@@ -58,8 +58,8 @@ type Args struct {
 	OutputFilePrefix string
 
 	// SQL diffing
-	OldSql     string
-	NewSql     string
+	OldSql     []string
+	NewSql     []string
 	OutputFile string
 
 	// Slony utils
