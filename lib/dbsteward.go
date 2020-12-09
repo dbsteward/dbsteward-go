@@ -38,14 +38,14 @@ type DBSteward struct {
 	ignoreCustomRoles              bool
 	ignorePrimaryKeyErrors         bool
 	RequireVerboseIntervalNotation bool
-	quoteSchemaNames               bool
-	quoteObjectNames               bool
-	quoteTableNames                bool
-	quoteFunctionNames             bool
-	quoteColumnNames               bool
-	quoteAllNames                  bool
-	quoteIllegalIdentifiers        bool
-	quoteReservedIdentifiers       bool
+	QuoteSchemaNames               bool
+	QuoteObjectNames               bool
+	QuoteTableNames                bool
+	QuoteFunctionNames             bool
+	QuoteColumnNames               bool
+	QuoteAllNames                  bool
+	QuoteIllegalIdentifiers        bool
+	QuoteReservedIdentifiers       bool
 	OnlySchemaSql                  bool
 	OnlyDataSql                    bool
 	LimitToTables                  map[string][]string
@@ -83,14 +83,14 @@ func NewDBSteward(operations FormatOperationMap) *DBSteward {
 		ignoreCustomRoles:              false,
 		ignorePrimaryKeyErrors:         false,
 		RequireVerboseIntervalNotation: false,
-		quoteSchemaNames:               false,
-		quoteObjectNames:               false,
-		quoteTableNames:                false,
-		quoteFunctionNames:             false,
-		quoteColumnNames:               false,
-		quoteAllNames:                  false,
-		quoteIllegalIdentifiers:        false,
-		quoteReservedIdentifiers:       false,
+		QuoteSchemaNames:               false,
+		QuoteObjectNames:               false,
+		QuoteTableNames:                false,
+		QuoteFunctionNames:             false,
+		QuoteColumnNames:               false,
+		QuoteAllNames:                  false,
+		QuoteIllegalIdentifiers:        false,
+		QuoteReservedIdentifiers:       false,
 		OnlySchemaSql:                  false,
 		OnlyDataSql:                    false,
 		LimitToTables:                  map[string][]string{},
@@ -285,12 +285,12 @@ func (self *DBSteward) ArgParse() {
 		self.dbPort = self.defineSqlFormatDefaultValues(self.sqlFormat, args)
 	}
 
-	self.quoteSchemaNames = args.QuoteSchemaNames
-	self.quoteTableNames = args.QuoteTableNames
-	self.quoteColumnNames = args.QuoteColumnNames
-	self.quoteAllNames = args.QuoteAllNames
-	self.quoteIllegalIdentifiers = args.QuoteIllegalNames
-	self.quoteReservedIdentifiers = args.QuoteReservedNames
+	self.QuoteSchemaNames = args.QuoteSchemaNames
+	self.QuoteTableNames = args.QuoteTableNames
+	self.QuoteColumnNames = args.QuoteColumnNames
+	self.QuoteAllNames = args.QuoteAllNames
+	self.QuoteIllegalIdentifiers = args.QuoteIllegalNames
+	self.QuoteReservedIdentifiers = args.QuoteReservedNames
 
 	// TODO(go,3) move all of these to separate subcommands
 	switch mode {
@@ -409,20 +409,20 @@ func (self *DBSteward) defineSqlFormatDefaultValues(sqlFormat format.SqlFormat, 
 	switch sqlFormat {
 	case format.SqlFormatPgsql8:
 		self.CreateLanguages = true
-		self.quoteSchemaNames = false
-		self.quoteTableNames = false
-		self.quoteColumnNames = false
+		self.QuoteSchemaNames = false
+		self.QuoteTableNames = false
+		self.QuoteColumnNames = false
 		dbPort = 5432
 
 	case format.SqlFormatMssql10:
-		self.quoteTableNames = true
-		self.quoteColumnNames = true
+		self.QuoteTableNames = true
+		self.QuoteColumnNames = true
 		dbPort = 1433
 
 	case format.SqlFormatMysql5:
-		self.quoteSchemaNames = true
-		self.quoteTableNames = true
-		self.quoteColumnNames = true
+		self.QuoteSchemaNames = true
+		self.QuoteTableNames = true
+		self.QuoteColumnNames = true
 		dbPort = 3306
 		// TODO(go,mysql)
 		// 	mysql5.GlobalMysql5.UseAutoIncrementTableOptions = args.UseAutoIncrementOptions

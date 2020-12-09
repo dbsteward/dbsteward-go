@@ -63,6 +63,67 @@ So, we have a somewhat janky setup until we can rectify this:
 - `lib` depends on `lib/format` but not `lib/format/*`
 - `lib/format/*` depends on `lib` to call global dbsteward/xmlparser objects
 
+### Sql99 and Abstract Classes
+
+Go does not have a concept of "abstract classes" like PHP or Java.
+
+What it does have is struct and interface embedding. Embedding a struct (either by value or by pointer) or an interface causes the containing struct to automatically proxy field and method calls to the embedded struct. This embedded object can be referred to explicitly by its type name.
+
+We can utilize the following idiom to mimic PHP/Java style abstract classes in Go:
+
+```go
+type ThingInterface interface {
+  DoSomething()
+  DoSomethingElse()
+}
+
+type AbstractThing struct {
+  ThingInterface // embedding the interface
+}
+
+func (self *AbstractThing) DoSomething() {
+  self.DoSomethingElse()
+}
+
+type ConcreteThing struct {
+  *AbstractThing // embedding the struct
+}
+
+func (self *ConcreteThing) DoSomethingElse() {
+  fmt.Println("hi")
+}
+
+func main() {
+  abstract := &AbstractThing{}
+  concrete := &ConcreteThing {
+    AbstractThing: abstract,
+  }
+  concrete.AbstractThing.ThingInterface = concrete
+
+  concrete.DoSomething() // "hi"
+}
+```
+
+This is quite roundabout, but, from main:
+
+1. make a new `AbstractThing`
+2. make a new `ConcreteThing`, explicitly setting the embedded `AbstractThing`. (there's an implicit fieldname based on the name of the embedded type)
+3. once we have a `concrete` instance, we can set the `AbstractThing`'s embedded instance to it.
+   - `AbstractThing` embeds a `ThingInterface`, so `concrete` must implement `ThingInterface` to be assigned
+   - `ConcreteThing`s implement `ThingInterface` because they embed `AbstractThing`, which in turn embeds `ThingInterface`, meaning that `concrete` has all the methods of `ThingInterface`
+   - therefore anything that embeds an interface, even transitively, automatically implements that interface
+4. `concrete.DoSomething()` invokes `ConcreteThing.DoSomething(concrete)`, but there is no such method, so it's proxied to the embedded `abstract` (from the explicit field from step 2)
+5. `abstract.DoSomething()` invokes `AbstractThing.DoSomething(abstract)`, whose implementation calls `self.DoSomethingElse()`
+6. `self.DoSomethingElse()` invokes `AbstractThing.DoSomethingElse(abstract)`, but there is no such method, so it's proxied to the embedded `concrete` (from the assignment of `concrete.AbstractThing.ThingInterface` in step 3)
+7. `concrete.DoSomethingElse()` invokes `ConcreteThing.DoSomethingElse(concrete)`, whose implementation calls `Println`
+8. hi
+
+So, TL;DR, we set it up so that missed method calls from the child go to the parent, and missed method calls from the parent go to the child.
+
+And if you're wondering what happens if you call a method that's defined on the interface, but neither parent or child? Well, it goes around and around forever looking for that method.
+
+All in all, this is adequate for the first pass, but embedding is such a huge footgun, I'm hoping to get rid of this in 3.0.
+
 ### [Major Change] XML documents
 
 The PHP codebase directly operated on SimpleXML documents and nodes. Aside from coupling issues, this also made it super annoying to test and led to lots of duplicated code (I'm looking at you, tables-named-x xpath).

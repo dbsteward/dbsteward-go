@@ -8,6 +8,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
+	"github.com/dbsteward/dbsteward/lib/format/sql99"
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/model"
@@ -16,13 +17,17 @@ import (
 var GlobalPgsql8 *Pgsql8 = NewPgsql8()
 
 type Pgsql8 struct {
+	*sql99.Sql99
 	EscapeStringValues bool
 }
 
 func NewPgsql8() *Pgsql8 {
-	return &Pgsql8{
+	pgsql := &Pgsql8{
+		Sql99:              sql99.NewSql99(),
 		EscapeStringValues: false,
 	}
+	pgsql.Sql99.Operations = pgsql
+	return pgsql
 }
 
 func (self *Pgsql8) Build(outputPrefix string, dbDoc *model.Definition) {
@@ -492,11 +497,6 @@ func (self *Pgsql8) BuildData(doc *model.Definition, ofs lib.OutputFileSegmenter
 
 	// include all of the unstaged sql elements
 	lib.GlobalDBX.BuildStagedSql(doc, ofs, -1)
-}
-
-func (self *Pgsql8) GetQuotedColumnName(name string) string {
-	// TODO(go,pgsql8) quoting
-	return name
 }
 
 func (self *Pgsql8) ValueEscape(datatype string, value string, doc *model.Definition) string {
