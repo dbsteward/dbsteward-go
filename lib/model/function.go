@@ -16,6 +16,7 @@ type Function struct {
 type FunctionDefinition struct {
 	SqlFormat format.SqlFormat `xml:"sqlFormat"`
 	Language  string           `xml:"language"`
+	Text      string           `xml:",chardata"`
 }
 
 func (self *Function) HasDefinition() bool {

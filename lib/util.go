@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -79,4 +80,9 @@ func PromptPassword(prompt string) (string, error) {
 	fmt.Printf("Password: ")
 	d, err := terminal.ReadPassword(0)
 	return string(d), err
+}
+
+// matches the pattern against the text, case insensitively, returning a slice containing the whole match and any captures, or nil if there was no match
+func IMatch(pat string, text string) []string {
+	return regexp.MustCompile("(?i)" + pat).FindStringSubmatch(text)
 }

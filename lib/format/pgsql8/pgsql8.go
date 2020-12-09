@@ -69,7 +69,7 @@ outer:
 		for _, function := range schema.Functions {
 			if definition, ok := function.TryGetDefinition(); ok {
 				if strings.EqualFold(definition.Language, "sql") && definition.SqlFormat == format.SqlFormatPgsql8 {
-					referencedTableName := self.FunctionDefinitionReferencesTable(definition)
+					referencedTableName := self.functionDefinitionReferencesTable(definition)
 					if len(referencedTableName) > 0 {
 						referencedSchemaName := sqlParser.GetSchemaName(referencedTableName, dbDoc)
 						// TODO(go,pgsql8) handle error cases
@@ -277,8 +277,24 @@ func (self *Pgsql8) SlonyDiff(oldFile string, newFile string) {
 	// TODO(go,slony)
 }
 
-func (self *Pgsql8) FunctionDefinitionReferencesTable(definition *model.FunctionDefinition) string {
-	// TODO(go,pgsql8)
+func (self *Pgsql8) functionDefinitionReferencesTable(definition *model.FunctionDefinition) string {
+	// TODO(go,nth) move this to model?
+	// TODO(feat) a function could reference many tables, but this only returns the first; make it understand many tables
+	// TODO(feat) this won't detect quoted table names
+	// TODO(go,pgsql) test this
+	validTableName := `[\w\.]+`
+	if matches := lib.IMatch(fmt.Sprintf(`SELECT\s+.+\s+FROM\s+(%s)`, validTableName), definition.Text); matches != nil {
+		return matches[1]
+	}
+	if matches := lib.IMatch(fmt.Sprintf(`INSERT\s+INTO\s+(%s)`, validTableName), definition.Text); matches != nil {
+		return matches[1]
+	}
+	if matches := lib.IMatch(fmt.Sprintf(`DELETE\s+FROM\s+(?:ONLY)?\s*(%s)`, validTableName), definition.Text); matches != nil {
+		return matches[1]
+	}
+	if matches := lib.IMatch(fmt.Sprintf(`UPDATE\s+(?:ONLY)?\s*(%s)`, validTableName), definition.Text); matches != nil {
+		return matches[1]
+	}
 	return ""
 }
 
