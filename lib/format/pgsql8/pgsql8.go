@@ -227,9 +227,41 @@ func (self *Pgsql8) CompareDbData(doc *model.Definition, host string, port uint,
 	return doc
 }
 func (self *Pgsql8) compareDbDataRow(colType, xmlValue, dbValue string) (bool, string, string) {
-	// TODO(go,pgsql)
+	colType = strings.ToLower(colType)
+	xmlValue = self.pgdataHomogenize(colType, xmlValue)
+	dbValue = self.pgdataHomogenize(colType, dbValue)
+	if xmlValue == dbValue {
+		return true, xmlValue, dbValue
+	}
+
+	// if they are not equal, and are alternately expressable, ask the database
+	if strings.HasPrefix(colType, "time") || strings.HasPrefix(colType, "date") || strings.HasPrefix(colType, "interval") {
+		if len(xmlValue) > 0 && len(dbValue) > 0 {
+			sql := fmt.Sprintf(`SELECT $1::%s = $2::%[1]s`, colType)
+			var eq bool
+			err := GlobalDb.QueryVal(&eq, sql, xmlValue, dbValue)
+			lib.GlobalDBSteward.FatalIfError(err, "Could not query database")
+			return eq, xmlValue, dbValue
+		}
+	}
+
 	return false, xmlValue, dbValue
 }
+func (self *Pgsql8) pgdataHomogenize(colType string, value string) string {
+	switch {
+	case strings.HasPrefix(colType, "bool"):
+		switch strings.ToLower(value) {
+		case "true", "t":
+			return "true"
+		default:
+			return "false"
+		}
+
+	default:
+		return value
+	}
+}
+
 func (self *Pgsql8) SqlDiff(old, new, outputFile string) {
 	// TODO(go,pgsql)
 }

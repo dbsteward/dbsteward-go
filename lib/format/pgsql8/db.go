@@ -20,6 +20,12 @@ func (self *Db) Connect(host string, port uint, name, user, pass string) {
 	// TODO(go,pgsql)
 }
 
-func (self *Db) Query(sql string) DbResult {
+func (self *Db) Query(sql string, params ...interface{}) DbResult {
+	// TODO(go,pgsql)
+	return nil
+}
+
+func (self *Db) QueryVal(val interface{}, sql string, params ...interface{}) error {
+	// TODO(go,pgsql)
 	return nil
 }
