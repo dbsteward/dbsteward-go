@@ -16,10 +16,13 @@ import (
 var GlobalPgsql8 *Pgsql8 = NewPgsql8()
 
 type Pgsql8 struct {
+	EscapeStringValues bool
 }
 
 func NewPgsql8() *Pgsql8 {
-	return &Pgsql8{}
+	return &Pgsql8{
+		EscapeStringValues: false,
+	}
 }
 
 func (self *Pgsql8) Build(outputPrefix string, dbDoc *model.Definition) {
@@ -497,7 +500,30 @@ func (self *Pgsql8) GetQuotedColumnName(name string) string {
 }
 
 func (self *Pgsql8) ValueEscape(datatype string, value string, doc *model.Definition) string {
-	// TODO(go,pgsql8) see pgsql8::value_escape()
 	// TODO(go,3) it'd be amazing to have a dedicated Value type that encapsulates this logic and is type-aware, instead of the mishmash of string parsing and type matching we do
+	if len(value) == 0 {
+		// TODO(feat) this can't distinguish between empty strings and null
+		return "NULL"
+	}
+
+	// complain when we require verbose interval notation but data uses a different format
+	if lib.GlobalDBSteward.RequireVerboseIntervalNotation && lib.IMatch("interval", datatype) != nil && value[0] != '@' {
+		lib.GlobalDBSteward.Fatal("bad interval value: '%s' -- interval types must be postgresql verbose format: '@ 2 hours 30 minutes'", value)
+	}
+
+	// data types that should be quoted
+	enumRegex := lib.GlobalDBX.EnumRegex(doc)
+	if len(enumRegex) > 0 {
+		enumRegex = "|" + enumRegex
+	}
+	if lib.IMatch(fmt.Sprintf(`^(bool.*|character.*|string|text|date|time.*|(var)?char.*|interval|money|inet|uuid|ltree%s)`, enumRegex), datatype) != nil {
+		value = fmt.Sprintf(`'%s'`, value)
+		// data types that should have E prefix to their quotes
+		if self.EscapeStringValues && lib.IMatch(`^(character.*|string|text|(var)?char.*)`, datatype) != nil {
+			value = "E" + value
+		}
+		return value
+	}
+
 	return value
 }

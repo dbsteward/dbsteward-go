@@ -37,7 +37,7 @@ type DBSteward struct {
 	outputFileStatementLimit       uint
 	ignoreCustomRoles              bool
 	ignorePrimaryKeyErrors         bool
-	requireVerboseIntervalNotation bool
+	RequireVerboseIntervalNotation bool
 	quoteSchemaNames               bool
 	quoteObjectNames               bool
 	quoteTableNames                bool
@@ -82,7 +82,7 @@ func NewDBSteward(operations FormatOperationMap) *DBSteward {
 		outputFileStatementLimit:       900,
 		ignoreCustomRoles:              false,
 		ignorePrimaryKeyErrors:         false,
-		requireVerboseIntervalNotation: false,
+		RequireVerboseIntervalNotation: false,
 		quoteSchemaNames:               false,
 		quoteObjectNames:               false,
 		quoteTableNames:                false,
