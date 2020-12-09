@@ -113,10 +113,22 @@ outer:
 	}
 }
 func (self *Pgsql8) BuildUpgrade(
-	oldOutputPrefix string, oldCompositeFile string, oldDbDoc *model.Definition, oldFiles []string,
-	newOutputPrefix string, newCompositeFile string, newDbDoc *model.Definition, newFiles []string,
+	oldOutputPrefix string, oldCompositeFile string, oldDoc *model.Definition, oldFiles []string,
+	newOutputPrefix string, newCompositeFile string, newDoc *model.Definition, newFiles []string,
 ) {
-	// TODO(go,pgsql)
+	upgradePrefix := newOutputPrefix + "_upgrade"
+
+	lib.GlobalDBSteward.Info("Calculating old table foreign key dependency order...")
+	GlobalDiff.OldTableDependency = lib.GlobalXmlParser.TableDependencyOrder(oldDoc)
+
+	lib.GlobalDBSteward.Info("Calculating new table foreign key dependency order...")
+	GlobalDiff.NewTableDependency = lib.GlobalXmlParser.TableDependencyOrder(newDoc)
+
+	GlobalDiff.DiffDoc(oldCompositeFile, newCompositeFile, oldDoc, newDoc, upgradePrefix)
+
+	if lib.GlobalDBSteward.GenerateSlonik {
+		// TODO(go,slony)
+	}
 }
 func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass string) *model.Definition {
 	// TODO(go,pgsql)

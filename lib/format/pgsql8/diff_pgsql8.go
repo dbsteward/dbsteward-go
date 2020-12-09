@@ -8,6 +8,8 @@ import (
 var GlobalDiff *Diff = NewDiff()
 
 type Diff struct {
+	OldTableDependency []*lib.TableDepEntry
+	NewTableDependency []*lib.TableDepEntry
 }
 
 func NewDiff() *Diff {
@@ -15,5 +17,9 @@ func NewDiff() *Diff {
 }
 
 func (self *Diff) UpdateDatabaseConfigParameters(ofs lib.OutputFileSegmenter, oldDoc *model.Definition, newDoc *model.Definition) {
+	// TODO(go,pgsql)
+}
+
+func (self *Diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *model.Definition, upgradePrefix string) {
 	// TODO(go,pgsql)
 }
