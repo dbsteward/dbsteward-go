@@ -90,3 +90,10 @@ func (self *XmlParser) TableDependencyOrder(doc *model.Definition) []*TableDepEn
 	// TODO(go,core)
 	return nil
 }
+
+func (self *XmlParser) InheritanceGetColumn(table *model.Table, columnName string) []*model.Column {
+	// TODO(go,nth) definitely seems like this should return 0 or 1 columns, not a list, right?
+	// TODO(go,nth) this should probably go directly on the table
+	// TODO(go,core)
+	return nil
+}

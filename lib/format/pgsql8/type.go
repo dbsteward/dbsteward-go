@@ -18,3 +18,8 @@ func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataT
 	// TODO(go,pgsql)
 	return nil
 }
+
+func (self *DataType) IsLinkedTableType(spec string) bool {
+	// TODO(go,pgsql) see pgsql8::PATTERN_TABLE_LINKED_TYPES
+	return false
+}

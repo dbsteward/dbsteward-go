@@ -52,3 +52,12 @@ func CoalesceStr(strs ...string) string {
 	}
 	return ""
 }
+
+func InArrayStr(target string, list []string) bool {
+	for _, el := range list {
+		if el == target {
+			return true
+		}
+	}
+	return false
+}

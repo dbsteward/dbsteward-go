@@ -23,6 +23,7 @@ func NewPgsql8() *Pgsql8 {
 }
 
 func (self *Pgsql8) Build(outputPrefix string, dbDoc *model.Definition) {
+	// TODO(go,4) can we just consider a build(def) to be diff(null, def)?
 	// some shortcuts, since we're going to be typing a lot here
 	dbsteward := lib.GlobalDBSteward
 	xmlParser := lib.GlobalXmlParser
@@ -148,6 +149,7 @@ func (self *Pgsql8) BuildSchema(doc *model.Definition, ofs lib.OutputFileSegment
 
 		// schema grants
 		for _, grant := range schema.Grants {
+			// TODO(feat) revokes too?
 			ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, schema, grant)...)
 		}
 	}
@@ -172,6 +174,7 @@ func (self *Pgsql8) BuildSchema(doc *model.Definition, ofs lib.OutputFileSegment
 
 			// table grants
 			for _, grant := range table.Grants {
+				// TODO(feat) revokes too?
 				ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, table, grant)...)
 			}
 		}
@@ -183,6 +186,7 @@ func (self *Pgsql8) BuildSchema(doc *model.Definition, ofs lib.OutputFileSegment
 
 			// sequence permission grants
 			for _, grant := range sequence.Grants {
+				// TODO(feat) revokes too?
 				ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, sequence, grant)...)
 			}
 		}
@@ -232,6 +236,7 @@ func (self *Pgsql8) BuildSchema(doc *model.Definition, ofs lib.OutputFileSegment
 
 	// foreign key references
 	// use the dependency order to specify foreign keys in an order that will satisfy nested foreign keys and etc
+	// TODO(feat) shouldn't this consider GlobalDBSteward.LimitToTables like BuildData does?
 	for _, entry := range tableDep {
 		if entry.IgnoreEntry {
 			continue
@@ -255,6 +260,7 @@ func (self *Pgsql8) BuildSchema(doc *model.Definition, ofs lib.OutputFileSegment
 	for _, schema := range doc.Schemas {
 		for _, view := range schema.Views {
 			for _, grant := range view.Grants {
+				// TODO(feat) revokes too?
 				ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, view, grant)...)
 			}
 		}
@@ -263,6 +269,68 @@ func (self *Pgsql8) BuildSchema(doc *model.Definition, ofs lib.OutputFileSegment
 	GlobalDiff.UpdateDatabaseConfigParameters(ofs, nil, doc)
 }
 
-func (self *Pgsql8) BuildData(doc *model.Definition, ofs lib.OutputFileSegmenter, tableDep interface{}) {
-	// TODO(go,pgsql)
+func (self *Pgsql8) BuildData(doc *model.Definition, ofs lib.OutputFileSegmenter, tableDep []*lib.TableDepEntry) {
+	limitToTables := lib.GlobalDBSteward.LimitToTables
+
+	// use the dependency order to then write out the actual data inserts into the data sql file
+	for _, entry := range tableDep {
+		if entry.IgnoreEntry {
+			continue
+		}
+		schema := entry.Schema
+		table := entry.Table
+
+		// skip any tables that are not in the limit list, if there are any tables to limit
+		if len(limitToTables) > 0 {
+			if includeTables, ok := limitToTables[schema.Name]; ok {
+				if !lib.InArrayStr(table.Name, includeTables) {
+					continue
+				}
+			} else {
+				// if this entry's schema didn't appear in the include list, we can't possibly include any tables from it
+				continue
+			}
+		}
+
+		ofs.WriteSql(GlobalDiffTables.GetDataSql(nil, nil, schema, table, false)...)
+
+		// set serial primary keys to the max value after inserts have been performed
+		// only if the PRIMARY KEY is not a multi column
+		if table.Rows != nil && len(table.PrimaryKey) == 1 {
+			dataCols := table.Rows.Columns
+			pkCol := table.PrimaryKey[0]
+			if lib.InArrayStr(pkCol, dataCols) {
+				// TODO(go,3) seems like this could be refactored better by putting much of the lookup
+				// into the model structs
+				cols := lib.GlobalXmlParser.InheritanceGetColumn(table, pkCol)
+				if len(cols) != 1 {
+					lib.GlobalDBSteward.Fatal("Failed to find primary key column '%s' for %s.%s",
+						pkCol, schema.Name, table.Name)
+				}
+				pk := cols[0]
+				if GlobalDataType.IsLinkedTableType(pk.Type) {
+					if len(pk.SerialStart) > 0 {
+						ofs.WriteSql(&sql.SetValSerialSequenceMax{
+							Schema: schema.Name,
+							Table:  table.Name,
+							Column: pk.Name,
+						})
+					}
+				}
+			}
+		}
+
+		// check if primary key columns are columns of this table
+		// TODO(feat) does this check belong here? should there be some kind of post-parse validation?
+		for _, columnName := range table.PrimaryKey {
+			cols := lib.GlobalXmlParser.InheritanceGetColumn(table, columnName)
+			if len(cols) != 1 {
+				lib.GlobalDBSteward.Fatal("Declared primary key column (%s) does not exist as column in table %s.%s",
+					columnName, schema.Name, table.Name)
+			}
+		}
+	}
+
+	// include all of the unstaged sql elements
+	lib.GlobalDBX.BuildStagedSql(doc, ofs, -1)
 }

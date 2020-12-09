@@ -17,3 +17,8 @@ func NewDiffTables() *DiffTables {
 func (self *DiffTables) DiffConstraintsTable(ofs lib.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType string, dropConstraints bool) {
 	// TODO(go,pgsql)
 }
+
+func (self *DiffTables) GetDataSql(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, deleteMode bool) []lib.ToSql {
+	// TODO(go,pgsql)
+	return nil
+}
