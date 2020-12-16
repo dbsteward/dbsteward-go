@@ -40,3 +40,8 @@ func (self *DBX) EnumRegex(doc *model.Definition) string {
 	// TODO(go,core) dbx::enum_regex()
 	return ""
 }
+
+func (self *DBX) RenamedTableCheckPointer(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) (*model.Schema, *model.Table) {
+	// TODO(go,core) dbx::renamed_table_check_pointer()
+	return nil, nil
+}

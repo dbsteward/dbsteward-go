@@ -17,3 +17,7 @@ func NewDiffViews() *DiffViews {
 func (self *DiffViews) CreateViewsOrdered(ofs output.OutputFileSegmenter, oldDoc *model.Definition, newDoc *model.Definition) {
 	// TODO(go,pgsql)
 }
+
+func (self *DiffViews) DropViewsOrdered(ofs output.OutputFileSegmenter, oldDoc *model.Definition, newDoc *model.Definition) {
+	// TODO(go,pgsql)
+}

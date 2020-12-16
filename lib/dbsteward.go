@@ -62,6 +62,7 @@ type DBSteward struct {
 	dbUser string
 	dbPass string
 
+	// TODO(go,3) just pass these explicitly!
 	OldDatabase *model.Definition
 	NewDatabase *model.Definition
 }

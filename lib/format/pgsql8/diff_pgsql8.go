@@ -85,7 +85,7 @@ func (self *Diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSe
 	self.CreateNewSchemas(stage1)
 
 	dbsteward.Info("Update Structure")
-	self.updateStructure(stage1, stage3, self.NewTableDependency)
+	self.updateStructure(stage1, stage3)
 
 	dbsteward.Info("Update Permissions")
 	self.updatePermissions(stage1, stage3)
@@ -140,9 +140,140 @@ func (self *Diff) DiffSql(old, new []string, upgradePrefix string) {
 	// TODO(go,sqldiff)
 }
 
-func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter, tableDepOrder []*model.TableDepEntry) {
-	// TODO(go,pgsql8)
+func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {
+	dbsteward := lib.GlobalDBSteward
+
+	GlobalDiffLanguages.DiffLanguages(stage1)
+
+	// drop all views in all schemas, regardless whether dependency order is known or not
+	// TODO(go,4) would be so cool if we could parse the view def and only recreate what's required
+	GlobalDiffViews.DropViewsOrdered(stage1, dbsteward.OldDatabase, dbsteward.NewDatabase)
+
+	if len(self.NewTableDependency) == 0 {
+		for _, newSchema := range dbsteward.NewDatabase.Schemas {
+			// TODO(go,slony) pgsql8::set_context_replica_set_id($new_schema);
+			// TODO(feat) this does not honor oldName attributes, does it matter?
+			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
+			GlobalDiffTypes.ApplyChanges(stage1, oldSchema, newSchema)
+			GlobalDiffFunctions.DiffFunctions(stage1, stage3, oldSchema, newSchema)
+			GlobalDiffSequences.DiffSequences(stage1, oldSchema, newSchema)
+			// remove old constraints before table constraints, so the sql statements succeed
+			GlobalDiffTables.DiffConstraints(stage1, oldSchema, newSchema, "constraint", true)
+			GlobalDiffTables.DiffConstraints(stage1, oldSchema, newSchema, "primaryKey", true)
+			GlobalDiffTables.DropTables(stage1, oldSchema, newSchema)
+			GlobalDiffTables.DiffTables(stage1, stage3, oldSchema, newSchema)
+			GlobalDiffIndexes.DiffIndexes(stage1, oldSchema, newSchema)
+			GlobalDiffTables.DiffClusters(stage1, oldSchema, newSchema)
+			GlobalDiffTables.DiffConstraints(stage1, oldSchema, newSchema, "primaryKey", false)
+			GlobalDiffTriggers.DiffTriggers(stage1, oldSchema, newSchema)
+		}
+		// non-primary key constraints may be inter-schema dependant, and dependant on other's primary keys
+		// and therefore should be done after object creation sections
+		for _, newSchema := range dbsteward.NewDatabase.Schemas {
+			// TODO(go,slony) pgsql8::set_context_replica_set_id($new_schema);
+			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
+			GlobalDiffTables.DiffConstraints(stage1, oldSchema, newSchema, "constraint", false)
+		}
+	} else {
+		// use table dependency order to do structural changes in an intelligent order
+		// make sure we only process each schema once
+		processedSchemas := map[string]bool{}
+		for _, newEntry := range self.NewTableDependency {
+			// NOTE: newEntry.IgnoreEntry is NOT checked here because these are schema operations
+			newSchema := newEntry.Schema
+			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
+
+			// TODO(go,slony) pgsql8::set_context_replica_set_id($new_schema);
+			if !processedSchemas[newSchema.Name] {
+				// TODO(go,slony) pgsql8::set_context_replica_set_id($new_schema);
+				GlobalDiffTypes.ApplyChanges(stage1, oldSchema, newSchema)
+				GlobalDiffFunctions.DiffFunctions(stage1, stage3, oldSchema, newSchema)
+				processedSchemas[newSchema.Name] = true
+			}
+		}
+
+		// remove all old constraints before new contraints, in reverse dependency order
+		for _, oldEntry := range self.OldTableDependency {
+			if oldEntry.IgnoreEntry {
+				continue
+			}
+
+			oldSchema := oldEntry.Schema
+			oldTable := oldEntry.Table
+
+			newSchema := dbsteward.NewDatabase.TryGetSchemaNamed(oldSchema.Name)
+			var newTable *model.Table
+			if newSchema != nil {
+				// TODO(go,slony) pgsql8::set_context_replica_set_id($new_schema);
+				newTable = newSchema.TryGetTableNamed(oldTable.Name)
+			}
+
+			// NOTE: when dropping constraints, GlobalDBX.RenamedTableCheckPointer() is not called for oldTable
+			// as GlobalDiffTables.DiffConstraintsTable() will do rename checking when recreating constraints for renamed tables
+			GlobalDiffTables.DiffConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, "constraint", true)
+			GlobalDiffTables.DiffConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, "primaryKey", true)
+		}
+
+		processedSchemas = map[string]bool{}
+		for _, newEntry := range self.NewTableDependency {
+			newSchema := newEntry.Schema
+			if newSchema != nil {
+				// TODO(go,slony) pgsql8::set_context_replica_set_id($new_schema);
+			}
+			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
+
+			// schema level stuff should only be done once, keep track of which ones we have done
+			// see above for pre table creation stuff
+			// see below for post table creation stuff
+			if !processedSchemas[newSchema.Name] {
+				GlobalDiffSequences.DiffSequences(stage1, oldSchema, newSchema)
+				processedSchemas[newSchema.Name] = true
+			}
+
+			if newEntry.IgnoreEntry {
+				continue
+			}
+
+			newTable := newEntry.Table
+			var oldTable *model.Table
+			if oldSchema != nil {
+				oldSchema.TryGetTableNamed(newTable.Name)
+			}
+
+			// if they are defined in the old definition,
+			// oldSchema and oldTable are already established pointers
+			// when a table has an oldTableName oldSchemaName specified,
+			// GlobalDBX.RenamedTableCheckPointer() will modify these pointers to be the old table
+			oldSchema, oldTable = lib.GlobalDBX.RenamedTableCheckPointer(oldSchema, oldTable, newSchema, newTable)
+			GlobalDiffTables.DiffTable(stage1, stage3, oldSchema, newSchema, oldTable, newTable)
+			GlobalDiffIndexes.DiffIndexesTable(stage1, oldSchema, oldTable, newSchema, newTable)
+			GlobalDiffTables.DiffClustersTable(stage1, oldSchema, oldTable, newSchema, newTable)
+			GlobalDiffTables.DiffConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, "primaryKey", false)
+			GlobalDiffTriggers.DiffTriggersTable(stage1, oldSchema, oldTable, newSchema, newTable)
+			GlobalDiffTables.DiffConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, "constraint", false)
+		}
+
+		// drop old tables in reverse dependency order
+		for i := len(self.OldTableDependency) - 1; i >= 0; i -= 1 {
+			oldEntry := self.OldTableDependency[i]
+			if oldEntry.IgnoreEntry {
+				continue
+			}
+
+			oldSchema := oldEntry.Schema
+			oldTable := oldEntry.Table
+
+			newSchema := dbsteward.NewDatabase.TryGetSchemaNamed(oldSchema.Name)
+			var newTable *model.Table
+			if newSchema != nil {
+				newTable = newSchema.TryGetTableNamed(oldTable.Name)
+			}
+
+			GlobalDiffTables.DropTable(stage3, oldSchema, newSchema, oldTable, newTable)
+		}
+	}
 }
+
 func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {
 	// TODO(go,pgsql8)
 }
