@@ -1,7 +1,5 @@
 package model
 
-import "github.com/dbsteward/dbsteward/lib/format"
-
 type View struct {
 	Name        string       `xml:"name,attr"`
 	Description string       `xml:"description,attr"`
@@ -11,8 +9,8 @@ type View struct {
 }
 
 type ViewQuery struct {
-	SqlFormat format.SqlFormat `xml:"sqlFormat,attr"`
-	Text      string           `xml:",chardata"`
+	SqlFormat SqlFormat `xml:"sqlFormat,attr"`
+	Text      string    `xml:",chardata"`
 }
 
 func (self *View) GetGrantsForRole(role string) []*Grant {

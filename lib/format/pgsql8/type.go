@@ -1,8 +1,8 @@
 package pgsql8
 
 import (
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/output"
 )
 
 var GlobalDataType *DataType = NewDataType()
@@ -14,7 +14,7 @@ func NewDataType() *DataType {
 	return &DataType{}
 }
 
-func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataType) []lib.ToSql {
+func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataType) []output.ToSql {
 	// TODO(go,pgsql)
 	return nil
 }

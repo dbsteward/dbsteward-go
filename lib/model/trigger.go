@@ -1,7 +1,6 @@
 package model
 
 import (
-	"github.com/dbsteward/dbsteward/lib/format"
 )
 
 type Trigger struct {
@@ -11,7 +10,7 @@ type Trigger struct {
 	When      string           `xml:"when,attr"`
 	ForEach   string           `xml:"forEach,attr"`
 	Function  string           `xml:"function,attr"`
-	SqlFormat format.SqlFormat `xml:"sqlFormat,attr"`
+	SqlFormat SqlFormat `xml:"sqlFormat,attr"`
 }
 
 func (self *Trigger) AddEvent(event string) {

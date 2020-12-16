@@ -4,7 +4,6 @@ import (
 	"encoding/xml"
 	"os"
 
-	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/pkg/errors"
 )
@@ -13,12 +12,6 @@ import (
 var GlobalXmlParser *XmlParser = NewXmlParser()
 
 type XmlParser struct{}
-
-type TableDepEntry struct {
-	Schema      *model.Schema
-	Table       *model.Table
-	IgnoreEntry bool
-}
 
 func NewXmlParser() *XmlParser {
 	return &XmlParser{}
@@ -39,9 +32,9 @@ func (self *XmlParser) LoadDefintion(file string) (*model.Definition, error) {
 	return doc, nil
 }
 
-func (self *XmlParser) GetSqlFormat(files []string) format.SqlFormat {
+func (self *XmlParser) GetSqlFormat(files []string) model.SqlFormat {
 	// TODO(go,core)
-	return format.SqlFormatPgsql8
+	return model.SqlFormatPgsql8
 }
 
 func (self *XmlParser) XmlComposite(files []string) *model.Definition {
@@ -86,7 +79,7 @@ func (self *XmlParser) FormatXml(doc *model.Definition) string {
 	return ""
 }
 
-func (self *XmlParser) TableDependencyOrder(doc *model.Definition) []*TableDepEntry {
+func (self *XmlParser) TableDependencyOrder(doc *model.Definition) []*model.TableDepEntry {
 	// TODO(go,core)
 	return nil
 }

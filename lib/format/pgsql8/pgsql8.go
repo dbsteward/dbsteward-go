@@ -9,32 +9,32 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
+	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/model"
 )
 
-var GlobalPgsql8 *Pgsql8 = NewPgsql8()
+var GlobalOperations *Operations = NewOperations()
 
-type Pgsql8 struct {
-	*sql99.Sql99
+type Operations struct {
+	*sql99.Operations
 	EscapeStringValues bool
 }
 
-func NewPgsql8() *Pgsql8 {
-	pgsql := &Pgsql8{
-		Sql99:              sql99.NewSql99(),
+func NewOperations() *Operations {
+	pgsql := &Operations{
+		Operations:         sql99.NewOperations(),
 		EscapeStringValues: false,
 	}
-	pgsql.Sql99.Operations = pgsql
+	pgsql.Operations.Operations = pgsql
 	return pgsql
 }
 
-func (self *Pgsql8) Build(outputPrefix string, dbDoc *model.Definition) {
+func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
 	// TODO(go,4) can we just consider a build(def) to be diff(null, def)?
 	// some shortcuts, since we're going to be typing a lot here
 	dbsteward := lib.GlobalDBSteward
@@ -48,7 +48,7 @@ func (self *Pgsql8) Build(outputPrefix string, dbDoc *model.Definition) {
 	buildFile, err := os.OpenFile(buildFileName, os.O_RDWR, 0644)
 	dbsteward.FatalIfError(err, "Failed to open file %s for output", buildFileName)
 
-	buildFileOfs := lib.NewOutputFileSegmenter(buildFileName, 1, buildFile, buildFileName)
+	buildFileOfs := output.NewOutputFileSegmenterToFile(buildFileName, 1, buildFile, buildFileName)
 	if len(dbsteward.LimitToTables) == 0 {
 		buildFileOfs.Write("-- full database definition file generated %s\n", time.Now().Format(time.RFC1123Z))
 	}
@@ -80,7 +80,7 @@ outer:
 	for _, schema := range dbDoc.Schemas {
 		for _, function := range schema.Functions {
 			if definition, ok := function.TryGetDefinition(); ok {
-				if strings.EqualFold(definition.Language, "sql") && definition.SqlFormat == format.SqlFormatPgsql8 {
+				if strings.EqualFold(definition.Language, "sql") && definition.SqlFormat == model.SqlFormatPgsql8 {
 					referencedTableName := self.functionDefinitionReferencesTable(definition)
 					if len(referencedTableName) > 0 {
 						referencedSchemaName := sqlParser.GetSchemaName(referencedTableName, dbDoc)
@@ -124,7 +124,7 @@ outer:
 		// TODO(go,slony)
 	}
 }
-func (self *Pgsql8) BuildUpgrade(
+func (self *Operations) BuildUpgrade(
 	oldOutputPrefix string, oldCompositeFile string, oldDoc *model.Definition, oldFiles []string,
 	newOutputPrefix string, newCompositeFile string, newDoc *model.Definition, newFiles []string,
 ) {
@@ -142,7 +142,7 @@ func (self *Pgsql8) BuildUpgrade(
 		// TODO(go,slony)
 	}
 }
-func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass string) *model.Definition {
+func (self *Operations) ExtractSchema(host string, port uint, name, user, pass string) *model.Definition {
 	// TODO(go,nth) extract this massive function into separate functions, different structs, etc
 	dbsteward := lib.GlobalDBSteward
 
@@ -151,7 +151,7 @@ func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass strin
 
 	doc := &model.Definition{
 		Database: &model.Database{
-			SqlFormat: format.SqlFormatPgsql8,
+			SqlFormat: model.SqlFormatPgsql8,
 			Roles: &model.RoleAssignment{
 				Application: user,
 				Owner:       user,
@@ -219,7 +219,7 @@ func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass strin
 
 		// extract tablespace as a tableOption
 		if len(row["tablespace"]) > 0 {
-			table.SetTableOption(format.SqlFormatPgsql8, "tablespace", row["tablespace"])
+			table.SetTableOption(model.SqlFormatPgsql8, "tablespace", row["tablespace"])
 		}
 
 		// extract storage parameters as a tableOption
@@ -244,11 +244,11 @@ func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass strin
 		params := strings.Split(reloptions[1:len(reloptions)-1], ",")
 		for _, param := range params {
 			nameval := strings.Split(param, "=")
-			table.SetTableOption(format.SqlFormatPgsql8, nameval[0], nameval[1])
+			table.SetTableOption(model.SqlFormatPgsql8, nameval[0], nameval[1])
 		}
 
 		// TODO(feat) pg 11.0 dropped support for "with oids" or "oids=true"
-		table.SetTableOption(format.SqlFormatPgsql8, "oids", paramsRow["relhasoids"])
+		table.SetTableOption(model.SqlFormatPgsql8, "oids", paramsRow["relhasoids"])
 
 		dbsteward.Info("Analyze table columns %s.%s", schema.Name, table.Name)
 		columnDescriptions := map[string]string{}
@@ -444,7 +444,7 @@ func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass strin
 			Owner: self.translateRoleName(viewRow["viewowner"]),
 			Queries: []*model.ViewQuery{
 				&model.ViewQuery{
-					SqlFormat: format.SqlFormatPgsql8,
+					SqlFormat: model.SqlFormatPgsql8,
 					Text:      viewRow["definition"],
 				},
 			},
@@ -649,7 +649,7 @@ func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass strin
 			// TODO(feat): how is / figure out how to express securityDefiner attribute in the functions query
 			Definitions: []*model.FunctionDefinition{
 				&model.FunctionDefinition{
-					SqlFormat: format.SqlFormatPgsql8,
+					SqlFormat: model.SqlFormatPgsql8,
 					Language:  fnRow["language"],
 					Text:      fnRow["source"],
 				},
@@ -712,7 +712,7 @@ func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass strin
 		if trigger == nil {
 			trigger = &model.Trigger{
 				Name:      triggerRow["trigger_name"],
-				SqlFormat: format.SqlFormatPgsql8,
+				SqlFormat: model.SqlFormatPgsql8,
 			}
 			schema.AddTrigger(trigger)
 		}
@@ -835,7 +835,7 @@ func (self *Pgsql8) ExtractSchema(host string, port uint, name, user, pass strin
 
 	return doc
 }
-func (self *Pgsql8) CompareDbData(doc *model.Definition, host string, port uint, name, user, pass string) *model.Definition {
+func (self *Operations) CompareDbData(doc *model.Definition, host string, port uint, name, user, pass string) *model.Definition {
 	dbsteward := lib.GlobalDBSteward
 
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as user %s", host, port, name, user)
@@ -927,7 +927,7 @@ func (self *Pgsql8) CompareDbData(doc *model.Definition, host string, port uint,
 	}
 	return doc
 }
-func (self *Pgsql8) compareDbDataRow(colType, xmlValue, dbValue string) (bool, string, string) {
+func (self *Operations) compareDbDataRow(colType, xmlValue, dbValue string) (bool, string, string) {
 	colType = strings.ToLower(colType)
 	xmlValue = self.pgdataHomogenize(colType, xmlValue)
 	dbValue = self.pgdataHomogenize(colType, dbValue)
@@ -948,7 +948,7 @@ func (self *Pgsql8) compareDbDataRow(colType, xmlValue, dbValue string) (bool, s
 
 	return false, xmlValue, dbValue
 }
-func (self *Pgsql8) pgdataHomogenize(colType string, value string) string {
+func (self *Operations) pgdataHomogenize(colType string, value string) string {
 	switch {
 	case strings.HasPrefix(colType, "bool"):
 		switch strings.ToLower(value) {
@@ -963,7 +963,7 @@ func (self *Pgsql8) pgdataHomogenize(colType string, value string) string {
 	}
 }
 
-func (self *Pgsql8) SqlDiff(old, new []string, upgradePrefix string) {
+func (self *Operations) SqlDiff(old, new []string, upgradePrefix string) {
 	lib.GlobalDBSteward.Notice("Calculating sql differences:")
 	lib.GlobalDBSteward.Notice("Old set: %v", old)
 	lib.GlobalDBSteward.Notice("New set: %v", new)
@@ -971,14 +971,14 @@ func (self *Pgsql8) SqlDiff(old, new []string, upgradePrefix string) {
 	GlobalDiff.DiffSql(old, new, upgradePrefix)
 }
 
-func (self *Pgsql8) SlonyCompare(file string) {
+func (self *Operations) SlonyCompare(file string) {
 	// TODO(go,slony)
 }
-func (self *Pgsql8) SlonyDiff(oldFile string, newFile string) {
+func (self *Operations) SlonyDiff(oldFile string, newFile string) {
 	// TODO(go,slony)
 }
 
-func (self *Pgsql8) functionDefinitionReferencesTable(definition *model.FunctionDefinition) string {
+func (self *Operations) functionDefinitionReferencesTable(definition *model.FunctionDefinition) string {
 	// TODO(go,nth) move this to model?
 	// TODO(feat) a function could reference many tables, but this only returns the first; make it understand many tables
 	// TODO(feat) this won't detect quoted table names
@@ -999,7 +999,7 @@ func (self *Pgsql8) functionDefinitionReferencesTable(definition *model.Function
 	return ""
 }
 
-func (self *Pgsql8) BuildSchema(doc *model.Definition, ofs lib.OutputFileSegmenter, tableDep []*lib.TableDepEntry) {
+func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableDepEntry) {
 	// schema creation
 	for _, schema := range doc.Schemas {
 		ofs.WriteSql(GlobalSchema.GetCreationSql(schema)...)
@@ -1105,7 +1105,7 @@ func (self *Pgsql8) BuildSchema(doc *model.Definition, ofs lib.OutputFileSegment
 	// trigger definitions
 	for _, schema := range doc.Schemas {
 		for _, trigger := range schema.Triggers {
-			if trigger.SqlFormat == format.SqlFormatPgsql8 {
+			if trigger.SqlFormat == model.SqlFormatPgsql8 {
 				ofs.WriteSql(GlobalTrigger.GetCreationSql(schema, trigger)...)
 			}
 		}
@@ -1126,7 +1126,7 @@ func (self *Pgsql8) BuildSchema(doc *model.Definition, ofs lib.OutputFileSegment
 	GlobalDiff.UpdateDatabaseConfigParameters(ofs, nil, doc)
 }
 
-func (self *Pgsql8) BuildData(doc *model.Definition, ofs lib.OutputFileSegmenter, tableDep []*lib.TableDepEntry) {
+func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableDepEntry) {
 	limitToTables := lib.GlobalDBSteward.LimitToTables
 
 	// use the dependency order to then write out the actual data inserts into the data sql file
@@ -1189,10 +1189,10 @@ func (self *Pgsql8) BuildData(doc *model.Definition, ofs lib.OutputFileSegmenter
 	}
 
 	// include all of the unstaged sql elements
-	lib.GlobalDBX.BuildStagedSql(doc, ofs, -1)
+	lib.GlobalDBX.BuildStagedSql(doc, ofs, "")
 }
 
-func (self *Pgsql8) ValueEscape(datatype string, value string, doc *model.Definition) string {
+func (self *Operations) ValueEscape(datatype string, value string, doc *model.Definition) string {
 	// TODO(go,3) it'd be amazing to have a dedicated Value type that encapsulates this logic and is type-aware, instead of the mishmash of string parsing and type matching we do
 	if len(value) == 0 {
 		// TODO(feat) this can't distinguish between empty strings and null
@@ -1221,7 +1221,7 @@ func (self *Pgsql8) ValueEscape(datatype string, value string, doc *model.Defini
 	return value
 }
 
-func (self *Pgsql8) translateRoleName(role string) string {
+func (self *Operations) translateRoleName(role string) string {
 	switch strings.ToLower(role) {
 	/* TODO(feat) allow for special translations
 	case "pgsql": return "ROLE_OWNER"
@@ -1234,7 +1234,7 @@ func (self *Pgsql8) translateRoleName(role string) string {
 
 // TODO(go,nth) should this live somewhere else?
 // TODO(go,pgsql8) test this
-func (self *Pgsql8) parseSqlArray(str string) []string {
+func (self *Operations) parseSqlArray(str string) []string {
 	var out []string
 	str = strings.Trim(str, "{}")
 	if str == "" {
@@ -1280,7 +1280,7 @@ func (self *Pgsql8) parseSqlArray(str string) []string {
 	return append(out, next)
 }
 
-func (self *Pgsql8) identifierName(schema, table, column, suffix string) string {
+func (self *Operations) identifierName(schema, table, column, suffix string) string {
 	// these will change as we build the identifier
 	identTable := table
 	identColumn := column
@@ -1314,7 +1314,7 @@ func (self *Pgsql8) identifierName(schema, table, column, suffix string) string 
 	return fmt.Sprintf("%s_%s%s", identTable, identColumn, suffix)
 }
 
-func (self *Pgsql8) parseSequenceRelAcl(str string) map[string][]string {
+func (self *Operations) parseSequenceRelAcl(str string) map[string][]string {
 	// will be receiving something like '{superuser=rwU/superuser_role,normal_role=rw/superuser_role}'
 	// output {superuser: [select, usage, ...], ...}
 	out := map[string][]string{}

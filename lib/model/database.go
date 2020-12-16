@@ -1,13 +1,12 @@
 package model
 
 import (
-	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 type Database struct {
-	SqlFormat format.SqlFormat `xml:"sqlFormat"`
-	Roles     *RoleAssignment  `xml:"role"`
+	SqlFormat SqlFormat       `xml:"sqlFormat"`
+	Roles     *RoleAssignment `xml:"role"`
 
 	// slony, configurationParameter
 }

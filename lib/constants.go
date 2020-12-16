@@ -1,5 +1,7 @@
 package lib
 
+import "github.com/dbsteward/dbsteward/lib/model"
+
 type Mode uint
 
 const (
@@ -17,3 +19,5 @@ const (
 	ModeSlonyCompare  Mode = 512
 	ModeSlonyDiff     Mode = 1024
 )
+
+const DefaultSqlFormat = model.SqlFormatPgsql8

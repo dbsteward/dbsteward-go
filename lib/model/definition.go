@@ -11,6 +11,12 @@ type Definition struct {
 	Database  *Database   `xml:"database"`
 	Schemas   []*Schema   `xml:"schema"`
 	Languages []*Language `xml:"language"`
+	Sql       []*Sql      `xml:"sql"`
+}
+
+type Sql struct {
+	Stage SqlStage `xml:"stage,attr"`
+	Text  string   `xml:",chardata"`
 }
 
 func (self *Definition) GetSchemaNamed(name string) (*Schema, error) {

@@ -1,8 +1,8 @@
 package pgsql8
 
 import (
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/output"
 )
 
 var GlobalFunction *Function = NewFunction()
@@ -15,7 +15,7 @@ func NewFunction() *Function {
 	return &Function{}
 }
 
-func (self *Function) GetCreationSql(schema *model.Schema, function *model.Function) []lib.ToSql {
+func (self *Function) GetCreationSql(schema *model.Schema, function *model.Function) []output.ToSql {
 	// TODO(go,pgsql)
 	return nil
 }

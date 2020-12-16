@@ -1,7 +1,6 @@
 package model
 
 import (
-	"github.com/dbsteward/dbsteward/lib/format"
 )
 
 // TODO(go, core) finish fleshing this out
@@ -24,7 +23,7 @@ type FunctionParameter struct {
 }
 
 type FunctionDefinition struct {
-	SqlFormat format.SqlFormat `xml:"sqlFormat"`
+	SqlFormat SqlFormat `xml:"sqlFormat"`
 	Language  string           `xml:"language"`
 	Text      string           `xml:",chardata"`
 }

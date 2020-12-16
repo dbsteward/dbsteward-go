@@ -6,7 +6,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/util"
 
@@ -27,7 +26,7 @@ type DBSteward struct {
 	logger     zerolog.Logger
 	operations FormatOperationMap
 
-	sqlFormat format.SqlFormat
+	sqlFormat model.SqlFormat
 
 	CreateLanguages                bool
 	requireSlonyId                 bool
@@ -50,7 +49,7 @@ type DBSteward struct {
 	OnlySchemaSql                  bool
 	OnlyDataSql                    bool
 	LimitToTables                  map[string][]string
-	singleStageUpgrade             bool
+	SingleStageUpgrade             bool
 	fileOutputDirectory            string
 	fileOutputPrefix               string
 	ignoreOldNames                 bool
@@ -63,8 +62,8 @@ type DBSteward struct {
 	dbUser string
 	dbPass string
 
-	OldDatabase interface{} // TODO(go,core)
-	NewDatabase interface{} // TODO(go,core)
+	OldDatabase *model.Definition
+	NewDatabase *model.Definition
 }
 
 func NewDBSteward(operations FormatOperationMap) *DBSteward {
@@ -72,7 +71,7 @@ func NewDBSteward(operations FormatOperationMap) *DBSteward {
 		logger:     zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
 		operations: operations,
 
-		sqlFormat: format.SqlFormatUnknown,
+		sqlFormat: model.SqlFormatUnknown,
 
 		CreateLanguages:                false,
 		requireSlonyId:                 false,
@@ -95,7 +94,7 @@ func NewDBSteward(operations FormatOperationMap) *DBSteward {
 		OnlySchemaSql:                  false,
 		OnlyDataSql:                    false,
 		LimitToTables:                  map[string][]string{},
-		singleStageUpgrade:             false,
+		SingleStageUpgrade:             false,
 		fileOutputDirectory:            "",
 		fileOutputPrefix:               "",
 		ignoreOldNames:                 false,
@@ -108,8 +107,8 @@ func NewDBSteward(operations FormatOperationMap) *DBSteward {
 		dbUser: "",
 		dbPass: "",
 
-		OldDatabase: nil, // TODO(go,core)
-		NewDatabase: nil, // TODO(go,core)
+		OldDatabase: nil,
+		NewDatabase: nil,
 	}
 
 	return dbsteward
@@ -159,8 +158,8 @@ func (self *DBSteward) ArgParse() {
 	}
 
 	// XML parsing switches
-	self.singleStageUpgrade = args.SingleStageUpgrade
-	if self.singleStageUpgrade {
+	self.SingleStageUpgrade = args.SingleStageUpgrade
+	if self.SingleStageUpgrade {
 		// don't recreate views when in single stage upgrade mode
 		// TODO(feat) make view diffing smart enough that this doesn't need to be done
 		self.alwaysRecreateViews = false
@@ -252,14 +251,14 @@ func (self *DBSteward) ArgParse() {
 
 	// For the appropriate modes, composite the input xml
 	// and figure out the sql format of it
-	targetSqlFormat := format.SqlFormatUnknown
+	targetSqlFormat := model.SqlFormatUnknown
 	switch mode {
 	case ModeBuild:
 		targetSqlFormat = GlobalXmlParser.GetSqlFormat(args.XmlFiles)
 	case ModeDiff:
 		// prefer new format over old
 		targetSqlFormat = GlobalXmlParser.GetSqlFormat(args.NewXmlFiles)
-		if targetSqlFormat == format.SqlFormatUnknown {
+		if targetSqlFormat == model.SqlFormatUnknown {
 			targetSqlFormat = GlobalXmlParser.GetSqlFormat(args.OldXmlFiles)
 		}
 	}
@@ -383,9 +382,9 @@ func (self *DBSteward) setVerbosity(args *Args) {
 	self.logger = self.logger.Level(level)
 }
 
-func (self *DBSteward) reconcileSqlFormat(target, requested format.SqlFormat) format.SqlFormat {
-	if target != format.SqlFormatUnknown {
-		if requested != format.SqlFormatUnknown {
+func (self *DBSteward) reconcileSqlFormat(target, requested model.SqlFormat) model.SqlFormat {
+	if target != model.SqlFormatUnknown {
+		if requested != model.SqlFormatUnknown {
 			if target == requested {
 				return target
 			}
@@ -398,29 +397,29 @@ func (self *DBSteward) reconcileSqlFormat(target, requested format.SqlFormat) fo
 		return target
 	}
 
-	if requested != format.SqlFormatUnknown {
+	if requested != model.SqlFormatUnknown {
 		return requested
 	}
 
-	return format.DefaultSqlFormat
+	return DefaultSqlFormat
 }
 
-func (self *DBSteward) defineSqlFormatDefaultValues(sqlFormat format.SqlFormat, args *Args) uint {
+func (self *DBSteward) defineSqlFormatDefaultValues(sqlFormat model.SqlFormat, args *Args) uint {
 	var dbPort uint
 	switch sqlFormat {
-	case format.SqlFormatPgsql8:
+	case model.SqlFormatPgsql8:
 		self.CreateLanguages = true
 		self.QuoteSchemaNames = false
 		self.QuoteTableNames = false
 		self.QuoteColumnNames = false
 		dbPort = 5432
 
-	case format.SqlFormatMssql10:
+	case model.SqlFormatMssql10:
 		self.QuoteTableNames = true
 		self.QuoteColumnNames = true
 		dbPort = 1433
 
-	case format.SqlFormatMysql5:
+	case model.SqlFormatMysql5:
 		self.QuoteSchemaNames = true
 		self.QuoteTableNames = true
 		self.QuoteColumnNames = true
@@ -430,7 +429,7 @@ func (self *DBSteward) defineSqlFormatDefaultValues(sqlFormat format.SqlFormat, 
 		// 	mysql5.GlobalMysql5.UseSchemaNamePrefix = args.UseSchemaPrefix
 	}
 
-	if sqlFormat != format.SqlFormatPgsql8 {
+	if sqlFormat != model.SqlFormatPgsql8 {
 		if len(args.PgDataXml) > 0 {
 			self.Fatal("pgdataxml parameter is not supported by %s driver", sqlFormat)
 		}
@@ -654,8 +653,8 @@ func (self *DBSteward) doSlonikConvert(file string, outputFile string) {
 	}
 }
 func (self *DBSteward) doSlonyCompare(file string) {
-	self.operations[format.SqlFormatPgsql8].(SlonyOperations).SlonyCompare(file)
+	self.operations[model.SqlFormatPgsql8].(SlonyOperations).SlonyCompare(file)
 }
 func (self *DBSteward) doSlonyDiff(oldFile string, newFile string) {
-	self.operations[format.SqlFormatPgsql8].(SlonyOperations).SlonyDiff(oldFile, newFile)
+	self.operations[model.SqlFormatPgsql8].(SlonyOperations).SlonyDiff(oldFile, newFile)
 }

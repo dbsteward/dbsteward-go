@@ -1,7 +1,6 @@
 package lib
 
 import (
-	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/model"
 )
 
@@ -16,7 +15,7 @@ type FormatOperations interface {
 	SqlDiff(old, new []string, outputFile string)
 }
 
-type FormatOperationMap = map[format.SqlFormat]FormatOperations
+type FormatOperationMap = map[model.SqlFormat]FormatOperations
 
 type SlonyOperations interface {
 	SlonyCompare(file string)

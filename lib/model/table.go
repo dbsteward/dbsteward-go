@@ -3,7 +3,6 @@ package model
 import (
 	"fmt"
 
-	"github.com/dbsteward/dbsteward/lib/format"
 )
 
 type Table struct {
@@ -37,7 +36,7 @@ type Column struct {
 }
 
 type TableOption struct {
-	SqlFormat format.SqlFormat `xml:"sqlFormat,attr"`
+	SqlFormat SqlFormat `xml:"sqlFormat,attr"`
 	Name      string           `xml:"name"`
 	Value     string           `xml:"value"`
 }
@@ -75,7 +74,7 @@ func (self *Table) HasDefaultNextVal() bool {
 	return false
 }
 
-func (self *Table) SetTableOption(sqlFormat format.SqlFormat, name, value string) {
+func (self *Table) SetTableOption(sqlFormat SqlFormat, name, value string) {
 	// TODO(feat) sanity check
 	self.TableOptions = append(self.TableOptions, &TableOption{
 		SqlFormat: sqlFormat,

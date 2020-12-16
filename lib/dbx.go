@@ -2,6 +2,7 @@ package lib
 
 import (
 	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/output"
 )
 
 var GlobalDBX *DBX = NewDBX()
@@ -25,7 +26,7 @@ func (self *DBX) SetDefaultSchema(def *model.Definition, schema string) {
 	// TODO(go,core) dbx::set_default_schema()
 }
 
-func (self *DBX) BuildStagedSql(doc *model.Definition, ofs OutputFileSegmenter, stage int) {
+func (self *DBX) BuildStagedSql(doc *model.Definition, ofs output.OutputFileSegmenter, stage string) {
 	// TODO(go,core) dbx::build_staged_sql()
 }
 

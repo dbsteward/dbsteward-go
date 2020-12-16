@@ -1,8 +1,8 @@
 package pgsql8
 
 import (
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/output"
 )
 
 var GlobalLanguage *Language = NewLanguage()
@@ -14,6 +14,6 @@ func NewLanguage() *Language {
 	return &Language{}
 }
 
-func (self *Language) GetCreationSql(lang *model.Language) []lib.ToSql {
+func (self *Language) GetCreationSql(lang *model.Language) []output.ToSql {
 	return nil
 }
