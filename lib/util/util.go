@@ -1,4 +1,4 @@
-package lib
+package util
 
 import (
 	"fmt"
@@ -24,7 +24,7 @@ func ParseQualifiedTableName(table string) QualifiedTable {
 	return QualifiedTable{"public", table}
 }
 
-// a more familiar name
+// TODO(go,nth) DEPRECATED just use strings.EqualFold instead
 func Stricmp(a, b string) bool {
 	return strings.EqualFold(a, b)
 }
@@ -57,18 +57,23 @@ func CoalesceStr(strs ...string) string {
 	return ""
 }
 
+// TODO(go,nth) DEPRECATED just use IndexOfStr instead
 func InArrayStr(target string, list []string) bool {
-	for _, el := range list {
-		if el == target {
-			return true
-		}
-	}
-	return false
+	return IndexOfStr(target, list) >= 0
 }
 
 func IndexOfStr(target string, list []string) int {
 	for i, el := range list {
 		if el == target {
+			return i
+		}
+	}
+	return -1
+}
+
+func IIndexOfStr(target string, list []string) int {
+	for i, el := range list {
+		if strings.EqualFold(el, target) {
 			return i
 		}
 	}
@@ -85,4 +90,37 @@ func PromptPassword(prompt string) (string, error) {
 // matches the pattern against the text, case insensitively, returning a slice containing the whole match and any captures, or nil if there was no match
 func IMatch(pat string, text string) []string {
 	return regexp.MustCompile("(?i)" + pat).FindStringSubmatch(text)
+}
+
+// like strings.ReplaceAll, except case insensitive
+func IReplaceAll(s, match, replace string) string {
+	// TODO(go,core)
+	return s
+}
+
+// like strings.Index, except case insensitive
+func IIndex(s string, substr string) int {
+	return strings.Index(strings.ToLower(s), strings.ToLower(substr))
+}
+
+// returns true if the string explicitly represents a "true" value.
+// TODO(go,nth) search for cases of testing a value equal to one of these and replace
+func IsTruthy(s string) bool {
+	switch strings.ToLower(s) {
+	case "t", "true", "yes", "1":
+		return true
+	default:
+		return false
+	}
+}
+
+// returns true if the string explicitly represents a "false" value
+// TODO(go,nth) search for cases of testing a value equal to one of these and replace
+func IsFalsey(s string) bool {
+	switch strings.ToLower(s) {
+	case "f", "false", "no", "0":
+		return true
+	default:
+		return false
+	}
 }

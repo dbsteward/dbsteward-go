@@ -8,6 +8,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/util"
 
 	"github.com/alexflint/go-arg"
 	"github.com/rs/zerolog"
@@ -153,7 +154,7 @@ func (self *DBSteward) ArgParse() {
 	self.OnlySchemaSql = args.OnlySchemaSql
 	self.OnlyDataSql = args.OnlyDataSql
 	for _, onlyTable := range args.OnlyTables {
-		table := ParseQualifiedTableName(onlyTable)
+		table := util.ParseQualifiedTableName(onlyTable)
 		self.LimitToTables[table.Schema] = append(self.LimitToTables[table.Schema], table.Table)
 	}
 
@@ -221,7 +222,7 @@ func (self *DBSteward) ArgParse() {
 			self.Fatal("dbuser not specified")
 		}
 		if args.DbPassword == nil {
-			p, err := PromptPassword("Connection password: ")
+			p, err := util.PromptPassword("Connection password: ")
 			self.FatalIfError(err, "Could not read password input")
 			args.DbPassword = &p
 		}
@@ -242,7 +243,7 @@ func (self *DBSteward) ArgParse() {
 	}
 
 	if len(args.OutputDir) > 0 {
-		if !IsDir(args.OutputDir) {
+		if !util.IsDir(args.OutputDir) {
 			self.Fatal("outputdir is not a directory, must be a writable directory")
 		}
 		self.fileOutputDirectory = args.OutputDir
@@ -441,11 +442,11 @@ func (self *DBSteward) defineSqlFormatDefaultValues(sqlFormat format.SqlFormat, 
 func (self *DBSteward) calculateFileOutputPrefix(files []string) string {
 	return path.Join(
 		self.calculateFileOutputDirectory(files[0]),
-		CoalesceStr(self.fileOutputPrefix, Basename(files[0], ".xml")),
+		util.CoalesceStr(self.fileOutputPrefix, util.Basename(files[0], ".xml")),
 	)
 }
 func (self *DBSteward) calculateFileOutputDirectory(file string) string {
-	return CoalesceStr(self.fileOutputDirectory, path.Dir(file))
+	return util.CoalesceStr(self.fileOutputDirectory, path.Dir(file))
 }
 
 // Append columns in a table's rows collection, based on a simplified XML definition of what to insert
@@ -518,7 +519,7 @@ func (self *DBSteward) doXmlConvert(files []string) {
 		GlobalXmlParser.SqlFormatConvert(doc)
 		convertedXml := GlobalXmlParser.FormatXml(doc)
 		convertedXml = strings.Replace(convertedXml, "pgdbxml>", "dbsteward>", -1)
-		err = WriteFile(convertedXml, convertedFileName)
+		err = util.WriteFile(convertedXml, convertedFileName)
 		self.FatalIfError(err, "Could not write converted xml to %s", convertedFileName)
 	}
 }
@@ -646,7 +647,7 @@ func (self *DBSteward) doSlonikConvert(file string, outputFile string) {
 	// TODO(go,nth) is there a nicer way to handle this output idiom?
 	output := GlobalSlonik.Convert(file)
 	if len(outputFile) > 0 {
-		err := WriteFile(output, outputFile)
+		err := util.WriteFile(output, outputFile)
 		self.FatalIfError(err, "Failed to save slonikconvert output to %s", outputFile)
 	} else {
 		fmt.Println(output)
