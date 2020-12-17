@@ -6,6 +6,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/util"
 
@@ -24,7 +25,7 @@ var GlobalDBSteward *DBSteward
 
 type DBSteward struct {
 	logger     zerolog.Logger
-	operations FormatOperationMap
+	operations map[model.SqlFormat]format.Operations
 
 	sqlFormat model.SqlFormat
 
@@ -67,7 +68,7 @@ type DBSteward struct {
 	NewDatabase *model.Definition
 }
 
-func NewDBSteward(operations FormatOperationMap) *DBSteward {
+func NewDBSteward(operations map[model.SqlFormat]format.Operations) *DBSteward {
 	dbsteward := &DBSteward{
 		logger:     zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
 		operations: operations,
@@ -115,7 +116,7 @@ func NewDBSteward(operations FormatOperationMap) *DBSteward {
 	return dbsteward
 }
 
-func (self *DBSteward) FormatOperations() FormatOperations {
+func (self *DBSteward) FormatOperations() format.Operations {
 	return self.operations[self.sqlFormat]
 }
 
@@ -654,8 +655,8 @@ func (self *DBSteward) doSlonikConvert(file string, outputFile string) {
 	}
 }
 func (self *DBSteward) doSlonyCompare(file string) {
-	self.operations[model.SqlFormatPgsql8].(SlonyOperations).SlonyCompare(file)
+	self.operations[model.SqlFormatPgsql8].(format.SlonyOperations).SlonyCompare(file)
 }
 func (self *DBSteward) doSlonyDiff(oldFile string, newFile string) {
-	self.operations[model.SqlFormatPgsql8].(SlonyOperations).SlonyDiff(oldFile, newFile)
+	self.operations[model.SqlFormatPgsql8].(format.SlonyOperations).SlonyDiff(oldFile, newFile)
 }

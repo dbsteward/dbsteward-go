@@ -22,7 +22,10 @@ var GlobalOperations *Operations = NewOperations()
 
 type Operations struct {
 	*sql99.Operations
+
 	EscapeStringValues bool
+
+	contextReplicaSetId int
 }
 
 func NewOperations() *Operations {
@@ -1219,6 +1222,10 @@ func (self *Operations) ValueEscape(datatype string, value string, doc *model.De
 	}
 
 	return value
+}
+
+func (self *Operations) SetContextReplicaSetId(setId int) {
+	self.contextReplicaSetId = setId
 }
 
 func (self *Operations) translateRoleName(role string) string {

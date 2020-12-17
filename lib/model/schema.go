@@ -6,6 +6,7 @@ type Schema struct {
 	Name        string      `xml:"name,attr"`
 	Description string      `xml:"description,attr"`
 	Owner       string      `xml:"owner,attr"`
+	SlonySetId  int         `xml:"slonySetId,attr"`
 	Tables      []*Table    `xml:"table"`
 	Grants      []*Grant    `xml:"grant"`
 	Types       []*DataType `xml:"type"`

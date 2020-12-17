@@ -6,11 +6,25 @@ import (
 )
 
 type Operations interface {
+	Build(outputPrefix string, dbDoc *model.Definition)
+	BuildUpgrade(
+		oldOutputPrefix, oldCompositeFile string, oldDbDoc *model.Definition, oldFiles []string,
+		newOutputPrefix, newCompositeFile string, newDbDoc *model.Definition, newFiles []string,
+	)
+	ExtractSchema(host string, port uint, name, user, pass string) *model.Definition
+	CompareDbData(dbDoc *model.Definition, host string, port uint, name, user, pass string) *model.Definition
+	SqlDiff(old, new []string, outputFile string)
+
 	GetQuoteChar() string
 	IsIllegalIdentifier(string) bool
 	IsReservedIdentifier(string) bool
 	GetQuotedName(name string, shouldQuote bool) string
 	GetQuotedColumnName(name string) string
+}
+
+type SlonyOperations interface {
+	SlonyCompare(file string)
+	SlonyDiff(oldFile, newFile string)
 }
 
 type Schema interface {

@@ -33,6 +33,7 @@ func (self *Diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *model.Definit
 	if !lib.GlobalDBSteward.GenerateSlonik {
 		// if we are not generating slonik, defer to parent
 		self.Diff.DiffDoc(oldFile, newFile, oldDoc, newDoc, upgradePrefix)
+		return
 	}
 
 	// TODO(go,slony)
@@ -94,7 +95,7 @@ func (self *Diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSe
 
 	dbsteward.Info("Update data")
 	if dbsteward.GenerateSlonik {
-		// TODO(go,slony)
+		// TODO(go,slony) format::set_context_replica_set_to_natural_first(dbsteward::$new_database);
 	}
 	self.updateData(stage2, true)
 	self.updateData(stage4, false)
@@ -127,7 +128,7 @@ func (self *Diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSe
 
 	// append stage defined sql statements to appropriate stage file
 	if dbsteward.GenerateSlonik {
-		// TODO(go,slony)
+		// TODO(go,slony) format::set_context_replica_set_to_natural_first(dbsteward::$new_database);
 	}
 
 	dbx.BuildStagedSql(dbsteward.NewDatabase, stage1, "STAGE1")
@@ -151,7 +152,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 
 	if len(self.NewTableDependency) == 0 {
 		for _, newSchema := range dbsteward.NewDatabase.Schemas {
-			// TODO(go,slony) pgsql8::set_context_replica_set_id($new_schema);
+			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 			// TODO(feat) this does not honor oldName attributes, does it matter?
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 			GlobalDiffTypes.ApplyChanges(stage1, oldSchema, newSchema)
@@ -170,7 +171,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		// non-primary key constraints may be inter-schema dependant, and dependant on other's primary keys
 		// and therefore should be done after object creation sections
 		for _, newSchema := range dbsteward.NewDatabase.Schemas {
-			// TODO(go,slony) pgsql8::set_context_replica_set_id($new_schema);
+			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 			GlobalDiffTables.DiffConstraints(stage1, oldSchema, newSchema, "constraint", false)
 		}
@@ -183,9 +184,8 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			newSchema := newEntry.Schema
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 
-			// TODO(go,slony) pgsql8::set_context_replica_set_id($new_schema);
 			if !processedSchemas[newSchema.Name] {
-				// TODO(go,slony) pgsql8::set_context_replica_set_id($new_schema);
+				GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 				GlobalDiffTypes.ApplyChanges(stage1, oldSchema, newSchema)
 				GlobalDiffFunctions.DiffFunctions(stage1, stage3, oldSchema, newSchema)
 				processedSchemas[newSchema.Name] = true
@@ -204,7 +204,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			newSchema := dbsteward.NewDatabase.TryGetSchemaNamed(oldSchema.Name)
 			var newTable *model.Table
 			if newSchema != nil {
-				// TODO(go,slony) pgsql8::set_context_replica_set_id($new_schema);
+				GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 				newTable = newSchema.TryGetTableNamed(oldTable.Name)
 			}
 
@@ -218,7 +218,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		for _, newEntry := range self.NewTableDependency {
 			newSchema := newEntry.Schema
 			if newSchema != nil {
-				// TODO(go,slony) pgsql8::set_context_replica_set_id($new_schema);
+				GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 			}
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 
