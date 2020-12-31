@@ -5,7 +5,17 @@ import (
 )
 
 type ToSql interface {
-	ToSql() string
+	ToSql(Quoter) string
+}
+
+type Quoter interface {
+	QuoteSchema(schema string) string
+	QuoteTable(table string) string
+	QuoteColumn(column string) string
+	QuoteRole(role string) string
+	QualifyTable(schema string, table string) string
+	QualifyColumn(schema string, table string, column string) string
+	LiteralString(str string) string
 }
 
 type OutputFileSegmenter interface {

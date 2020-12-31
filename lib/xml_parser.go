@@ -4,6 +4,8 @@ import (
 	"encoding/xml"
 	"os"
 
+	"github.com/dbsteward/dbsteward/lib/util"
+
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/pkg/errors"
 )
@@ -89,4 +91,44 @@ func (self *XmlParser) InheritanceGetColumn(table *model.Table, columnName strin
 	// TODO(go,nth) this should probably go directly on the table
 	// TODO(go,core)
 	return nil
+}
+
+func (self *XmlParser) RoleEnum(doc *model.Definition, role string) string {
+	if role == model.RolePublic && GlobalDBSteward.SqlFormat == model.SqlFormatMysql5 {
+		role = model.RoleApplication
+		GlobalDBSteward.Warning("MySQL doesn't support the PUBLIC role, using ROLE_APPLICATION (%s) instead", role)
+	}
+
+	if doc.Database == nil {
+		// TODO(go,nth) somehow was incompletely constructed
+		doc.Database = &model.Database{
+			Roles: &model.RoleAssignment{},
+		}
+	}
+	roles := doc.Database.Roles
+
+	switch role {
+	case model.RolePublic, model.RolePgsql:
+		// RolePublic, RolePgsql are their own constants
+		return role
+	case model.RoleApplication:
+		return roles.Application
+	case model.RoleOwner:
+		return roles.Owner
+	case model.RoleReadOnly:
+		return roles.ReadOnly
+	case model.RoleReplication:
+		return roles.Replication
+	}
+
+	if util.IIndexOfStr(role, roles.CustomRoles) >= 0 {
+		return role
+	}
+
+	if !GlobalDBSteward.IgnoreCustomRoles {
+		GlobalDBSteward.Fatal("Failed to confirm custom role: %s", role)
+	}
+
+	GlobalDBSteward.Warning("Ignoring custom roles, Role '%s' is being overridden by ROLE_OWNER (%s)", role, roles.Owner)
+	return roles.Owner
 }

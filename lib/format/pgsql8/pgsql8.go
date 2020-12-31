@@ -305,7 +305,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 				// store sequences that will be implicitly genreated during table create
 				// could use pgsql8::identifier_name and fully qualify the table but it will just truncate "for us" anyhow, so manually prepend schema
-				identName := schema.Name + "." + self.identifierName(schema.Name, table.Name, column.Name, "_seq")
+				identName := schema.Name + "." + self.IdentifierName(schema.Name, table.Name, column.Name, "_seq")
 				tableSerials = append(tableSerials, identName)
 
 				// TODO(go,nth) explain this logic, see pgsql8.php:1631, :1691
@@ -1287,7 +1287,7 @@ func (self *Operations) parseSqlArray(str string) []string {
 	return append(out, next)
 }
 
-func (self *Operations) identifierName(schema, table, column, suffix string) string {
+func (self *Operations) IdentifierName(schema, table, column, suffix string) string {
 	// these will change as we build the identifier
 	identTable := table
 	identColumn := column

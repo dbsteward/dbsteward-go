@@ -27,7 +27,7 @@ const (
 	RolePublic      = "PUBLIC"
 	RoleOwner       = "ROLE_OWNER"
 	RoleApplication = "ROLE_APPLICATION"
-	RoleReplication = "ROLE_REPLICATION"
+	RoleReplication = "ROLE_SLONY" // TODO(go,3) make more agnostic
 	RoleReadOnly    = "ROLE_READONLY"
 )
 

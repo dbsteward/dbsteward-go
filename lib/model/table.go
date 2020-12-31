@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-
 )
 
 type Table struct {
@@ -11,6 +10,7 @@ type Table struct {
 	Owner          string         `xml:"owner,attr"`
 	PrimaryKey     DelimitedList  `xml:"primaryKey,attr"`
 	PrimaryKeyName string         `xml:"primaryKeyName,attr"`
+	SlonySetId     int            `xml:"slonySetId,attr"`
 	TableOptions   []*TableOption `xml:"tableOption"`
 	Columns        []*Column      `xml:"column"`
 	ForeignKeys    []*ForeignKey  `xml:"foreignKey"`
@@ -37,8 +37,8 @@ type Column struct {
 
 type TableOption struct {
 	SqlFormat SqlFormat `xml:"sqlFormat,attr"`
-	Name      string           `xml:"name"`
-	Value     string           `xml:"value"`
+	Name      string    `xml:"name"`
+	Value     string    `xml:"value"`
 }
 
 type Index struct {

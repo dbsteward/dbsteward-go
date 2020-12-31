@@ -27,7 +27,7 @@ type DBSteward struct {
 	logger     zerolog.Logger
 	operations map[model.SqlFormat]format.Operations
 
-	sqlFormat model.SqlFormat
+	SqlFormat model.SqlFormat
 
 	CreateLanguages                bool
 	requireSlonyId                 bool
@@ -36,7 +36,7 @@ type DBSteward struct {
 	slonyIdStartValue              uint
 	slonyIdSetValue                uint
 	outputFileStatementLimit       uint
-	ignoreCustomRoles              bool
+	IgnoreCustomRoles              bool
 	ignorePrimaryKeyErrors         bool
 	RequireVerboseIntervalNotation bool
 	QuoteSchemaNames               bool
@@ -73,7 +73,7 @@ func NewDBSteward(operations map[model.SqlFormat]format.Operations) *DBSteward {
 		logger:     zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
 		operations: operations,
 
-		sqlFormat: model.SqlFormatUnknown,
+		SqlFormat: model.SqlFormatUnknown,
 
 		CreateLanguages:                false,
 		requireSlonyId:                 false,
@@ -82,7 +82,7 @@ func NewDBSteward(operations map[model.SqlFormat]format.Operations) *DBSteward {
 		slonyIdStartValue:              1,
 		slonyIdSetValue:                1,
 		outputFileStatementLimit:       900,
-		ignoreCustomRoles:              false,
+		IgnoreCustomRoles:              false,
 		ignorePrimaryKeyErrors:         false,
 		RequireVerboseIntervalNotation: false,
 		QuoteSchemaNames:               false,
@@ -117,7 +117,7 @@ func NewDBSteward(operations map[model.SqlFormat]format.Operations) *DBSteward {
 }
 
 func (self *DBSteward) FormatOperations() format.Operations {
-	return self.operations[self.sqlFormat]
+	return self.operations[self.SqlFormat]
 }
 
 // correlates to dbsteward->arg_parse()
@@ -167,7 +167,7 @@ func (self *DBSteward) ArgParse() {
 		self.alwaysRecreateViews = false
 	}
 	self.ignoreOldNames = args.IgnoreOldNames
-	self.ignoreCustomRoles = args.IgnoreCustomRoles
+	self.IgnoreCustomRoles = args.IgnoreCustomRoles
 	self.ignorePrimaryKeyErrors = args.IgnorePrimaryKeyErrors
 	self.requireSlonyId = args.RequireSlonyId
 	self.requireSlonySetId = args.RequireSlonySetId
@@ -279,12 +279,12 @@ func (self *DBSteward) ArgParse() {
 	self.Notice("DBSteward Version %s", Version)
 
 	// set the global sql format
-	self.sqlFormat = self.reconcileSqlFormat(targetSqlFormat, args.SqlFormat)
-	self.Notice("Using sqlformat=%s", self.sqlFormat)
+	self.SqlFormat = self.reconcileSqlFormat(targetSqlFormat, args.SqlFormat)
+	self.Notice("Using sqlformat=%s", self.SqlFormat)
 
 	if self.dbPort == 0 {
 		// TODO(go,nth) this is just super jank
-		self.dbPort = self.defineSqlFormatDefaultValues(self.sqlFormat, args)
+		self.dbPort = self.defineSqlFormatDefaultValues(self.SqlFormat, args)
 	}
 
 	self.QuoteSchemaNames = args.QuoteSchemaNames
@@ -406,9 +406,9 @@ func (self *DBSteward) reconcileSqlFormat(target, requested model.SqlFormat) mod
 	return DefaultSqlFormat
 }
 
-func (self *DBSteward) defineSqlFormatDefaultValues(sqlFormat model.SqlFormat, args *Args) uint {
+func (self *DBSteward) defineSqlFormatDefaultValues(SqlFormat model.SqlFormat, args *Args) uint {
 	var dbPort uint
-	switch sqlFormat {
+	switch SqlFormat {
 	case model.SqlFormatPgsql8:
 		self.CreateLanguages = true
 		self.QuoteSchemaNames = false
@@ -431,9 +431,9 @@ func (self *DBSteward) defineSqlFormatDefaultValues(sqlFormat model.SqlFormat, a
 		// 	mysql5.GlobalMysql5.UseSchemaNamePrefix = args.UseSchemaPrefix
 	}
 
-	if sqlFormat != model.SqlFormatPgsql8 {
+	if SqlFormat != model.SqlFormatPgsql8 {
 		if len(args.PgDataXml) > 0 {
-			self.Fatal("pgdataxml parameter is not supported by %s driver", sqlFormat)
+			self.Fatal("pgdataxml parameter is not supported by %s driver", SqlFormat)
 		}
 	}
 
