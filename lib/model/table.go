@@ -23,7 +23,7 @@ type Table struct {
 type Column struct {
 	Name            string `xml:"name,attr"`
 	Type            string `xml:"type,attr"`
-	Nullable        bool   `xml:"null,attr"`
+	Nullable        bool   `xml:"null,attr"` // TODO(go,core) this means it will default to being NOT NULL, need to validate usages!
 	Default         string `xml:"default,attr"`
 	Description     string `xml:"description,attr"`
 	SerialStart     string `xml:"serialStart,attr"`
@@ -33,6 +33,7 @@ type Column struct {
 	ForeignKeyName  string `xml:"foreignKeyName,attr"`
 	ForeignOnUpdate string `xml:"foreignOnUpdate,attr"`
 	ForeignOnDelete string `xml:"foreignOnDelete,attr"`
+	Statistics      *int   `xml:"statistics,attr"` // TODO(feat) this doesn't show up in the DTD
 }
 
 type TableOption struct {
