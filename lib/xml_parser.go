@@ -3,6 +3,7 @@ package lib
 import (
 	"encoding/xml"
 	"os"
+	"path/filepath"
 
 	"github.com/dbsteward/dbsteward/lib/util"
 
@@ -40,13 +41,76 @@ func (self *XmlParser) GetSqlFormat(files []string) model.SqlFormat {
 }
 
 func (self *XmlParser) XmlComposite(files []string) *model.Definition {
-	// TODO(go,core)
-	return nil
+	doc, _ := self.XmlCompositeAddendums(files, 0)
+	return doc
 }
 
 func (self *XmlParser) XmlCompositeAddendums(files []string, addendums uint) (*model.Definition, *model.Definition) {
-	// TODO(go,core)
+	var composite, addendumsDoc *model.Definition
+	startAddendumsIdx := -1
+
+	if addendums > 0 {
+		addendumsDoc = &model.Definition{}
+		startAddendumsIdx = len(files) - int(addendums)
+	}
+
+	for _, file := range files {
+		GlobalDBSteward.Notice("Loading XML %s...", file)
+
+		doc, err := self.LoadDefintion(file)
+		GlobalDBSteward.FatalIfError(err, "Failed to load and parse xml file %s", file)
+		GlobalDBSteward.Notice("Compositing XML %s", file)
+		composite = self.CompositeDoc(composite, doc, file, startAddendumsIdx, addendumsDoc)
+	}
+
+	self.ValidateXml(self.FormatXml(composite))
+
 	return nil, nil
+}
+
+func (self *XmlParser) CompositeDoc(base, overlay *model.Definition, file string, startAddendumsIdx int, addendumsDoc *model.Definition) *model.Definition {
+	if base == nil {
+		base = &model.Definition{}
+	}
+
+	overlay = self.expandIncludes(overlay, file)
+	overlay = self.expandTabrowData(overlay)
+	overlay = self.SqlFormatConvert(overlay)
+
+	// TODO(go,core) data addendums
+	// TODO(go,slony) slony composite aspects
+
+	base.Merge(overlay)
+	return base
+}
+
+func (self *XmlParser) expandTabrowData(doc *model.Definition) *model.Definition {
+	for _, schema := range doc.Schemas {
+		for _, table := range schema.Tables {
+			if table.Rows != nil {
+				table.Rows.ConvertTabRows()
+			}
+		}
+	}
+	return doc
+}
+
+func (self *XmlParser) expandIncludes(doc *model.Definition, file string) *model.Definition {
+	for _, include := range doc.IncludeFiles {
+		// if the include is relative, make it relative to the parent file
+		if !filepath.IsAbs(include) {
+			inc, err := filepath.Abs(filepath.Join(filepath.Dir(file), include))
+			GlobalDBSteward.FatalIfError(err, "could not establish absolute path to file %s included from %s", include, file)
+			include = inc
+		}
+		includeDoc, err := self.LoadDefintion(include)
+		GlobalDBSteward.FatalIfError(err, "Failed to load and parse xml file %s included from %s", include, file)
+
+		doc = self.CompositeDoc(doc, includeDoc, include, -1, nil)
+	}
+	doc.IncludeFiles = nil
+
+	return doc
 }
 
 func (self *XmlParser) XmlCompositePgData(doc *model.Definition, dataFiles []string) *model.Definition {
@@ -77,8 +141,13 @@ func (self *XmlParser) FileSort(file, sortedFile string) {
 }
 
 func (self *XmlParser) FormatXml(doc *model.Definition) string {
-	// TODO(go,xmlutil)
-	return ""
+	d, err := xml.MarshalIndent(doc, "", "    ")
+	GlobalDBSteward.FatalIfError(err, "could not marshal definition")
+	return string(d)
+}
+
+func (self *XmlParser) ValidateXml(xmlstr string) {
+	// TODO(go,core) validate the given xml against DTD. and/or, do we even need this now that we're serializing straight from structs?
 }
 
 func (self *XmlParser) TableDependencyOrder(doc *model.Definition) []*model.TableDepEntry {

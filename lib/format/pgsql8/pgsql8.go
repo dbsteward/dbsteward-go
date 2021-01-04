@@ -890,7 +890,8 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 						expr := fmt.Sprintf(
 							"%s = %s",
 							self.QuoteColumn(pkCol),
-							self.ValueEscape(colTypes[pkCol], row.Columns[pkIndex], doc),
+							// TODO(feat) what about row.Columns[pkIndex].Null
+							self.ValueEscape(colTypes[pkCol], row.Columns[pkIndex].Text, doc),
 						)
 						pkExprs = append(pkExprs, expr)
 					}
@@ -917,7 +918,8 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 						res.Next()
 						dbRow := res.FetchRowStringMap()
 						for i, col := range cols {
-							valuesMatch, xmlValue, dbValue := self.compareDbDataRow(colTypes[col], row.Columns[i], dbRow[col])
+							// TODO(feat) what about row.Columns[i].Null?
+							valuesMatch, xmlValue, dbValue := self.compareDbDataRow(colTypes[col], row.Columns[i].Text, dbRow[col])
 							if !valuesMatch {
 								dbsteward.Warning("%s row column WHERE (%s) %s data does not match database row column: '%s' vs '%s'",
 									tableName, pkExpr, col, xmlValue, dbValue)

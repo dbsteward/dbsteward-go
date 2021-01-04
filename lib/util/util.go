@@ -103,6 +103,19 @@ func IIndex(s string, substr string) int {
 	return strings.Index(strings.ToLower(s), strings.ToLower(substr))
 }
 
+// case insensitively unions two lists of strings
+func IMergeStrs(left, right []string) []string {
+	// no, this is not the most efficient, but it is the simplest
+	out := make([]string, len(left))
+	copy(out, left)
+	for _, r := range right {
+		if IIndexOfStr(r, out) < 0 {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 // returns true if the string explicitly represents a "true" value.
 // TODO(go,nth) search for cases of testing a value equal to one of these and replace
 func IsTruthy(s string) bool {

@@ -1,5 +1,9 @@
 package model
 
+import (
+	"strings"
+)
+
 type SqlFormat string
 
 const (
@@ -8,6 +12,10 @@ const (
 	SqlFormatMssql10 SqlFormat = "mssql10"
 	SqlFormatMysql5  SqlFormat = "mysql5"
 )
+
+func (self SqlFormat) Equals(other SqlFormat) bool {
+	return strings.EqualFold(string(self), string(other))
+}
 
 type SqlStage string
 

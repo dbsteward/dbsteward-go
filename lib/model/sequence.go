@@ -27,3 +27,21 @@ func (self *Sequence) AddGrant(grant *Grant) {
 	// TODO(feat) sanity check
 	self.Grants = append(self.Grants, grant)
 }
+
+func (self *Sequence) Merge(overlay *Sequence) {
+	if overlay == nil {
+		return
+	}
+
+	self.Owner = overlay.Owner
+	self.Cache = overlay.Cache
+	self.Start = overlay.Start
+	self.Min = overlay.Min
+	self.Max = overlay.Max
+	self.Increment = overlay.Increment
+	self.Cycle = overlay.Cycle
+
+	for _, overlayGrant := range overlay.Grants {
+		self.AddGrant(overlayGrant)
+	}
+}

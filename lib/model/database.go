@@ -33,6 +33,19 @@ func (self *Database) AddCustomRole(role string) {
 	self.Roles.AddCustomRole(role)
 }
 
+func (self *Database) Merge(overlay *Database) {
+	if overlay == nil {
+		return
+	}
+
+	self.SqlFormat = overlay.SqlFormat
+
+	if self.Roles == nil {
+		self.Roles = &RoleAssignment{}
+	}
+	self.Roles.Merge(overlay.Roles)
+}
+
 func (self *RoleAssignment) IsRoleDefined(role string) bool {
 	return util.IIndexOfStr(role, self.CustomRoles) >= 0
 }
@@ -40,4 +53,16 @@ func (self *RoleAssignment) IsRoleDefined(role string) bool {
 func (self *RoleAssignment) AddCustomRole(role string) {
 	// TODO(feat) sanity check
 	self.CustomRoles = append(self.CustomRoles, role)
+}
+
+func (self *RoleAssignment) Merge(overlay *RoleAssignment) {
+	if overlay == nil {
+		return
+	}
+
+	self.Application = overlay.Application
+	self.Owner = overlay.Owner
+	self.Replication = overlay.Replication
+	self.ReadOnly = overlay.ReadOnly
+	self.CustomRoles = overlay.CustomRoles
 }
