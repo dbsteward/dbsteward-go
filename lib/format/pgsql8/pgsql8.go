@@ -48,10 +48,10 @@ func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
 	buildFileName := outputPrefix + "_build.sql"
 	dbsteward.Info("Building complete file %s", buildFileName)
 
-	buildFile, err := os.OpenFile(buildFileName, os.O_RDWR, 0644)
+	buildFile, err := os.Create(buildFileName)
 	dbsteward.FatalIfError(err, "Failed to open file %s for output", buildFileName)
 
-	buildFileOfs := output.NewOutputFileSegmenterToFile(buildFileName, 1, buildFile, buildFileName)
+	buildFileOfs := output.NewOutputFileSegmenterToFile(dbsteward, self, buildFileName, 1, buildFile, buildFileName, dbsteward.OutputFileStatementLimit)
 	if len(dbsteward.LimitToTables) == 0 {
 		buildFileOfs.Write("-- full database definition file generated %s\n", time.Now().Format(time.RFC1123Z))
 	}
@@ -889,7 +889,7 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 
 						expr := fmt.Sprintf(
 							"%s = %s",
-							self.GetQuotedColumnName(pkCol),
+							self.QuoteColumn(pkCol),
 							self.ValueEscape(colTypes[pkCol], row.Columns[pkIndex], doc),
 						)
 						pkExprs = append(pkExprs, expr)
@@ -1213,15 +1213,24 @@ func (self *Operations) ValueEscape(datatype string, value string, doc *model.De
 		enumRegex = "|" + enumRegex
 	}
 	if util.IMatch(fmt.Sprintf(`^(bool.*|character.*|string|text|date|time.*|(var)?char.*|interval|money|inet|uuid|ltree%s)`, enumRegex), datatype) != nil {
-		value = fmt.Sprintf(`'%s'`, value)
 		// data types that should have E prefix to their quotes
 		if self.EscapeStringValues && util.IMatch(`^(character.*|string|text|(var)?char.*)`, datatype) != nil {
-			value = "E" + value
+			return self.LiteralStringEscaped(value)
+		} else {
+			return self.LiteralString(value)
 		}
-		return value
 	}
 
 	return value
+}
+
+func (self *Operations) LiteralString(str string) string {
+	return fmt.Sprintf("'%s'", strings.ReplaceAll(str, "'", "''"))
+}
+
+func (self *Operations) LiteralStringEscaped(str string) string {
+	// TODO(go,nth) verify this works in all cases
+	return "E" + self.LiteralString(str)
 }
 
 func (self *Operations) SetContextReplicaSetId(setId int) {

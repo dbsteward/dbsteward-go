@@ -35,7 +35,7 @@ type DBSteward struct {
 	GenerateSlonik                 bool
 	slonyIdStartValue              uint
 	slonyIdSetValue                uint
-	outputFileStatementLimit       uint
+	OutputFileStatementLimit       uint
 	IgnoreCustomRoles              bool
 	ignorePrimaryKeyErrors         bool
 	RequireVerboseIntervalNotation bool
@@ -81,7 +81,7 @@ func NewDBSteward(operations map[model.SqlFormat]format.Operations) *DBSteward {
 		GenerateSlonik:                 false,
 		slonyIdStartValue:              1,
 		slonyIdSetValue:                1,
-		outputFileStatementLimit:       900,
+		OutputFileStatementLimit:       900,
 		IgnoreCustomRoles:              false,
 		ignorePrimaryKeyErrors:         false,
 		RequireVerboseIntervalNotation: false,
@@ -330,14 +330,24 @@ func (self *DBSteward) Fatal(s string, args ...interface{}) {
 }
 func (self *DBSteward) FatalIfError(err error, s string, args ...interface{}) {
 	if err != nil {
-		args = append(args, err)
-		self.Fatal(s+": %s", args...)
+		self.logger.Fatal().Err(err).Msgf(s, args...)
 	}
 }
 
 func (self *DBSteward) Warning(s string, args ...interface{}) {
 	self.logger.Warn().Msgf(s, args...)
 }
+
+func (self *DBSteward) Error(s string, args ...interface{}) {
+	self.logger.Error().Msgf(s, args...)
+}
+
+func (self *DBSteward) ErrorIfError(err error, s string, args ...interface{}) {
+	if err != nil {
+		self.logger.Error().Err(err).Msgf(s, args...)
+	}
+}
+
 func (self *DBSteward) Notice(s string, args ...interface{}) {
 	// TODO(go,nth) differentiate between notice and info
 	self.Info(s, args...)

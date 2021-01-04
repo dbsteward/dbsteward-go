@@ -15,7 +15,8 @@ import (
 type Diff struct {
 	format.Diff
 
-	schema format.Schema
+	operations format.Operations
+	schema     format.Schema
 }
 
 func NewDiff() *Diff {
@@ -34,19 +35,19 @@ func (self *Diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *model.Definit
 		file, err := os.Create(fileName)
 		dbsteward.FatalIfError(err, "failed to open single stage output file %s for write", fileName)
 
-		stage1 = output.NewOutputFileSegmenterToFile(fileName, 1, file, fileName)
+		stage1 = output.NewOutputFileSegmenterToFile(dbsteward, self.operations, fileName, 1, file, fileName, dbsteward.OutputFileStatementLimit)
 		stage1.SetHeader("-- DBsteward single stage upgrade changes - generated %s\n%s", timestamp, oldSetNewSet)
 		stage2 = stage1
 		stage3 = stage1
 		stage4 = stage1
 	} else {
-		stage1 = output.NewOutputFileSegmenter(upgradePrefix+"_stage1_schema", 1)
+		stage1 = output.NewOutputFileSegmenter(dbsteward, self.operations, upgradePrefix+"_stage1_schema", 1, dbsteward.OutputFileStatementLimit)
 		stage1.SetHeader("-- DBSteward stage 1 structure additions and modifications - generated %s\n%s", timestamp, oldSetNewSet)
-		stage2 = output.NewOutputFileSegmenter(upgradePrefix+"_stage2_data", 1)
+		stage2 = output.NewOutputFileSegmenter(dbsteward, self.operations, upgradePrefix+"_stage2_data", 1, dbsteward.OutputFileStatementLimit)
 		stage2.SetHeader("-- DBSteward stage 2 data definitions removed - generated %s\n%s", timestamp, oldSetNewSet)
-		stage3 = output.NewOutputFileSegmenter(upgradePrefix+"_stage3_schema", 1)
+		stage3 = output.NewOutputFileSegmenter(dbsteward, self.operations, upgradePrefix+"_stage3_schema", 1, dbsteward.OutputFileStatementLimit)
 		stage3.SetHeader("-- DBSteward stage 3 structure changes, constraints, and removals - generated %s\n%s", timestamp, oldSetNewSet)
-		stage4 = output.NewOutputFileSegmenter(upgradePrefix+"_stage4_schema", 1)
+		stage4 = output.NewOutputFileSegmenter(dbsteward, self.operations, upgradePrefix+"_stage4_schema", 1, dbsteward.OutputFileStatementLimit)
 		stage4.SetHeader("-- DBSteward stage 4 data definition changes and additions - generated %s\n%s", timestamp, oldSetNewSet)
 	}
 

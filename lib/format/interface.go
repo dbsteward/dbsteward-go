@@ -19,7 +19,8 @@ type Operations interface {
 	IsIllegalIdentifier(string) bool
 	IsReservedIdentifier(string) bool
 	GetQuotedName(name string, shouldQuote bool) string
-	GetQuotedColumnName(name string) string
+
+	output.Quoter
 }
 
 type SlonyOperations interface {

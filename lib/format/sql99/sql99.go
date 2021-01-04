@@ -1,6 +1,8 @@
 package sql99
 
 import (
+	"fmt"
+
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format"
 )
@@ -61,6 +63,27 @@ func (self *Operations) GetQuotedName(name string, shouldQuote bool) string {
 	return name
 }
 
-func (self *Operations) GetQuotedColumnName(name string) string {
+func (self *Operations) QuoteSchema(name string) string {
+	return self.GetQuotedName(name, lib.GlobalDBSteward.QuoteSchemaNames)
+}
+
+func (self *Operations) QuoteTable(name string) string {
+	return self.GetQuotedName(name, lib.GlobalDBSteward.QuoteTableNames)
+}
+
+func (self *Operations) QuoteColumn(name string) string {
 	return self.GetQuotedName(name, lib.GlobalDBSteward.QuoteColumnNames)
+}
+
+func (self *Operations) QuoteRole(name string) string {
+	// TODO(go,nth) I lost track of what this is guarded on in php codebase, double check that
+	return self.GetQuotedName(name, lib.GlobalDBSteward.QuoteObjectNames)
+}
+
+func (self *Operations) QualifyTable(schema string, table string) string {
+	return fmt.Sprintf("%s.%s", self.QuoteSchema(schema), self.QuoteTable(table))
+}
+
+func (self *Operations) QualifyColumn(schema string, table string, column string) string {
+	return fmt.Sprintf("%s.%s.%s", self.QuoteSchema(schema), self.QuoteTable(table), self.QuoteColumn(column))
 }
