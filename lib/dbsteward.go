@@ -574,7 +574,6 @@ func (self *DBSteward) doBuild(files []string, dataFiles []string, addendums uin
 
 	outputPrefix := self.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
-	dbDoc = GlobalXmlParser.SqlFormatConvert(dbDoc)
 	GlobalXmlParser.VendorParse(dbDoc)
 	self.Notice("Saving composite as %s", compositeFile)
 	GlobalXmlParser.SaveDoc(compositeFile, dbDoc)

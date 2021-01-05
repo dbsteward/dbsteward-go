@@ -8,12 +8,20 @@ import (
 // TODO(go,3) move most public fields to private, use accessors to better enable encapsulation, validation; "make invalid states unrepresentable"
 
 type Definition struct {
-	IncludeFiles   []string    `xml:"includeFile>name,attr"`
-	InlineAssembly []string    `xml:"inlineAssembly>name,attr"`
-	Database       *Database   `xml:"database"`
-	Schemas        []*Schema   `xml:"schema"`
-	Languages      []*Language `xml:"language"`
-	Sql            []*Sql      `xml:"sql"`
+	IncludeFiles   []*IncludeFile    `xml:"includeFile"`
+	InlineAssembly []*InlineAssembly `xml:"inlineAssembly"`
+	Database       *Database         `xml:"database"`
+	Schemas        []*Schema         `xml:"schema"`
+	Languages      []*Language       `xml:"language"`
+	Sql            []*Sql            `xml:"sql"`
+}
+
+type IncludeFile struct {
+	Name string `xml:"name,attr"`
+}
+
+type InlineAssembly struct {
+	Name string `xml:"name,attr"`
 }
 
 type Sql struct {
@@ -107,6 +115,9 @@ func (self *Definition) AddSql(sql *Sql) {
 // Merge is the new implementation of xml_parser::xml_composite_children
 // it merges items from the overlay into this definition
 func (self *Definition) Merge(overlay *Definition) {
+	if overlay == nil {
+		return
+	}
 	self.IncludeFiles = append(self.IncludeFiles, overlay.IncludeFiles...)
 	self.InlineAssembly = append(self.InlineAssembly, overlay.InlineAssembly...)
 

@@ -2,8 +2,10 @@ package lib
 
 import (
 	"encoding/xml"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/util"
 
@@ -65,7 +67,7 @@ func (self *XmlParser) XmlCompositeAddendums(files []string, addendums uint) (*m
 
 	self.ValidateXml(self.FormatXml(composite))
 
-	return nil, nil
+	return composite, addendumsDoc
 }
 
 func (self *XmlParser) CompositeDoc(base, overlay *model.Definition, file string, startAddendumsIdx int, addendumsDoc *model.Definition) *model.Definition {
@@ -96,7 +98,8 @@ func (self *XmlParser) expandTabrowData(doc *model.Definition) *model.Definition
 }
 
 func (self *XmlParser) expandIncludes(doc *model.Definition, file string) *model.Definition {
-	for _, include := range doc.IncludeFiles {
+	for _, includeFile := range doc.IncludeFiles {
+		include := includeFile.Name
 		// if the include is relative, make it relative to the parent file
 		if !filepath.IsAbs(include) {
 			inc, err := filepath.Abs(filepath.Join(filepath.Dir(file), include))
@@ -119,8 +122,138 @@ func (self *XmlParser) XmlCompositePgData(doc *model.Definition, dataFiles []str
 }
 
 func (self *XmlParser) SqlFormatConvert(doc *model.Definition) *model.Definition {
-	// TODO(go,core)
-	return nil
+	// legacy 1.0 column add directive attribute conversion
+	for _, schema := range doc.Schemas {
+		for _, table := range schema.Tables {
+			for _, column := range table.Columns {
+				column.ConvertStageDirectives()
+			}
+		}
+	}
+
+	// mssql10 sql format conversions
+	// TODO(feat) apply mssql10_type_convert to function parameters/returns as well. see below mysql5 impl
+	if GlobalDBSteward.SqlFormat == model.SqlFormatMssql10 {
+		for _, schema := range doc.Schemas {
+			// if objects are being placed in the public schema, move the schema definition to dbo
+			// TODO(go,4) can we use a "SCHEMA_PUBLIC" macro or something to simplify this?
+			if strings.EqualFold(schema.Name, "public") {
+				if dbo := doc.TryGetSchemaNamed("dbo"); dbo != nil {
+					GlobalDBSteward.Fatal("Attempting to rename schema 'public' to 'dbo' but schema 'dbo' already exists")
+				}
+				schema.Name = "dbo"
+			}
+
+			for _, table := range schema.Tables {
+				for _, column := range table.Columns {
+					if strings.EqualFold(column.ForeignSchema, "public") {
+						column.ForeignSchema = "dbo"
+					}
+
+					if column.Type != "" {
+						self.mssql10TypeConvert(column)
+					}
+				}
+			}
+			// TODO(go,mssql) do we need to check function types like we do for mysql?
+		}
+	}
+
+	// mysql5 format conversions
+	if GlobalDBSteward.SqlFormat == model.SqlFormatMysql5 {
+		for _, schema := range doc.Schemas {
+			for _, table := range schema.Tables {
+				for _, column := range table.Columns {
+					if column.Type != "" {
+						typ, def := self.mysql5TypeConvert(column.Type, column.Default)
+						column.Type = typ
+						column.Default = def
+					}
+				}
+			}
+
+			for _, function := range schema.Functions {
+				typ, _ := self.mysql5TypeConvert(function.Returns, "")
+				function.Returns = typ
+				for _, param := range function.Parameters {
+					typ, _ := self.mysql5TypeConvert(param.Type, "")
+					param.Type = typ
+				}
+			}
+		}
+	}
+
+	return doc
+}
+
+// TODO(go,3) push this to mssql package
+// TODO(go,3) should we defer this to sql generation time instead?
+func (self *XmlParser) mssql10TypeConvert(column *model.Column) {
+	// all arrays to varchar(896) - our accepted varchar key max for mssql databases
+	// the reason this is done to varchar(896) instead of varchar(MAX)
+	// is that mssql will not allow binary blobs or long string types to be keys of indexes and foreign keys
+	// attempting to do so results in errors like
+	// Column 'app_mode' in table 'dbo.registration_step_list' is of a type that is invalid for use as a key column in an index.
+	if strings.HasSuffix(column.Type, "[]") {
+		column.Type = "varchar(896)"
+	}
+
+	switch strings.ToLower(column.Type) {
+	case "boolean", "bool":
+		column.Type = "char(1)"
+		if column.Default != "" {
+			switch strings.ToLower(column.Default) {
+			case "t", "'t'", "true":
+				column.Default = "'t'"
+			case "f", "'f'", "false":
+				column.Default = "'f'"
+			default:
+				GlobalDBSteward.Fatal("unknown column type bool default %s", column.Default)
+			}
+		}
+	case "inet":
+		column.Type = "varchar(16)"
+	case "interval", "character varying", "varchar", "text":
+		column.Type = "varchar(MAX)"
+	case "timestamp", "timestamp without time zone":
+		column.Type = "datetime2"
+	case "timestamp with time zone":
+		column.Type = "datetimeoffset(7)"
+	case "time with time zone":
+		column.Type = "time"
+	case "serial":
+		// pg serial = ms int identity
+		// see http://msdn.microsoft.com/en-us/library/ms186775.aspx
+		column.Type = "int identity(1, 1)"
+		if column.SerialStart != "" {
+			column.Type = fmt.Sprintf("int identity(%s, 1)", column.SerialStart)
+		}
+	case "bigserial":
+		column.Type = "bigint identity(1, 1)"
+		if column.SerialStart != "" {
+			column.Type = fmt.Sprintf("bigint identity(%s, 1)", column.SerialStart)
+		}
+	case "uuid":
+		// PostgreSQL's type uuid adhering to RFC 4122 -- see http://www.postgresql.org/docs/8.4/static/datatype-uuid.html
+		// MSSQL almost equivalent known as uniqueidentifier -- see http://msdn.microsoft.com/en-us/library/ms187942.aspx
+		// the column type is "a 16-byte GUID", 36 characters in length -- it does not claim to be, but appears to be their RFC 4122 implementation
+		column.Type = "uniqueidentifier"
+	default:
+		// no match to postgresql built-in types
+		// check for custom types in the public schema
+		// these should be changed to dbo
+		column.Type = util.IReplaceAll(column.Type, "public.", "dbo.")
+	}
+
+	// mssql doesn't understand epoch
+	if strings.EqualFold(column.Default, "'epoch'") {
+		column.Default = "'1970-01-01'"
+	}
+}
+
+func (self *XmlParser) mysql5TypeConvert(typ, def string) (string, string) {
+	// TODO(go,mysql)
+	return typ, def
 }
 
 func (self *XmlParser) VendorParse(doc *model.Definition) {

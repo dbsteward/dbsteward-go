@@ -3,6 +3,8 @@ package model
 import (
 	"fmt"
 	"strings"
+
+	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 type Table struct {
@@ -35,6 +37,20 @@ type Column struct {
 	ForeignOnUpdate string `xml:"foreignOnUpdate,attr"`
 	ForeignOnDelete string `xml:"foreignOnDelete,attr"`
 	Statistics      *int   `xml:"statistics,attr"` // TODO(feat) this doesn't show up in the DTD
+	BeforeAddStage1 string `xml:"beforeAddStage1,attr"`
+	AfterAddStage1  string `xml:"afterAddStage1,attr"`
+	BeforeAddStage2 string `xml:"beforeAddStage2,attr"`
+	AfterAddStage2  string `xml:"afterAddStage2,attr"`
+	BeforeAddStage3 string `xml:"beforeAddStage3,attr"`
+	AfterAddStage3  string `xml:"afterAddStage3,attr"`
+
+	// These are DEPRECATED, replaced by Before/AfterAddStageN. see ConvertStageDirectives
+	AfterAddPreStage1  string `xml:"afterAddPreStage1,attr"`
+	AfterAddPostStage1 string `xml:"afterAddPostStage1,attr"`
+	AfterAddPreStage2  string `xml:"afterAddPreStage2,attr"`
+	AfterAddPostStage2 string `xml:"afterAddPostStage2,attr"`
+	AfterAddPreStage3  string `xml:"afterAddPreStage3,attr"`
+	AfterAddPostStage3 string `xml:"afterAddPostStage3,attr"`
 }
 
 type TableOption struct {
@@ -244,6 +260,22 @@ func (self *TableOption) IdentityMatches(other *TableOption) bool {
 func (self *TableOption) Merge(overlay *TableOption) {
 	// TODO(feat) does this need to be more sophisticated given that sometimes we set name=with,value=<lots of things>?
 	self.Value = overlay.Value
+}
+
+func (self *Column) ConvertStageDirectives() {
+	self.BeforeAddStage1 = util.CoalesceStr(self.BeforeAddStage1, self.AfterAddPreStage1)
+	self.AfterAddStage1 = util.CoalesceStr(self.AfterAddStage1, self.AfterAddPostStage1)
+	self.BeforeAddStage2 = util.CoalesceStr(self.BeforeAddStage2, self.AfterAddPreStage2)
+	self.AfterAddStage2 = util.CoalesceStr(self.AfterAddStage2, self.AfterAddPostStage2)
+	self.BeforeAddStage3 = util.CoalesceStr(self.BeforeAddStage3, self.AfterAddPreStage3)
+	self.AfterAddStage3 = util.CoalesceStr(self.AfterAddStage3, self.AfterAddPostStage3)
+
+	self.AfterAddPreStage1 = ""
+	self.AfterAddPostStage1 = ""
+	self.AfterAddPreStage2 = ""
+	self.AfterAddPostStage2 = ""
+	self.AfterAddPreStage3 = ""
+	self.AfterAddPostStage3 = ""
 }
 
 func (self *Column) Merge(overlay *Column) {
