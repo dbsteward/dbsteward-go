@@ -3,19 +3,12 @@ package lib
 import (
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
+	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 var GlobalDBX *DBX = NewDBX()
 
 type DBX struct {
-}
-
-type ForeignColumnReference struct {
-	Schema           *model.Schema
-	Table            *model.Table
-	Column           *model.Column
-	Name             string
-	ReferencesString string
 }
 
 func NewDBX() *DBX {
@@ -30,10 +23,24 @@ func (self *DBX) BuildStagedSql(doc *model.Definition, ofs output.OutputFileSegm
 	// TODO(go,core) dbx::build_staged_sql()
 }
 
-func (self *DBX) ForeignKey(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) ForeignColumnReference {
-	// TODO(go,core) dbx::foreign_key()
-	// TODO(go,nth) should this live on model instead?
-	return ForeignColumnReference{}
+// TODO(feat) what about compound keys?
+func (self *DBX) GetTerminalForeignColumn(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) *model.Column {
+	fSchemaName := util.CoalesceStr(column.ForeignSchema, schema.Name)
+	fSchema, err := doc.GetSchemaNamed(fSchemaName)
+	GlobalDBSteward.FatalIfError(err, "Failed to find foreign schema '%s' for %s.%s.%s", fSchemaName, schema.Name, table.Name, column.Name)
+
+	fTable, err := fSchema.GetTableNamed(column.ForeignTable)
+	GlobalDBSteward.FatalIfError(err, "Failed to find foreign table '%s' for %s.%s.%s", column.ForeignTable, schema.Name, table.Name, column.Name)
+
+	fColumnName := util.CoalesceStr(column.ForeignColumn, column.Name)
+	fColumn, err := fTable.GetColumnNamed(fColumnName)
+	GlobalDBSteward.FatalIfError(err, "Failed to find foreign column '%s' on foreign table '%s.%s' for %s.%s.%s", fColumnName, fSchema.Name, fTable.Name, schema.Name, table.Name, column.Name)
+
+	if fColumn.Type == "" && fColumn.ForeignColumn != "" {
+		GlobalDBSteward.Trace("Seeking nested foreign key for %s.%s.%s", fColumn.Name, fTable.Name, fSchema.Name)
+		return self.GetTerminalForeignColumn(doc, fSchema, fTable, fColumn)
+	}
+	return fColumn
 }
 
 func (self *DBX) EnumRegex(doc *model.Definition) string {

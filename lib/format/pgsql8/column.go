@@ -53,8 +53,8 @@ func (self *Column) GetColumnType(doc *model.Definition, schema *model.Schema, t
 	// if it is a foreign keyed column, solve for the foreign key type
 	if column.ForeignTable != "" {
 		// TODO(feat) what about compound FKs?
-		foreign := lib.GlobalDBX.ForeignKey(doc, schema, table, column)
-		return self.GetReferenceType(foreign.Column.Type)
+		foreign := lib.GlobalDBX.GetTerminalForeignColumn(doc, schema, table, column)
+		return self.GetReferenceType(foreign.Type)
 	}
 
 	if column.Type == "" {

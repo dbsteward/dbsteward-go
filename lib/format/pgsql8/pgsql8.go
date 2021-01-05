@@ -865,8 +865,8 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 						if len(colType) > 0 {
 							dbsteward.Fatal("type of %s was found for column %s but it is foreign keyed", colType, column)
 						}
-						foreign := lib.GlobalDBX.ForeignKey(doc, schema, table, column)
-						colType = foreign.Column.Type
+						foreign := lib.GlobalDBX.GetTerminalForeignColumn(doc, schema, table, column)
+						colType = foreign.Type
 					}
 
 					if len(colType) == 0 {

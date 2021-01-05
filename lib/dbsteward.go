@@ -355,6 +355,9 @@ func (self *DBSteward) Notice(s string, args ...interface{}) {
 func (self *DBSteward) Info(s string, args ...interface{}) {
 	self.logger.Info().Msgf(s, args...)
 }
+func (self *DBSteward) Trace(s string, args ...interface{}) {
+	self.logger.Trace().Msgf(s, args...)
+}
 
 // dbsteward::set_verbosity($options)
 func (self *DBSteward) setVerbosity(args *Args) {

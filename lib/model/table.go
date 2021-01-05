@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
@@ -129,6 +131,24 @@ func (self *Table) GetGrantsForRole(role string) []*Grant {
 func (self *Table) AddGrant(grant *Grant) {
 	// TODO(feat) sanity check
 	self.Grants = append(self.Grants, grant)
+}
+
+func (self *Table) GetColumnNamed(name string) (*Column, error) {
+	var found *Column
+	for _, col := range self.Columns {
+		// TODO(feat) case insensitivity?
+		if col.Name == name {
+			if found == nil {
+				found = col
+			} else {
+				return found, errors.Errorf("Found a second column named %s", name)
+			}
+		}
+	}
+	if found == nil {
+		return nil, errors.Errorf("Found no columns named %s", name)
+	}
+	return found, nil
 }
 
 func (self *Table) TryGetColumnNamed(name string) *Column {

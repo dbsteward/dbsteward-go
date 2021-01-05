@@ -8,4 +8,5 @@ type Logger interface {
 	Warning(string, ...interface{})
 	Notice(string, ...interface{})
 	Info(string, ...interface{})
+	Trace(string, ...interface{})
 }
