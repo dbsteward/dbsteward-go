@@ -19,8 +19,8 @@ func NewColumn() *Column {
 type Column struct {
 }
 
-func (self *Column) GetReducedDefinition(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) sql.CreateTableColumn {
-	return sql.CreateTableColumn{
+func (self *Column) GetReducedDefinition(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) sql.TableCreateColumn {
+	return sql.TableCreateColumn{
 		Column: column.Name,
 		Type:   self.GetColumnType(doc, schema, table, column),
 	}
@@ -30,13 +30,13 @@ func (self *Column) GetSetupSql(schema *model.Schema, table *model.Table, column
 	ddl := []output.ToSql{}
 	colref := sql.ColumnRef{schema.Name, table.Name, column.Name}
 	if column.Statistics != nil {
-		ddl = append(ddl, &sql.AlterColumnStatistics{
+		ddl = append(ddl, &sql.ColumnAlterStatistics{
 			Column:     colref,
 			Statistics: *column.Statistics,
 		})
 	}
 	if column.Description != "" {
-		ddl = append(ddl, &sql.SetColumnComment{
+		ddl = append(ddl, &sql.ColumnSetComment{
 			Column:  colref,
 			Comment: column.Description,
 		})

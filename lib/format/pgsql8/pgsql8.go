@@ -1172,7 +1172,7 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 				pk := cols[0]
 				if GlobalDataType.IsLinkedTableType(pk.Type) {
 					if len(pk.SerialStart) > 0 {
-						ofs.WriteSql(&sql.SetValSerialSequenceMax{
+						ofs.WriteSql(&sql.SequenceSetValSerialMax{
 							Schema: schema.Name,
 							Table:  table.Name,
 							Column: pk.Name,

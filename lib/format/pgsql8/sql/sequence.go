@@ -6,13 +6,13 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type SetValSerialSequenceMax struct {
+type SequenceSetValSerialMax struct {
 	Schema string
 	Table  string
 	Column string
 }
 
-func (self *SetValSerialSequenceMax) ToSql(q output.Quoter) string {
+func (self *SequenceSetValSerialMax) ToSql(q output.Quoter) string {
 	// TODO(go,core) quoting
 	return fmt.Sprintf(
 		`SELECT setval(pg_get_serial_sequence(%s, %s), MAX(%s), true) FROM %s;`,

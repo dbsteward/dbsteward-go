@@ -109,7 +109,11 @@ func (self *outputFileSegmenter) AppendFooter(format string, args ...interface{}
 
 func (self *outputFileSegmenter) WriteSql(stmts ...ToSql) {
 	for _, stmt := range stmts {
-		self.Write(stmt.ToSql(self.quoter) + "\n")
+		// make sure every sql statement ends with ;\n\n for consistency, and has no other leading/trailing whitespace
+		sql := stmt.ToSql(self.quoter)
+		sql = strings.TrimSpace(sql)
+		sql = strings.TrimSuffix(sql, ";")
+		self.Write(sql + ";\n\n")
 	}
 }
 

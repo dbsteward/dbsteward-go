@@ -20,24 +20,24 @@ func (self *TableRef) Quoted(q output.Quoter) string {
 	return q.QuoteTable(self.Table)
 }
 
-type CreateTable struct {
+type TableCreate struct {
 	Table        TableRef
-	Columns      []CreateTableColumn
+	Columns      []TableCreateColumn
 	Inherits     *TableRef
-	OtherOptions []CreateTableOption // TODO make individual options first-class
+	OtherOptions []TableCreateOption // TODO make individual options first-class
 }
 
-type CreateTableColumn struct {
+type TableCreateColumn struct {
 	Column string
 	Type   string
 }
 
-type CreateTableOption struct {
+type TableCreateOption struct {
 	Option string
 	Value  string
 }
 
-func (self *CreateTable) ToSql(q output.Quoter) string {
+func (self *TableCreate) ToSql(q output.Quoter) string {
 	cols := []string{}
 	for _, col := range self.Columns {
 		cols = append(cols, fmt.Sprintf("%s %s", q.QuoteColumn(col.Column), col.Type))
@@ -60,34 +60,34 @@ func (self *CreateTable) ToSql(q output.Quoter) string {
 	}
 
 	return fmt.Sprintf(
-		"CREATE TABLE %s(%s)%s;\n",
+		"CREATE TABLE %s(%s)%s;",
 		self.Table.Qualified(q),
 		colsql,
 		optsql,
 	)
 }
 
-type SetTableComment struct {
+type TableSetComment struct {
 	Table   TableRef
 	Comment string
 }
 
-func (self *SetTableComment) ToSql(q output.Quoter) string {
+func (self *TableSetComment) ToSql(q output.Quoter) string {
 	return fmt.Sprintf(
-		"COMMENT ON TABLE %s IS %s;\n",
+		"COMMENT ON TABLE %s IS %s;",
 		self.Table.Qualified(q),
 		q.LiteralString(self.Comment),
 	)
 }
 
-type AlterTableOwner struct {
+type TableAlterOwner struct {
 	Table TableRef
 	Role  string
 }
 
-func (self *AlterTableOwner) ToSql(q output.Quoter) string {
+func (self *TableAlterOwner) ToSql(q output.Quoter) string {
 	return fmt.Sprintf(
-		"ALTER TABLE %s OWNER TO %s;\n",
+		"ALTER TABLE %s OWNER TO %s;",
 		self.Table.Qualified(q),
 		q.QuoteRole(self.Role),
 	)

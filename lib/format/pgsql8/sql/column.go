@@ -24,27 +24,27 @@ func (self *ColumnRef) Quoted(q output.Quoter) string {
 	return q.QuoteColumn(self.Column)
 }
 
-type SetColumnComment struct {
+type ColumnSetComment struct {
 	Column  ColumnRef
 	Comment string
 }
 
-func (self *SetColumnComment) ToSql(q output.Quoter) string {
+func (self *ColumnSetComment) ToSql(q output.Quoter) string {
 	return fmt.Sprintf(
-		"COMMENT ON COLUMN %s IS %s;\n",
+		"COMMENT ON COLUMN %s IS %s;",
 		self.Column.Qualified(q),
 		q.LiteralString(self.Comment),
 	)
 }
 
-type AlterColumnStatistics struct {
+type ColumnAlterStatistics struct {
 	Column     ColumnRef
 	Statistics int
 }
 
-func (self *AlterColumnStatistics) ToSql(q output.Quoter) string {
+func (self *ColumnAlterStatistics) ToSql(q output.Quoter) string {
 	return fmt.Sprintf(
-		"ALTER TABLE ONLY %s ALTER COLUMN %s SET STATISTICS %d",
+		"ALTER TABLE ONLY %s ALTER COLUMN %s SET STATISTICS %d;",
 		self.Column.QualifiedTable(q),
 		self.Column.Quoted(q),
 		self.Statistics,
