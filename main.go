@@ -13,4 +13,5 @@ func main() {
 		model.SqlFormatPgsql8: pgsql8.GlobalOperations,
 	})
 	lib.GlobalDBSteward.ArgParse()
+	lib.GlobalDBSteward.Notice("Done")
 }
