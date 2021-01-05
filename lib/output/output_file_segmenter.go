@@ -109,7 +109,7 @@ func (self *outputFileSegmenter) AppendFooter(format string, args ...interface{}
 
 func (self *outputFileSegmenter) WriteSql(stmts ...ToSql) {
 	for _, stmt := range stmts {
-		self.Write(stmt.ToSql(self.quoter))
+		self.Write(stmt.ToSql(self.quoter) + "\n")
 	}
 }
 

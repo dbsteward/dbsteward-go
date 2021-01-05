@@ -27,8 +27,8 @@ type Args struct {
 	PgDataXml []string `arg:"--pgdataxml"`
 
 	// Generating SQL DDL/DML/DCL to upgrade old to new
-	OldXmlFiles            []string
-	NewXmlFiles            []string
+	OldXmlFiles            []string `arg:"--oldxml"`
+	NewXmlFiles            []string `arg:"--newxml"`
 	OnlySchemaSql          bool
 	OnlyDataSql            bool
 	OnlyTables             []string
