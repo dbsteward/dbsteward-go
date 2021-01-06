@@ -144,49 +144,59 @@ The PHP codebase directly manipulates and builds SQL strings. Not only are these
 
 Instead of directly manipulating SQL, we should build custom objects for each DML/DDL clause and emit these, and marshal them to SQL at the last minute.
 
-I haven't figured out exactly what this looks like yet, but I'm aiming for something like:
-
 ```go
-type SqlStatement interface {
+package output
+type ToSql interface {
   ToSql(q Quoter) string
 }
 
+package sql
 type AlterTableSetOwner struct {
 	Table TableRef
 	Role  string
 }
 
-func (self *AlterTableSetOwner) ToSql(q Quoter) string {
+func (self *AlterTableSetOwner) ToSql(q output.Quoter) string {
 	return fmt.Sprintf(
-		"ALTER TABLE %s OWNER TO %s;\n",
+		"ALTER TABLE %s OWNER TO %s;",
 		self.Table.Qualified(q),
 		q.QuoteRole(self.Role),
 	)
 }
 
-func DoSomethingWithTable() []SqlStatement {
+// package pgsql8
+func DoSomethingWithTable() []output.ToSql {
   ...
-  output = append(output, &AlterTableOwner{
-    Table: TableRef{schema, table},
+  output = append(output, &sql.AlterTableOwner{
+    Table: sql.TableRef{schema, table},
     Role: someRole,
   })
   ...
 }
 ```
 
-Maybe could have intermediate objects for e.g. `ALTER TABLE` statements like
-```go
-type AlterTable struct {
-  Table TableRef
-  Clauses []AlterTablePart
-}
+## Thoughts for the future
 
-type AlterTablePart interface {
-  GetAlterTableSqlClause(q Quoter) string
-}
-type AlterTableSetOwnerClause struct {
-  Role string
-}
-```
+### General Thoughts
 
-This is all still up in the air, though. I think for the first pass we should do what's straightforward and observe where things are rough and mark those for refactor in 3.0.
+Everything is just a diff; build is just diff of empty -> new
+
+1. Build an in-memory definition of old & new
+  - Do includes and compositing here
+  - Read XML (or SQL, HCL, ...?)
+  - Read DB structure
+2. Transform those defs based on source
+  - Add inferred schema objects like read-only grants, foreign key indexes, etc
+  - Convert/normalize data types
+  - Expand macros, tabrows, etc
+3. Validate those defs
+4. Diff old and new, generating a set of changes, NOT SQL. (but close to sql)
+5. Transform the changes based on target
+  - Generate polyfills (e.g. mysql sequences)
+  - Translate to dialect-specific types
+6. Validate changes
+7. Serialize changes to DML/DDL
+8. Output to desired location
+  - live db
+  - 4-stage migration
+  - 1-stage migration

@@ -6,24 +6,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type ColumnRef struct {
-	Schema string
-	Table  string
-	Column string
-}
-
-func (self *ColumnRef) Qualified(q output.Quoter) string {
-	return q.QualifyColumn(self.Schema, self.Table, self.Column)
-}
-
-func (self *ColumnRef) QualifiedTable(q output.Quoter) string {
-	return q.QualifyTable(self.Schema, self.Table)
-}
-
-func (self *ColumnRef) Quoted(q output.Quoter) string {
-	return q.QuoteColumn(self.Column)
-}
-
 type ColumnSetComment struct {
 	Column  ColumnRef
 	Comment string

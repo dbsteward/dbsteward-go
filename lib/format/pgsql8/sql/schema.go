@@ -31,3 +31,20 @@ type SchemaSetComment struct {
 func (self *SchemaSetComment) ToSql(q output.Quoter) string {
 	return fmt.Sprintf("COMMENT ON SCHEMA %s IS %s;", q.QuoteSchema(self.Schema), q.LiteralStringEscaped(self.Comment))
 }
+
+type SchemaGrant struct {
+	Schema   string
+	Perms    []string
+	Roles    []string
+	CanGrant bool
+}
+
+func (self *SchemaGrant) ToSql(q output.Quoter) string {
+	return (&grant{
+		grantTypeSchema,
+		&SchemaRef{self.Schema},
+		self.Perms,
+		self.Roles,
+		self.CanGrant,
+	}).ToSql(q)
+}

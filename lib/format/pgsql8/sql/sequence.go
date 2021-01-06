@@ -22,3 +22,20 @@ func (self *SequenceSetValSerialMax) ToSql(q output.Quoter) string {
 		q.QualifyTable(self.Schema, self.Table),
 	)
 }
+
+type SequenceGrant struct {
+	Sequence SequenceRef
+	Perms    []string
+	Roles    []string
+	CanGrant bool
+}
+
+func (self *SequenceGrant) ToSql(q output.Quoter) string {
+	return (&grant{
+		grantTypeSequence,
+		&self.Sequence,
+		self.Perms,
+		self.Roles,
+		self.CanGrant,
+	}).ToSql(q)
+}

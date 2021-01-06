@@ -1,9 +1,12 @@
 package model
 
+import "github.com/dbsteward/dbsteward/lib/util"
+
 type View struct {
 	Name        string       `xml:"name,attr"`
 	Description string       `xml:"description,attr"`
 	Owner       string       `xml:"owner,attr"`
+	SlonySetId  int          `xml:"slonySetId,attr"`
 	Grants      []*Grant     `xml:"grant"`
 	Queries     []*ViewQuery `xml:"viewQuery"`
 }
@@ -16,7 +19,7 @@ type ViewQuery struct {
 func (self *View) GetGrantsForRole(role string) []*Grant {
 	out := []*Grant{}
 	for _, grant := range self.Grants {
-		if grant.Role == role {
+		if util.IIndexOfStr(role, grant.Roles) >= 0 {
 			out = append(out, grant)
 		}
 	}

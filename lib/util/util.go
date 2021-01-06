@@ -104,7 +104,8 @@ func IIndex(s string, substr string) int {
 }
 
 // case insensitively unions two lists of strings
-func IMergeStrs(left, right []string) []string {
+// TODO(go,nth) optimize this using a map implementation
+func IUnionStrs(left, right []string) []string {
 	// no, this is not the most efficient, but it is the simplest
 	out := make([]string, len(left))
 	copy(out, left)
@@ -112,6 +113,40 @@ func IMergeStrs(left, right []string) []string {
 		if IIndexOfStr(r, out) < 0 {
 			out = append(out, r)
 		}
+	}
+	return out
+}
+
+// case insensitively intersects two lists of strings
+// only returns the strings that are present in both lists
+// will use the values from the left side, in the case that the values differ in case
+// if a string is present multiple times in a list, it will be duplicated in the output
+// TODO(go,nth) optimize this using a map implementation
+func IIntersectStrs(left, right []string) []string {
+	// no, this is not the most efficient, but it is the simplest
+	out := []string{}
+	for _, l := range left {
+		for _, r := range right {
+			if strings.EqualFold(l, r) {
+				out = append(out, l)
+			}
+		}
+	}
+	return out
+}
+
+// case insensitively removes any strings from `right` from the `left` list
+// TODO(go,nth) optimize this using a map implementation
+func IDifferenceStrs(left, right []string) []string {
+	out := []string{}
+outer:
+	for _, l := range left {
+		for _, r := range right {
+			if strings.EqualFold(l, r) {
+				continue outer
+			}
+		}
+		out = append(out, l)
 	}
 	return out
 }

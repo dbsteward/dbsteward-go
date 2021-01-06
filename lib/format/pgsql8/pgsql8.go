@@ -295,6 +295,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			// column_default starts with nextval and contains iq_seq
 			// TODO(feat) this list of conditions is probably not sufficient to check for serials in all cases
 			// TODO(go,nth) is there a better way to test this?
+			// TODO(go,core) this is absolutely broken, need to fix; switch to prefix test for types, suffix test for seq, look at that column_default equalfold
 			if (strings.EqualFold(column.Type, "integer") || strings.EqualFold(column.Type, "bigint")) &&
 				!column.Nullable &&
 				(util.IIndex(column.Default, "nextval") == 0 && util.IIndex(column.Default, "_seq") >= 0) {
@@ -305,7 +306,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 				// store sequences that will be implicitly genreated during table create
 				// could use pgsql8::identifier_name and fully qualify the table but it will just truncate "for us" anyhow, so manually prepend schema
-				identName := schema.Name + "." + self.IdentifierName(schema.Name, table.Name, column.Name, "_seq")
+				identName := schema.Name + "." + self.BuildSequenceName(schema.Name, table.Name, column.Name)
 				tableSerials = append(tableSerials, identName)
 
 				// TODO(go,nth) explain this logic, see pgsql8.php:1631, :1691
@@ -757,13 +758,13 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		var grant *model.Grant
 		if len(docGrants) == 0 {
 			grant = &model.Grant{
-				Role: grantee,
+				Roles: model.DelimitedList{grantee},
 			}
 			relation.AddGrant(grant)
 		} else {
 			grant = docGrants[0]
 		}
-		grant.AddOperation(grantRow["privilege_type"])
+		grant.AddPermission(grantRow["privilege_type"])
 		// TODO(feat) what should happen if two grants for the same role have different is_grantable?
 		// TODO(feat) what about other WITH flags?
 		grant.SetCanGrant(util.IsTruthy(grantRow["is_grantable"]))
@@ -792,13 +793,13 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 						var grant *model.Grant
 						if len(grants) == 0 {
 							grant = &model.Grant{
-								Role: grantee,
+								Roles: model.DelimitedList{grantee},
 							}
 							sequence.AddGrant(grant)
 						} else {
 							grant = grants[0]
 						}
-						grant.AddOperation(perm)
+						grant.AddPermission(perm)
 					}
 				}
 			}
@@ -829,8 +830,10 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				doc.AddCustomRole(table.Owner)
 			}
 			for _, grant := range table.Grants {
-				if !doc.IsRoleDefined(grant.Role) {
-					doc.AddCustomRole(grant.Role)
+				for _, role := range grant.Roles {
+					if !doc.IsRoleDefined(role) {
+						doc.AddCustomRole(role)
+					}
 				}
 			}
 		}
@@ -1012,7 +1015,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 		// schema grants
 		for _, grant := range schema.Grants {
 			// TODO(feat) revokes too?
-			ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, schema, grant)...)
+			ofs.WriteSql(GlobalSchema.GetGrantSql(doc, schema, grant)...)
 		}
 	}
 
@@ -1037,7 +1040,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 			// table grants
 			for _, grant := range table.Grants {
 				// TODO(feat) revokes too?
-				ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, table, grant)...)
+				ofs.WriteSql(GlobalTable.GetGrantSql(doc, schema, table, grant)...)
 			}
 		}
 		GlobalTable.IncludeColumnDefaultNextvalInCreateSql = true
@@ -1049,7 +1052,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 			// sequence permission grants
 			for _, grant := range sequence.Grants {
 				// TODO(feat) revokes too?
-				ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, sequence, grant)...)
+				ofs.WriteSql(GlobalSequence.GetGrantSql(doc, schema, sequence, grant)...)
 			}
 		}
 
@@ -1069,13 +1072,8 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 				// when pg:build_schema() is doing its thing for straight builds, include function permissions
 				// they are not included in pg_function::get_creation_sql()
 
-				// TODO(feat) functions generate sql for both grant and revoke, but other objects only do grant? can we unify this?
-				// TODO(go,pgsql) verify that order of this doesn't matter. this code does grants then revokes, orig does them in xpath order
 				for _, grant := range function.Grants {
-					ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, function, grant)...)
-				}
-				for _, revoke := range function.Revokes {
-					ofs.WriteSql(GlobalPermission.GetRevokeSql(doc, schema, function, revoke)...)
+					ofs.WriteSql(GlobalFunction.GetGrantSql(doc, schema, function, grant)...)
 				}
 			}
 		}
@@ -1123,7 +1121,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 		for _, view := range schema.Views {
 			for _, grant := range view.Grants {
 				// TODO(feat) revokes too?
-				ofs.WriteSql(GlobalPermission.GetGrantSql(doc, schema, view, grant)...)
+				ofs.WriteSql(GlobalView.GetGrantSql(doc, schema, view, grant)...)
 			}
 		}
 	}
@@ -1298,7 +1296,11 @@ func (self *Operations) parseSqlArray(str string) []string {
 	return append(out, next)
 }
 
-func (self *Operations) IdentifierName(schema, table, column, suffix string) string {
+func (self *Operations) BuildSequenceName(schema, table, column string) string {
+	return self.buildIdentifierName(schema, table, column, "_seq")
+}
+
+func (self *Operations) buildIdentifierName(schema, table, column, suffix string) string {
 	// these will change as we build the identifier
 	identTable := table
 	identColumn := column

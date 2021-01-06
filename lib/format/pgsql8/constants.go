@@ -6,3 +6,5 @@ const DataTypeSerial = "serial"
 const DataTypeBigSerial = "bigserial"
 const DataTypeInt = "int"
 const DataTypeBigInt = "bigint"
+
+const SequenceNameSuffix = "_seq"

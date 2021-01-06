@@ -4,18 +4,16 @@ import (
 	"strings"
 )
 
-// TODO(go, core) finish fleshing this out
-
 type Function struct {
 	Name        string                `xml:"name,attr"`
 	Owner       string                `xml:"owner,attr"`
 	Description string                `xml:"description,attr"`
 	Returns     string                `xml:"returns,attr"`
 	CachePolicy string                `xml:"cachePolicy,attr"`
+	SlonySetId  int                   `xml:"slonySetId,attr"`
 	Parameters  []*FunctionParameter  `xml:"functionParameter"`
 	Definitions []*FunctionDefinition `xml:"functionDefinition"`
 	Grants      []*Grant              `xml:"grant"`
-	Revokes     []*Revoke             `xml:"revoke"`
 }
 
 type FunctionParameter struct {
@@ -47,14 +45,17 @@ func (self *Function) AddParameter(name, datatype string) {
 	})
 }
 
+func (self *Function) ParamTypes() []string {
+	out := make([]string, len(self.Parameters))
+	for i, param := range self.Parameters {
+		out[i] = param.Type
+	}
+	return out
+}
+
 func (self *Function) AddGrant(grant *Grant) {
 	// TODO(feat) sanity check
 	self.Grants = append(self.Grants, grant)
-}
-
-func (self *Function) AddRevoke(revoke *Revoke) {
-	// TODO(feat) sanity check
-	self.Revokes = append(self.Revokes, revoke)
 }
 
 func (self *Function) IdentityMatches(other *Function) bool {
@@ -94,9 +95,6 @@ func (self *Function) Merge(overlay *Function) {
 
 	for _, grant := range overlay.Grants {
 		self.AddGrant(grant)
-	}
-	for _, revoke := range overlay.Revokes {
-		self.AddRevoke(revoke)
 	}
 }
 

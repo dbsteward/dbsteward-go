@@ -7,19 +7,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type TableRef struct {
-	Schema string
-	Table  string
-}
-
-func (self *TableRef) Qualified(q output.Quoter) string {
-	return q.QualifyTable(self.Schema, self.Table)
-}
-
-func (self *TableRef) Quoted(q output.Quoter) string {
-	return q.QuoteTable(self.Table)
-}
-
 type TableCreate struct {
 	Table        TableRef
 	Columns      []TableCreateColumn
@@ -91,4 +78,21 @@ func (self *TableAlterOwner) ToSql(q output.Quoter) string {
 		self.Table.Qualified(q),
 		q.QuoteRole(self.Role),
 	)
+}
+
+type TableGrant struct {
+	Table    TableRef
+	Perms    []string
+	Roles    []string
+	CanGrant bool
+}
+
+func (self *TableGrant) ToSql(q output.Quoter) string {
+	return (&grant{
+		grantTypeTable,
+		&self.Table,
+		self.Perms,
+		self.Roles,
+		self.CanGrant,
+	}).ToSql(q)
 }

@@ -20,7 +20,9 @@ type Quoter interface {
 	QuoteTable(table string) string
 	QuoteColumn(column string) string
 	QuoteRole(role string) string
+	QuoteObject(obj string) string
 	QualifyTable(schema string, table string) string
+	QualifyObject(schema string, obj string) string
 	QualifyColumn(schema string, table string, column string) string
 	LiteralString(str string) string
 	LiteralStringEscaped(str string) string

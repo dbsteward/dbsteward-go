@@ -76,12 +76,19 @@ func (self *Operations) QuoteColumn(name string) string {
 }
 
 func (self *Operations) QuoteRole(name string) string {
-	// TODO(go,nth) I lost track of what this is guarded on in php codebase, double check that
+	return self.GetQuotedName(name, lib.GlobalDBSteward.QuoteObjectNames)
+}
+
+func (self *Operations) QuoteObject(name string) string {
 	return self.GetQuotedName(name, lib.GlobalDBSteward.QuoteObjectNames)
 }
 
 func (self *Operations) QualifyTable(schema string, table string) string {
 	return fmt.Sprintf("%s.%s", self.QuoteSchema(schema), self.QuoteTable(table))
+}
+
+func (self *Operations) QualifyObject(schema string, object string) string {
+	return fmt.Sprintf("%s.%s", self.QuoteSchema(schema), self.QuoteObject(object))
 }
 
 func (self *Operations) QualifyColumn(schema string, table string, column string) string {
