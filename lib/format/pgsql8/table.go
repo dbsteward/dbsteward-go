@@ -128,7 +128,7 @@ func (self *Table) GetGrantSql(doc *model.Definition, schema *model.Schema, tabl
 
 	// don't need to grant cascaded serial permissions to the table owner
 	rolesNotOwner := []string{}
-	for _, role := range grant.Roles {
+	for _, role := range roles {
 		if !strings.EqualFold(role, model.RoleOwner) {
 			rolesNotOwner = append(rolesNotOwner, role)
 		}
