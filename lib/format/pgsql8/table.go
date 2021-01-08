@@ -79,8 +79,20 @@ func (self *Table) GetCreationSql(schema *model.Schema, table *model.Table) []ou
 }
 
 func (self *Table) GetDefaultNextvalSql(schema *model.Schema, table *model.Table) []output.ToSql {
-	// TODO(go,pgsql)
-	return nil
+	out := []output.ToSql{}
+	for _, column := range table.Columns {
+		if GlobalColumn.HasDefaultNextval(column) {
+			lib.GlobalDBSteward.Info("Specifying skipped %s.%s.%s default expression \"%s\"", schema.Name, table.Name, column.Name, column.Default)
+			out = append(out, &sql.Annotated{
+				Wrapped: &sql.ColumnSetDefault{
+					Column:  sql.ColumnRef{schema.Name, table.Name, column.Name},
+					Default: column.Default,
+				},
+				Annotation: "column default nextval expression being added post table creation",
+			})
+		}
+	}
+	return out
 }
 
 func (self *Table) DefineTableColumnDefaults(schema *model.Schema, table *model.Table) []output.ToSql {

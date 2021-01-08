@@ -32,3 +32,18 @@ func (self *ColumnAlterStatistics) ToSql(q output.Quoter) string {
 		self.Statistics,
 	)
 }
+
+type ColumnSetDefault struct {
+	Column  ColumnRef
+	Default string
+}
+
+func (self *ColumnSetDefault) ToSql(q output.Quoter) string {
+	// TODO(feat) handle default quoting?
+	return fmt.Sprintf(
+		"ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s;",
+		self.Column.QualifiedTable(q),
+		self.Column.Quoted(q),
+		self.Default,
+	)
+}

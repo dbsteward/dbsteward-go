@@ -10,6 +10,8 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
+const PatternNextval = `^nextval\((.+)\)$`
+
 var GlobalColumn *Column = NewColumn()
 
 func NewColumn() *Column {
@@ -47,6 +49,13 @@ func (self *Column) GetSetupSql(schema *model.Schema, table *model.Table, column
 
 func (self *Column) IsSerialType(column *model.Column) bool {
 	return util.IIndexOfStr(column.Type, []string{DataTypeSerial, DataTypeBigSerial}) >= 0
+}
+
+func (self *Column) HasDefaultNextval(column *model.Column) bool {
+	if column.Default != "" {
+		return len(util.IMatch(PatternNextval, column.Default)) > 0
+	}
+	return false
 }
 
 func (self *Column) GetColumnType(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) string {

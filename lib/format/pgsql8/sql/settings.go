@@ -7,9 +7,9 @@ import (
 )
 
 type SetCheckFunctionBodies struct {
-	Info string
+	Value bool
 }
 
-func (self *SetCheckFunctionBodies) ToSql(output.Quoter) string {
-	return fmt.Sprintf(`SET check_function_bodies = FALSE; -- DBSteward %s`, self.Info)
+func (self *SetCheckFunctionBodies) ToSql(q output.Quoter) string {
+	return fmt.Sprintf(`SET check_function_bodies = %t;`, self.Value)
 }

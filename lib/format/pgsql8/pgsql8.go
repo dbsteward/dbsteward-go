@@ -104,7 +104,10 @@ outer:
 	}
 	if !setCheckFunctionBodies {
 		buildFileOfs.Write("\n")
-		buildFileOfs.WriteSql(&sql.SetCheckFunctionBodies{setCheckFunctionBodiesInfo})
+		buildFileOfs.WriteSql(&sql.Annotated{
+			Wrapped:    &sql.SetCheckFunctionBodies{false},
+			Annotation: setCheckFunctionBodiesInfo,
+		})
 		dbsteward.Info(setCheckFunctionBodiesInfo)
 	}
 
