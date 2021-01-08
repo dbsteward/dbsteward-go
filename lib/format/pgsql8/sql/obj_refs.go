@@ -71,6 +71,19 @@ func (self *SequenceRef) Quoted(q output.Quoter) string {
 	return q.QuoteObject(self.Sequence)
 }
 
+type TypeRef struct {
+	Schema string
+	Type   string
+}
+
+func (self *TypeRef) Qualified(q output.Quoter) string {
+	return q.QualifyObject(self.Schema, self.Type)
+}
+
+func (self *TypeRef) Quoted(q output.Quoter) string {
+	return q.QuoteObject(self.Type)
+}
+
 type FunctionRef struct {
 	Schema     string
 	Function   string

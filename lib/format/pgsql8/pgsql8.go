@@ -1194,6 +1194,11 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 	lib.GlobalDBX.BuildStagedSql(doc, ofs, "")
 }
 
+// Implements output.Quoter
+func (self *Operations) LiteralValue(datatype string, value string) string {
+	return self.ValueEscape(datatype, value, nil)
+}
+
 func (self *Operations) ValueEscape(datatype string, value string, doc *model.Definition) string {
 	// TODO(go,3) it'd be amazing to have a dedicated Value type that encapsulates this logic and is type-aware, instead of the mishmash of string parsing and type matching we do
 	if len(value) == 0 {

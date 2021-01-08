@@ -88,6 +88,11 @@ func PromptPassword(prompt string) (string, error) {
 	return string(d), err
 }
 
+// returns true if str starts with the given prefix, case insensitively
+func IHasPrefix(str, prefix string) bool {
+	return IIndex(str, prefix) == 0
+}
+
 // matches the pattern against the text, case insensitively, returning a slice containing the whole match and any captures, or nil if there was no match
 func IMatch(pat string, text string) []string {
 	return regexp.MustCompile("(?i)" + pat).FindStringSubmatch(text)

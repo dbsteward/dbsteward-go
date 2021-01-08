@@ -24,6 +24,7 @@ type Quoter interface {
 	QualifyTable(schema string, table string) string
 	QualifyObject(schema string, obj string) string
 	QualifyColumn(schema string, table string, column string) string
+	LiteralValue(typeName string, value string) string
 	LiteralString(str string) string
 	LiteralStringEscaped(str string) string
 }
