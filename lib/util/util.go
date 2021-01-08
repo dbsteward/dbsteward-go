@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -192,4 +193,16 @@ func IntCeil(num, div int) int {
 
 func IntFloor(num, div int) int {
 	return int(math.Floor(float64(num) / float64(div)))
+}
+
+func MustParseInt(val string) int {
+	v, err := strconv.Atoi(val)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+func Intp(val int) *int {
+	return &val
 }

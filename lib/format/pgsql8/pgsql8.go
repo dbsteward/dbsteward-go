@@ -392,11 +392,11 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 					schema.AddSequence(&model.Sequence{
 						Name:      seqListRow["relname"],
 						Owner:     seqListRow["rolname"], // TODO(feat) should this have a translateRoleName call?
-						Cache:     seqRow["cache_value"],
-						Start:     seqRow["start_value"],
-						Min:       seqRow["min_value"],
-						Max:       seqRow["max_value"],
-						Increment: seqRow["increment_by"],
+						Cache:     util.Intp(util.MustParseInt(seqRow["cache_value"])),
+						Start:     util.Intp(util.MustParseInt(seqRow["start_value"])),
+						Min:       util.Intp(util.MustParseInt(seqRow["min_value"])),
+						Max:       util.Intp(util.MustParseInt(seqRow["max_value"])),
+						Increment: util.Intp(util.MustParseInt(seqRow["increment_by"])),
 						Cycle:     util.IsTruthy(seqRow["is_cycled"]),
 					})
 				}
@@ -1013,7 +1013,6 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 
 		// schema grants
 		for _, grant := range schema.Grants {
-			// TODO(feat) revokes too?
 			ofs.WriteSql(GlobalSchema.GetGrantSql(doc, schema, grant)...)
 		}
 	}
@@ -1038,7 +1037,6 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 
 			// table grants
 			for _, grant := range table.Grants {
-				// TODO(feat) revokes too?
 				ofs.WriteSql(GlobalTable.GetGrantSql(doc, schema, table, grant)...)
 			}
 		}
@@ -1050,7 +1048,6 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 
 			// sequence permission grants
 			for _, grant := range sequence.Grants {
-				// TODO(feat) revokes too?
 				ofs.WriteSql(GlobalSequence.GetGrantSql(doc, schema, sequence, grant)...)
 			}
 		}
