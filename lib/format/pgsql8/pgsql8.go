@@ -2,7 +2,6 @@ package pgsql8
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"strings"
 	"time"
@@ -1306,18 +1305,15 @@ func (self *Operations) buildIdentifierName(schema, table, column, suffix string
 	identColumn := column
 
 	maxLen := MAX_IDENT_LENGTH - 1 - len(suffix)
-	tableMaxLen := int(math.Ceil(float64(maxLen) / 2.0))
+	tableMaxLen := util.IntCeil(maxLen, 2)
 	colMaxLen := maxLen - tableMaxLen
 
-	// table is longer than max and column is shorter than max
 	if len(identTable) > tableMaxLen && len(identColumn) < colMaxLen {
+		// table is longer than max and column is shorter than max
 		// give column excess to table max
 		tableMaxLen += colMaxLen - len(identColumn)
-	}
-
-	// table is shorter, column is longer
-	// TODO(feat) should this be an else if?
-	if len(identTable) < tableMaxLen && len(identColumn) > colMaxLen {
+	} else if len(identTable) < tableMaxLen && len(identColumn) > colMaxLen {
+		// table is shorter, column is longer
 		// give table excess to column max
 		colMaxLen += tableMaxLen - len(identTable)
 	}

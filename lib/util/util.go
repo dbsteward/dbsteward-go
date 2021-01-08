@@ -3,6 +3,7 @@ package util
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path"
 	"regexp"
@@ -171,4 +172,19 @@ func IsFalsey(s string) bool {
 	default:
 		return false
 	}
+}
+
+func IntMin(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func IntCeil(num, div int) int {
+	return int(math.Ceil(float64(num) / float64(div)))
+}
+
+func IntFloor(num, div int) int {
+	return int(math.Floor(float64(num) / float64(div)))
 }

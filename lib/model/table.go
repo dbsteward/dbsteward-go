@@ -1,7 +1,6 @@
 package model
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -31,6 +30,7 @@ type Column struct {
 	Nullable        bool   `xml:"null,attr"` // TODO(go,core) this means it will default to being NOT NULL, need to validate usages!
 	Default         string `xml:"default,attr"`
 	Description     string `xml:"description,attr"`
+	Unique          bool   `xml:"unique,attr"`
 	SerialStart     string `xml:"serialStart,attr"`
 	ForeignSchema   string `xml:"foreignSchema,attr"`
 	ForeignTable    string `xml:"foreignTable,attr"`
@@ -59,18 +59,6 @@ type TableOption struct {
 	SqlFormat SqlFormat `xml:"sqlFormat,attr"`
 	Name      string    `xml:"name"`
 	Value     string    `xml:"value"`
-}
-
-type Index struct {
-	Name       string      `xml:"name,attr"`
-	Using      string      `xml:"using,attr"`
-	Unique     bool        `xml:"unique,attr"`
-	Dimensions []*IndexDim `xml:"indexDimension"`
-}
-
-type IndexDim struct {
-	Name  string `xml:"name,attr"`
-	Value string `xml:",chardata"`
 }
 
 type Constraint struct {
@@ -180,21 +168,6 @@ func (self *Table) AddIndex(index *Index) {
 func (self *Table) AddForeignKey(col *ForeignKey) {
 	// TODO(feat) sanity check
 	self.ForeignKeys = append(self.ForeignKeys, col)
-}
-
-func (self *Index) AddDimensionNamed(name, value string) {
-	// TODO(feat) sanity check
-	self.Dimensions = append(self.Dimensions, &IndexDim{
-		Name:  name,
-		Value: value,
-	})
-}
-
-func (self *Index) AddDimension(value string) {
-	self.AddDimensionNamed(
-		fmt.Sprintf("%s_%d", self.Name, len(self.Dimensions)+1),
-		value,
-	)
 }
 
 func (self *Table) TryGetConstraintMatching(target *Constraint) *Constraint {
@@ -310,22 +283,6 @@ func (self *Column) Merge(overlay *Column) {
 	self.ForeignOnUpdate = overlay.ForeignOnUpdate
 	self.ForeignOnDelete = overlay.ForeignOnDelete
 	self.Statistics = overlay.Statistics
-}
-
-func (self *Index) IdentityMatches(other *Index) bool {
-	if other == nil {
-		return false
-	}
-	return strings.EqualFold(self.Name, other.Name)
-}
-
-func (self *Index) Merge(overlay *Index) {
-	if overlay == nil {
-		return
-	}
-	self.Using = overlay.Using
-	self.Unique = overlay.Unique
-	self.Dimensions = overlay.Dimensions
 }
 
 func (self *Constraint) IdentityMatches(other *Constraint) bool {
