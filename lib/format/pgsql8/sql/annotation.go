@@ -2,9 +2,9 @@ package sql
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/output"
+	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 type Annotated struct {
@@ -15,7 +15,7 @@ type Annotated struct {
 func (self *Annotated) ToSql(q output.Quoter) string {
 	return fmt.Sprintf(
 		"-- %s\n%s",
-		strings.ReplaceAll(self.Annotation, "\n", "\n-- "),
+		util.PrefixLines(self.Annotation, "-- "),
 		self.Wrapped.ToSql(q),
 	)
 }

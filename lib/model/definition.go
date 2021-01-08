@@ -61,6 +61,15 @@ func (self *Definition) TryGetSchemaNamed(name string) *Schema {
 	return nil
 }
 
+func (self *Definition) GetOrCreateSchemaNamed(name string) *Schema {
+	schema := self.TryGetSchemaNamed(name)
+	if schema == nil {
+		schema = &Schema{Name: name}
+		self.AddSchema(schema)
+	}
+	return schema
+}
+
 func (self *Definition) AddSchema(schema *Schema) {
 	// TODO(feat) sanity check duplicate name
 	self.Schemas = append(self.Schemas, schema)

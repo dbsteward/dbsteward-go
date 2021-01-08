@@ -85,13 +85,13 @@ func (self *TypeRef) Quoted(q output.Quoter) string {
 }
 
 type FunctionRef struct {
-	Schema     string
-	Function   string
-	ParamTypes []string
+	Schema   string
+	Function string
+	Params   []string
 }
 
 func (self *FunctionRef) Qualified(q output.Quoter) string {
-	return fmt.Sprintf("%s(%s)", q.QualifyObject(self.Schema, self.Function), strings.Join(self.ParamTypes, ", "))
+	return fmt.Sprintf("%s(%s)", q.QualifyObject(self.Schema, self.Function), strings.Join(self.Params, ", "))
 }
 
 func (self *FunctionRef) Quoted(q output.Quoter) string {

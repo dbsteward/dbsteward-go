@@ -41,7 +41,6 @@ func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
 	// some shortcuts, since we're going to be typing a lot here
 	dbsteward := lib.GlobalDBSteward
 	xmlParser := lib.GlobalXmlParser
-	sqlParser := lib.GlobalSqlParser
 	dbx := lib.GlobalDBX
 
 	buildFileName := outputPrefix + "_build.sql"
@@ -81,23 +80,29 @@ func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
 outer:
 	for _, schema := range dbDoc.Schemas {
 		for _, function := range schema.Functions {
-			if definition, ok := function.TryGetDefinition(); ok {
-				if strings.EqualFold(definition.Language, "sql") && definition.SqlFormat == model.SqlFormatPgsql8 {
-					referencedTableName := self.functionDefinitionReferencesTable(definition)
-					if len(referencedTableName) > 0 {
-						referencedSchemaName := sqlParser.GetSchemaName(referencedTableName, dbDoc)
-						// TODO(go,pgsql8) handle error cases
-						referencedSchema, _ := dbDoc.GetSchemaNamed(referencedSchemaName)
-						referencedTable, err := referencedSchema.GetTableNamed(sqlParser.GetObjectName(referencedTableName, dbDoc))
-						if err == nil {
-							setCheckFunctionBodies = false
-							setCheckFunctionBodiesInfo = fmt.Sprintf(
-								"Detected LANGUAGE SQL function %s.%s referring to table %s.%s in the database definition",
-								schema.Name, function.Name, referencedSchemaName, referencedTable.Name,
-							)
-							break outer
-						}
+			if definition := function.TryGetDefinition(model.SqlFormatPgsql8); definition != nil {
+				if strings.EqualFold(definition.Language, "sql") {
+					referenced := GlobalFunction.DefinitionReferencesTable(definition)
+					if referenced == nil {
+						continue
 					}
+
+					referencedSchema := dbDoc.TryGetSchemaNamed(referenced.Schema)
+					if referencedSchema == nil {
+						continue
+					}
+
+					referencedTable := referencedSchema.TryGetTableNamed(referenced.Table)
+					if referencedTable == nil {
+						continue
+					}
+
+					setCheckFunctionBodies = false
+					setCheckFunctionBodiesInfo = fmt.Sprintf(
+						"Detected LANGUAGE SQL function %s.%s referring to table %s.%s in the database definition",
+						schema.Name, function.Name, referencedSchema.Name, referencedTable.Name,
+					)
+					break outer
 				}
 			}
 		}
@@ -988,27 +993,6 @@ func (self *Operations) SlonyDiff(oldFile string, newFile string) {
 	// TODO(go,slony)
 }
 
-func (self *Operations) functionDefinitionReferencesTable(definition *model.FunctionDefinition) string {
-	// TODO(go,nth) move this to model?
-	// TODO(feat) a function could reference many tables, but this only returns the first; make it understand many tables
-	// TODO(feat) this won't detect quoted table names
-	// TODO(go,pgsql) test this
-	validTableName := `[\w\.]+`
-	if matches := util.IMatch(fmt.Sprintf(`SELECT\s+.+\s+FROM\s+(%s)`, validTableName), definition.Text); matches != nil {
-		return matches[1]
-	}
-	if matches := util.IMatch(fmt.Sprintf(`INSERT\s+INTO\s+(%s)`, validTableName), definition.Text); matches != nil {
-		return matches[1]
-	}
-	if matches := util.IMatch(fmt.Sprintf(`DELETE\s+FROM\s+(?:ONLY)?\s*(%s)`, validTableName), definition.Text); matches != nil {
-		return matches[1]
-	}
-	if matches := util.IMatch(fmt.Sprintf(`UPDATE\s+(?:ONLY)?\s*(%s)`, validTableName), definition.Text); matches != nil {
-		return matches[1]
-	}
-	return ""
-}
-
 func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableDepEntry) {
 	// schema creation
 	for _, schema := range doc.Schemas {
@@ -1066,7 +1050,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	// function definitions
 	for _, schema := range doc.Schemas {
 		for _, function := range schema.Functions {
-			if function.HasDefinition() {
+			if function.HasDefinition(model.SqlFormatPgsql8) {
 				ofs.WriteSql(GlobalFunction.GetCreationSql(schema, function)...)
 				// when pg:build_schema() is doing its thing for straight builds, include function permissions
 				// they are not included in pg_function::get_creation_sql()

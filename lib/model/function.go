@@ -2,39 +2,54 @@ package model
 
 import (
 	"strings"
+
+	"github.com/dbsteward/dbsteward/lib/util"
+)
+
+type FuncParamDir string
+
+const (
+	FuncParamDirIn    FuncParamDir = "IN"
+	FuncParamDirOut   FuncParamDir = "OUT"
+	FuncParamDirInOut FuncParamDir = "INOUT"
 )
 
 type Function struct {
-	Name        string                `xml:"name,attr"`
-	Owner       string                `xml:"owner,attr"`
-	Description string                `xml:"description,attr"`
-	Returns     string                `xml:"returns,attr"`
-	CachePolicy string                `xml:"cachePolicy,attr"`
-	SlonySetId  int                   `xml:"slonySetId,attr"`
-	Parameters  []*FunctionParameter  `xml:"functionParameter"`
-	Definitions []*FunctionDefinition `xml:"functionDefinition"`
-	Grants      []*Grant              `xml:"grant"`
+	Name            string                `xml:"name,attr"`
+	Owner           string                `xml:"owner,attr"`
+	Description     string                `xml:"description,attr"`
+	Returns         string                `xml:"returns,attr"`
+	CachePolicy     string                `xml:"cachePolicy,attr"`
+	SecurityDefiner bool                  `xml:"securityDefiner,attr"`
+	SlonySetId      int                   `xml:"slonySetId,attr"`
+	Parameters      []*FunctionParameter  `xml:"functionParameter"`
+	Definitions     []*FunctionDefinition `xml:"functionDefinition"`
+	Grants          []*Grant              `xml:"grant"`
 }
 
 type FunctionParameter struct {
-	Name string `xml:"name,attr"`
-	Type string `xml:"type,attr"`
+	Name      string       `xml:"name,attr"`
+	Type      string       `xml:"type,attr"`
+	Direction FuncParamDir `xml:"direction,attr"`
 }
 
 type FunctionDefinition struct {
-	SqlFormat SqlFormat `xml:"sqlFormat"`
-	Language  string    `xml:"language"`
+	SqlFormat SqlFormat `xml:"sqlFormat,attr"`
+	Language  string    `xml:"language,attr"`
 	Text      string    `xml:",chardata"`
 }
 
-func (self *Function) HasDefinition() bool {
-	// TODO(go,core)
-	return false
+func (self *Function) HasDefinition(sqlFormat SqlFormat) bool {
+	return self.TryGetDefinition(sqlFormat) != nil
 }
 
-func (self *Function) TryGetDefinition() (*FunctionDefinition, bool) {
-	// TODO(go,core) see pgsql8_function::has_definition and get_definition
-	return nil, false
+func (self *Function) TryGetDefinition(sqlFormat SqlFormat) *FunctionDefinition {
+	for _, def := range self.Definitions {
+		if def.SqlFormat.Equals(sqlFormat) {
+			return def
+		}
+	}
+	return nil
 }
 
 func (self *Function) AddParameter(name, datatype string) {
@@ -49,6 +64,14 @@ func (self *Function) ParamTypes() []string {
 	out := make([]string, len(self.Parameters))
 	for i, param := range self.Parameters {
 		out[i] = param.Type
+	}
+	return out
+}
+
+func (self *Function) ParamSigs() []string {
+	out := make([]string, len(self.Parameters))
+	for i, param := range self.Parameters {
+		out[i] = util.CondJoin(" ", string(param.Direction), param.Name, param.Type)
 	}
 	return out
 }

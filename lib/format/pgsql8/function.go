@@ -1,6 +1,7 @@
 package pgsql8
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -20,9 +21,57 @@ func NewFunction() *Function {
 	return &Function{}
 }
 
+func (self *Function) DefinitionReferencesTable(definition *model.FunctionDefinition) *lib.QualifiedTable {
+	// TODO(feat) a function could reference many tables, but this only returns the first; make it understand many tables
+	// TODO(feat) this won't detect quoted table names
+	// TODO(go,pgsql) test this
+	validTableName := `[\w\.]+`
+	table := ""
+	if matches := util.IMatch(fmt.Sprintf(`SELECT\s+.+\s+FROM\s+(%s)`, validTableName), definition.Text); matches != nil {
+		table = matches[1]
+	} else if matches := util.IMatch(fmt.Sprintf(`INSERT\s+INTO\s+(%s)`, validTableName), definition.Text); matches != nil {
+		table = matches[1]
+	} else if matches := util.IMatch(fmt.Sprintf(`DELETE\s+FROM\s+(?:ONLY)?\s*(%s)`, validTableName), definition.Text); matches != nil {
+		table = matches[1]
+	} else if matches := util.IMatch(fmt.Sprintf(`UPDATE\s+(?:ONLY)?\s*(%s)`, validTableName), definition.Text); matches != nil {
+		table = matches[1]
+	}
+	if table == "" {
+		return nil
+	}
+	parsed := lib.GlobalSqlParser.ParseQualifiedTableName(table)
+	return &parsed
+}
+
 func (self *Function) GetCreationSql(schema *model.Schema, function *model.Function) []output.ToSql {
-	// TODO(go,pgsql)
-	return nil
+	GlobalOperations.SetContextReplicaSetId(function.SlonySetId)
+	ref := sql.FunctionRef{schema.Name, function.Name, function.ParamSigs()}
+	def := function.TryGetDefinition(model.SqlFormatPgsql8)
+	out := []output.ToSql{
+		&sql.FunctionCreate{
+			Function:        ref,
+			Returns:         function.Returns,
+			Definition:      strings.TrimSpace(def.Text),
+			Language:        def.Language,
+			CachePolicy:     function.CachePolicy,
+			SecurityDefiner: function.SecurityDefiner,
+		},
+	}
+
+	if function.Owner != "" {
+		out = append(out, &sql.FunctionAlterOwner{
+			Function: ref,
+			Role:     lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, function.Owner),
+		})
+	}
+	if function.Description != "" {
+		out = append(out, &sql.FunctionSetComment{
+			Function: ref,
+			Comment:  function.Description,
+		})
+	}
+
+	return out
 }
 
 func (self *Function) GetGrantSql(doc *model.Definition, schema *model.Schema, fn *model.Function, grant *model.Grant) []output.ToSql {

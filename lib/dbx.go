@@ -9,14 +9,19 @@ import (
 var GlobalDBX *DBX = NewDBX()
 
 type DBX struct {
+	defaultSchema *model.Schema
 }
 
 func NewDBX() *DBX {
 	return &DBX{}
 }
 
-func (self *DBX) SetDefaultSchema(def *model.Definition, schema string) {
-	// TODO(go,core) dbx::set_default_schema()
+func (self *DBX) SetDefaultSchema(def *model.Definition, schema string) *model.Schema {
+	self.defaultSchema = def.GetOrCreateSchemaNamed(schema)
+	return self.defaultSchema
+}
+func (self *DBX) GetDefaultSchema() *model.Schema {
+	return self.defaultSchema
 }
 
 func (self *DBX) BuildStagedSql(doc *model.Definition, ofs output.OutputFileSegmenter, stage string) {

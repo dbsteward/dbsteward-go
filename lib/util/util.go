@@ -13,19 +13,6 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-type QualifiedTable struct {
-	Schema string
-	Table  string
-}
-
-func ParseQualifiedTableName(table string) QualifiedTable {
-	if strings.Contains(table, ".") {
-		parts := strings.SplitN(table, ".", 2)
-		return QualifiedTable{parts[0], parts[1]}
-	}
-	return QualifiedTable{"public", table}
-}
-
 // TODO(go,nth) DEPRECATED just use strings.EqualFold instead
 func Stricmp(a, b string) bool {
 	return strings.EqualFold(a, b)
@@ -47,6 +34,27 @@ func WriteFile(content string, file string) error {
 
 func Basename(file string, ext string) string {
 	return strings.TrimSuffix(path.Base(file), ext)
+}
+
+func PrefixLines(str, prefix string) string {
+	return strings.ReplaceAll(str, "\n", "\n"+prefix)
+}
+
+// joins the listed strings together with the given separator,
+// but only if the string is not empty
+// e.g. CondJoin(",", "foo", "", "bar") results in "foo,bar"
+// whereas strings.Join([]string{"foo", "", "bar"},",") would result in "foo,,bar"
+func CondJoin(sep string, strs ...string) string {
+	out := ""
+	for _, s := range strs {
+		if s != "" {
+			if out != "" {
+				out += sep
+			}
+			out += s
+		}
+	}
+	return out
 }
 
 // returns the first non-empty string, or the empty string
