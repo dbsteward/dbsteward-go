@@ -47,7 +47,42 @@ func (self *Column) GetSetupSql(schema *model.Schema, table *model.Table, column
 	return ddl
 }
 
+func (self *Column) GetColumnDefaultSql(schema *model.Schema, table *model.Table, column *model.Column) []output.ToSql {
+	if !GlobalTable.IncludeColumnDefaultNextvalInCreateSql && self.HasDefaultNextval(column) {
+		// if the default is a nextval expression, don't specify it in the regular full definition
+		// because if the sequence has not been defined yet,
+		// the nextval expression will be evaluated inline and fail
+		lib.GlobalDBSteward.Info(
+			"Skipping %s.%s.%s default expression \"%s\" - this default expression will be applied after all sequences have been created",
+			schema.Name,
+			table.Name,
+			column.Name,
+			column.Default,
+		)
+		return nil
+	}
+	ref := sql.ColumnRef{schema.Name, table.Name, column.Name}
+	out := []output.ToSql{}
+
+	if column.Default != "" {
+		out = append(out, &sql.ColumnSetDefault{
+			Column:  ref,
+			Default: column.Default,
+		})
+	}
+
+	if !column.Nullable {
+		out = append(out, &sql.ColumnSetNull{
+			Column: ref,
+			Null:   false,
+		})
+	}
+
+	return out
+}
+
 func (self *Column) IsSerialType(column *model.Column) bool {
+	// TODO(go,pgsql) consolidate with GlobalDataType.IsLinkedType?
 	return util.IIndexOfStr(column.Type, []string{DataTypeSerial, DataTypeBigSerial}) >= 0
 }
 

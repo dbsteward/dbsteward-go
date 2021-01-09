@@ -47,3 +47,22 @@ func (self *ColumnSetDefault) ToSql(q output.Quoter) string {
 		self.Default,
 	)
 }
+
+type ColumnSetNull struct {
+	Column ColumnRef
+	Null   bool
+}
+
+func (self *ColumnSetNull) ToSql(q output.Quoter) string {
+	// TODO(feat) handle default quoting?
+	null := "NULL"
+	if !self.Null {
+		null = "NOT NULL"
+	}
+	return fmt.Sprintf(
+		"ALTER TABLE %s ALTER COLUMN %s SET %s",
+		self.Column.QualifiedTable(q),
+		self.Column.Quoted(q),
+		null,
+	)
+}

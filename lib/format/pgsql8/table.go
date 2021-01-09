@@ -96,8 +96,11 @@ func (self *Table) GetDefaultNextvalSql(schema *model.Schema, table *model.Table
 }
 
 func (self *Table) DefineTableColumnDefaults(schema *model.Schema, table *model.Table) []output.ToSql {
-	// TODO(go,pgsql)
-	return nil
+	out := []output.ToSql{}
+	for _, column := range table.Columns {
+		out = append(out, GlobalColumn.GetColumnDefaultSql(schema, table, column)...)
+	}
+	return out
 }
 
 func (self *Table) GetGrantSql(doc *model.Definition, schema *model.Schema, table *model.Table, grant *model.Grant) []output.ToSql {
