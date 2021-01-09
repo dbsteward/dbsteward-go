@@ -62,8 +62,9 @@ func (self *Index) TryGetTableIndexNamed(table *model.Table, name string) *model
 	return nil
 }
 
-func (self *Index) BuildPrimaryKeyName(table, column string) string {
-	return self.buildIndexName(table, column, "pkey")
+func (self *Index) BuildPrimaryKeyName(table string) string {
+	// primary key name does not use a column
+	return self.buildIndexName(table, "", "pkey")
 }
 
 func (self *Index) BuildSecondaryKeyName(table, column string) string {

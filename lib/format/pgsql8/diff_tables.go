@@ -14,20 +14,17 @@ func NewDiffTables() *DiffTables {
 	return &DiffTables{}
 }
 
-func (self *DiffTables) DiffConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, constraintType string, dropConstraints bool) {
-	// TODO(go,pgsql)
-}
-
-func (self *DiffTables) DiffConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType string, dropConstraints bool) {
-	// TODO(go,pgsql)
-}
-
 func (self *DiffTables) DiffTables(stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
 	// TODO(go,pgsql)
 }
 
 func (self *DiffTables) DiffTable(stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, oldTable, newTable *model.Table) {
 	// TODO(go,pgsql)
+}
+
+func (self *DiffTables) IsRenamedTable(schema *model.Schema, table *model.Table) bool {
+	// TODO(go,pgsql)
+	return false
 }
 
 func (self *DiffTables) DropTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {

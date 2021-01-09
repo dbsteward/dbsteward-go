@@ -13,6 +13,15 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// Assert that some condition is true. If it is false, a panic will be raised
+// This should be used to assert invariants about the code, NOT for validation
+// or general error reporting
+func Assert(cond bool, msg string, args ...interface{}) {
+	if !cond {
+		panic("Assertion Failed: " + fmt.Sprintf(msg, args...))
+	}
+}
+
 // TODO(go,nth) DEPRECATED just use strings.EqualFold instead
 func Stricmp(a, b string) bool {
 	return strings.EqualFold(a, b)

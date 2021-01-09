@@ -8,6 +8,16 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
+type ForeignKeyAction string
+
+const (
+	ForeignKeyActionNoAction   ForeignKeyAction = "NO_ACTION"
+	ForeignKeyActionRestrict   ForeignKeyAction = "RESTRICT"
+	ForeignKeyActionCascade    ForeignKeyAction = "CASCADE"
+	ForeignKeyActionSetNull    ForeignKeyAction = "SET_NULL"
+	ForeignKeyActionSetDefault ForeignKeyAction = "SET_DEFAULT"
+)
+
 type Table struct {
 	Name           string         `xml:"name,attr"`
 	Description    string         `xml:"description,attr"`
@@ -25,26 +35,28 @@ type Table struct {
 }
 
 type Column struct {
-	Name            string `xml:"name,attr"`
-	Type            string `xml:"type,attr"`
-	Nullable        bool   `xml:"null,attr"` // TODO(go,core) this means it will default to being NOT NULL, need to validate usages!
-	Default         string `xml:"default,attr"`
-	Description     string `xml:"description,attr"`
-	Unique          bool   `xml:"unique,attr"`
-	SerialStart     string `xml:"serialStart,attr"`
-	ForeignSchema   string `xml:"foreignSchema,attr"`
-	ForeignTable    string `xml:"foreignTable,attr"`
-	ForeignColumn   string `xml:"foreignColumn,attr"`
-	ForeignKeyName  string `xml:"foreignKeyName,attr"`
-	ForeignOnUpdate string `xml:"foreignOnUpdate,attr"`
-	ForeignOnDelete string `xml:"foreignOnDelete,attr"`
-	Statistics      *int   `xml:"statistics,attr"` // TODO(feat) this doesn't show up in the DTD
-	BeforeAddStage1 string `xml:"beforeAddStage1,attr"`
-	AfterAddStage1  string `xml:"afterAddStage1,attr"`
-	BeforeAddStage2 string `xml:"beforeAddStage2,attr"`
-	AfterAddStage2  string `xml:"afterAddStage2,attr"`
-	BeforeAddStage3 string `xml:"beforeAddStage3,attr"`
-	AfterAddStage3  string `xml:"afterAddStage3,attr"`
+	Name             string           `xml:"name,attr"`
+	Type             string           `xml:"type,attr"`
+	Nullable         bool             `xml:"null,attr"` // TODO(go,core) this means it will default to being NOT NULL, need to validate usages!
+	Default          string           `xml:"default,attr"`
+	Description      string           `xml:"description,attr"`
+	Unique           bool             `xml:"unique,attr"`
+	Check            string           `xml:"check,attr"`
+	SerialStart      string           `xml:"serialStart,attr"`
+	ForeignSchema    string           `xml:"foreignSchema,attr"`
+	ForeignTable     string           `xml:"foreignTable,attr"`
+	ForeignColumn    string           `xml:"foreignColumn,attr"`
+	ForeignKeyName   string           `xml:"foreignKeyName,attr"`
+	ForeignIndexName string           `xml:"foreignIndexName,attr"`
+	ForeignOnUpdate  ForeignKeyAction `xml:"foreignOnUpdate,attr"`
+	ForeignOnDelete  ForeignKeyAction `xml:"foreignOnDelete,attr"`
+	Statistics       *int             `xml:"statistics,attr"` // TODO(feat) this doesn't show up in the DTD
+	BeforeAddStage1  string           `xml:"beforeAddStage1,attr"`
+	AfterAddStage1   string           `xml:"afterAddStage1,attr"`
+	BeforeAddStage2  string           `xml:"beforeAddStage2,attr"`
+	AfterAddStage2   string           `xml:"afterAddStage2,attr"`
+	BeforeAddStage3  string           `xml:"beforeAddStage3,attr"`
+	AfterAddStage3   string           `xml:"afterAddStage3,attr"`
 
 	// These are DEPRECATED, replaced by Before/AfterAddStageN. see ConvertStageDirectives
 	AfterAddPreStage1  string `xml:"afterAddPreStage1,attr"`
@@ -61,21 +73,15 @@ type TableOption struct {
 	Value     string    `xml:"value"`
 }
 
-type Constraint struct {
-	Name       string `xml:"name,attr"`
-	Type       string `xml:"type,attr"`
-	Definition string `xml:"definition,attr"`
-}
-
 type ForeignKey struct {
-	Columns        DelimitedList `xml:"columns,attr"`
-	ForeignSchema  string        `xml:"foreignSchema,attr"`
-	ForeignTable   string        `xml:"foreignTable,attr"`
-	ForeignColumns DelimitedList `xml:"foreignColumns,attr"`
-	ConstraintName string        `xml:"constraintName,attr"`
-	IndexName      string        `xml:"indexName,attr"`
-	OnUpdate       string        `xml:"onUpdate,attr"`
-	OnDelete       string        `xml:"onDelete,attr"`
+	Columns        DelimitedList    `xml:"columns,attr"`
+	ForeignSchema  string           `xml:"foreignSchema,attr"`
+	ForeignTable   string           `xml:"foreignTable,attr"`
+	ForeignColumns DelimitedList    `xml:"foreignColumns,attr"`
+	ConstraintName string           `xml:"constraintName,attr"`
+	IndexName      string           `xml:"indexName,attr"`
+	OnUpdate       ForeignKeyAction `xml:"onUpdate,attr"`
+	OnDelete       ForeignKeyAction `xml:"onDelete,attr"`
 }
 
 func (self *Table) HasDefaultNextVal() bool {
@@ -147,6 +153,18 @@ func (self *Table) TryGetColumnNamed(name string) *Column {
 		}
 	}
 	return nil
+}
+
+func (self *Table) TryGetColumnsNamed(names []string) ([]*Column, bool) {
+	out := make([]*Column, len(names))
+	ok := true
+	for i, name := range names {
+		out[i] = self.TryGetColumnNamed(name)
+		if out[i] == nil {
+			ok = false
+		}
+	}
+	return out, ok
 }
 
 func (self *Table) AddColumn(col *Column) {
@@ -271,6 +289,29 @@ func (self *Column) ConvertStageDirectives() {
 	self.AfterAddPostStage3 = ""
 }
 
+func (self *Column) HasForeignKey() bool {
+	return self.ForeignTable != ""
+}
+
+func (self *Column) TryGetReferencedKey() *KeyNames {
+	if !self.HasForeignKey() {
+		return nil
+	}
+
+	key := self.GetReferencedKey()
+	return &key
+}
+
+func (self *Column) GetReferencedKey() KeyNames {
+	util.Assert(self.HasForeignKey(), "GetReferencedKey without checking HasForeignKey")
+	return KeyNames{
+		Schema:  self.ForeignSchema,
+		Table:   self.ForeignTable,
+		Columns: []string{self.ForeignColumn},
+		KeyName: self.ForeignKeyName,
+	}
+}
+
 func (self *Column) Merge(overlay *Column) {
 	self.Type = overlay.Type
 	self.Nullable = overlay.Nullable
@@ -285,17 +326,15 @@ func (self *Column) Merge(overlay *Column) {
 	self.Statistics = overlay.Statistics
 }
 
-func (self *Constraint) IdentityMatches(other *Constraint) bool {
-	if other == nil {
-		return false
+func (self *ForeignKey) GetReferencedKey() KeyNames {
+	cols := self.ForeignColumns
+	if len(cols) == 0 {
+		cols = self.Columns
 	}
-	return strings.EqualFold(self.Name, other.Name)
-}
-
-func (self *Constraint) Merge(overlay *Constraint) {
-	if overlay == nil {
-		return
+	return KeyNames{
+		Schema:  self.ForeignSchema,
+		Table:   self.ForeignTable,
+		Columns: cols,
+		KeyName: self.ConstraintName,
 	}
-	self.Type = overlay.Type
-	self.Definition = overlay.Definition
 }

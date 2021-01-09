@@ -159,13 +159,13 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			GlobalDiffFunctions.DiffFunctions(stage1, stage3, oldSchema, newSchema)
 			GlobalDiffSequences.DiffSequences(stage1, oldSchema, newSchema)
 			// remove old constraints before table constraints, so the sql statements succeed
-			GlobalDiffTables.DiffConstraints(stage1, oldSchema, newSchema, "constraint", true)
-			GlobalDiffTables.DiffConstraints(stage1, oldSchema, newSchema, "primaryKey", true)
+			GlobalDiffConstraints.DropConstraints(stage1, oldSchema, newSchema, ConstraintTypeConstraint)
+			GlobalDiffConstraints.DropConstraints(stage1, oldSchema, newSchema, ConstraintTypePrimaryKey)
 			GlobalDiffTables.DropTables(stage1, oldSchema, newSchema)
 			GlobalDiffTables.DiffTables(stage1, stage3, oldSchema, newSchema)
 			GlobalDiffIndexes.DiffIndexes(stage1, oldSchema, newSchema)
 			GlobalDiffTables.DiffClusters(stage1, oldSchema, newSchema)
-			GlobalDiffTables.DiffConstraints(stage1, oldSchema, newSchema, "primaryKey", false)
+			GlobalDiffConstraints.CreateConstraints(stage1, oldSchema, newSchema, ConstraintTypePrimaryKey)
 			GlobalDiffTriggers.DiffTriggers(stage1, oldSchema, newSchema)
 		}
 		// non-primary key constraints may be inter-schema dependant, and dependant on other's primary keys
@@ -173,7 +173,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		for _, newSchema := range dbsteward.NewDatabase.Schemas {
 			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
-			GlobalDiffTables.DiffConstraints(stage1, oldSchema, newSchema, "constraint", false)
+			GlobalDiffConstraints.CreateConstraints(stage1, oldSchema, newSchema, ConstraintTypeConstraint)
 		}
 	} else {
 		// use table dependency order to do structural changes in an intelligent order
@@ -209,9 +209,9 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			}
 
 			// NOTE: when dropping constraints, GlobalDBX.RenamedTableCheckPointer() is not called for oldTable
-			// as GlobalDiffTables.DiffConstraintsTable() will do rename checking when recreating constraints for renamed tables
-			GlobalDiffTables.DiffConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, "constraint", true)
-			GlobalDiffTables.DiffConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, "primaryKey", true)
+			// as GlobalDiffConstraints.DiffConstraintsTable() will do rename checking when recreating constraints for renamed tables
+			GlobalDiffConstraints.DropConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypeConstraint)
+			GlobalDiffConstraints.DropConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypePrimaryKey)
 		}
 
 		processedSchemas = map[string]bool{}
@@ -248,9 +248,9 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			GlobalDiffTables.DiffTable(stage1, stage3, oldSchema, newSchema, oldTable, newTable)
 			GlobalDiffIndexes.DiffIndexesTable(stage1, oldSchema, oldTable, newSchema, newTable)
 			GlobalDiffTables.DiffClustersTable(stage1, oldSchema, oldTable, newSchema, newTable)
-			GlobalDiffTables.DiffConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, "primaryKey", false)
+			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypePrimaryKey)
 			GlobalDiffTriggers.DiffTriggersTable(stage1, oldSchema, oldTable, newSchema, newTable)
-			GlobalDiffTables.DiffConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, "constraint", false)
+			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypeConstraint)
 		}
 
 		// drop old tables in reverse dependency order

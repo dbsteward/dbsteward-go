@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -216,10 +214,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		// create the table in the schema space
 		table := schema.TryGetTableNamed(tableName)
-		if table != nil {
-			// if this happens, it means our query or logic is wrong
-			panic(errors.Errorf("table %s.%s already defined in xml object - unexpected", schema.Name, table.Name))
-		}
+		util.Assert(table == nil, "table %s.%s already defined in xml object - unexpected", schema.Name, table.Name)
 		table = &model.Table{
 			Name:        tableName,
 			Owner:       self.translateRoleName(row["tableowner"]),
@@ -446,9 +441,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		}
 
 		view := schema.TryGetViewNamed(viewRow["viewname"])
-		if view != nil {
-			panic(errors.Errorf("view %s.%s already defined in XML object -- unexpected", schema.Name, viewRow["viewname"]))
-		}
+		util.Assert(view == nil, "view %s.%s already defined in XML object -- unexpected", schema.Name, viewRow["viewname"])
 
 		schema.AddView(&model.View{
 			Name:  viewRow["viewname"],
@@ -485,14 +478,10 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		dbsteward.Info("Analyze table constraints %s.%s", constraintRow["table_schema"], constraintRow["table_name"])
 
 		schema := doc.TryGetSchemaNamed(constraintRow["table_schema"])
-		if schema == nil {
-			panic(errors.Errorf("failed to find schema %s for constraint in table %s", constraintRow["table_schema"], constraintRow["table_name"]))
-		}
+		util.Assert(schema != nil, "failed to find schema %s for constraint in table %s", constraintRow["table_schema"], constraintRow["table_name"])
 
 		table := schema.TryGetTableNamed(constraintRow["table_name"])
-		if table == nil {
-			panic(errors.Errorf("failed to find table %s.%s for constraint", constraintRow["table_schema"], constraintRow["table_name"]))
-		}
+		util.Assert(table != nil, "failed to find table %s.%s for constraint", constraintRow["table_schema"], constraintRow["table_name"])
 
 		columns := self.parseSqlArray(constraintRow["columns"])
 
@@ -517,12 +506,12 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	// We cannot accurately retrieve FOREIGN KEYs via information_schema
 	// We must rely on getting them from pg_catalog instead
 	// See http://stackoverflow.com/questions/1152260/postgres-sql-to-list-table-foreign-keys
-	fkRules := map[string]string{
-		"a": "NO_ACTION",
-		"r": "RESTRICT",
-		"c": "CASCADE",
-		"n": "SET_NULL",
-		"d": "SET_DEFAULT",
+	fkRules := map[string]model.ForeignKeyAction{
+		"a": model.ForeignKeyActionNoAction,
+		"r": model.ForeignKeyActionRestrict,
+		"c": model.ForeignKeyActionCascade,
+		"n": model.ForeignKeyActionSetNull,
+		"d": model.ForeignKeyActionSetDefault,
 	}
 	fkRes := GlobalDb.Query(`
 		SELECT
@@ -563,21 +552,15 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		}
 
 		schema := doc.TryGetSchemaNamed(fkRow["local_schema"])
-		if schema == nil {
-			panic(errors.Errorf("failed to find schema %s for foreign key in table %s", fkRow["local_schema"], fkRow["local_table"]))
-		}
+		util.Assert(schema != nil, "failed to find schema %s for foreign key in table %s", fkRow["local_schema"], fkRow["local_table"])
 
 		table := schema.TryGetTableNamed(fkRow["local_table"])
-		if table == nil {
-			panic(errors.Errorf("failed to find table %s.%s for foreign key", fkRow["local_schema"], fkRow["local_table"]))
-		}
+		util.Assert(table != nil, "failed to find table %s.%s for foreign key", fkRow["local_schema"], fkRow["local_table"])
 
 		if len(localCols) == 1 {
 			// add inline on the column
 			column := table.TryGetColumnNamed(localCols[0])
-			if column == nil {
-				panic(errors.Errorf("failed to find column %s.%s.%s for foreign key", fkRow["local_schema"], fkRow["local_table"], localCols[0]))
-			}
+			util.Assert(column != nil, "failed to find column %s.%s.%s for foreign key", fkRow["local_schema"], fkRow["local_table"], localCols[0])
 
 			column.ForeignSchema = fkRow["foreign_schema"]
 			column.ForeignTable = fkRow["foreign_table"]
@@ -708,14 +691,10 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		dbsteward.Info("Analyze trigger %s.%s", triggerRow["event_object_schema"], triggerRow["trigger_name"])
 
 		schema := doc.TryGetSchemaNamed(triggerRow["event_object_schema"])
-		if schema == nil {
-			panic(errors.Errorf("failed to find schema %s for trigger on table %s", triggerRow["event_object_schema"], triggerRow["event_object_table"]))
-		}
+		util.Assert(schema != nil, "failed to find schema %s for trigger on table %s", triggerRow["event_object_schema"], triggerRow["event_object_table"])
 
 		table := schema.TryGetTableNamed(triggerRow["event_object_table"])
-		if table == nil {
-			panic(errors.Errorf("failed to find table %s.%s for trigger", triggerRow["event_object_schema"], triggerRow["event_object_table"]))
-		}
+		util.Assert(table != nil, "failed to find table %s.%s for trigger", triggerRow["event_object_schema"], triggerRow["event_object_table"])
 
 		// there is a row for each event_manipulation, so we need to aggregate them, see if the trigger already exists
 		// TODO(go,nth) can we simplify this by adding a groupby in the query?
@@ -749,14 +728,10 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		grantRow := grantRes.FetchRowStringMap()
 
 		schema := doc.TryGetSchemaNamed(grantRow["table_schema"])
-		if schema == nil {
-			panic(errors.Errorf("failed to find schema %s for trigger on table %s", grantRow["table_schema"], grantRow["table_name"]))
-		}
+		util.Assert(schema != nil, "failed to find schema %s for trigger on table %s", grantRow["table_schema"], grantRow["table_name"])
 
 		relation := schema.TryGetRelationNamed(grantRow["table_name"]) // relation = table|view
-		if relation == nil {
-			panic(errors.Errorf("failed to find relation %s.%s for trigger", grantRow["table_schema"], grantRow["table_name"]))
-		}
+		util.Assert(relation != nil, "failed to find relation %s.%s for trigger", grantRow["table_schema"], grantRow["table_name"])
 
 		// aggregate privileges by role
 		// TODO(feat) what about revokes?
@@ -1073,7 +1048,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	// define table primary keys before foreign keys so unique requirements are always met for FOREIGN KEY constraints
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
-			GlobalDiffTables.DiffConstraintsTable(ofs, nil, nil, schema, table, "primaryKey", false)
+			GlobalDiffConstraints.CreateConstraintsTable(ofs, nil, nil, schema, table, ConstraintTypePrimaryKey)
 		}
 	}
 
@@ -1085,7 +1060,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 			continue
 		}
 
-		GlobalDiffTables.DiffConstraintsTable(ofs, nil, nil, entry.Schema, entry.Table, "constraint", false)
+		GlobalDiffConstraints.CreateConstraintsTable(ofs, nil, nil, entry.Schema, entry.Table, ConstraintTypeConstraint)
 	}
 
 	// trigger definitions
