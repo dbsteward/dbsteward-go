@@ -97,6 +97,19 @@ func (self *TriggerRef) Quoted(q output.Quoter) string {
 	return q.QuoteObject(self.Trigger)
 }
 
+type ViewRef struct {
+	Schema string
+	View   string
+}
+
+func (self *ViewRef) Qualified(q output.Quoter) string {
+	return q.QualifyObject(self.Schema, self.View)
+}
+
+func (self *ViewRef) Quoted(q output.Quoter) string {
+	return q.QuoteObject(self.View)
+}
+
 type FunctionRef struct {
 	Schema   string
 	Function string

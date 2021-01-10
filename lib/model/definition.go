@@ -52,6 +52,9 @@ func (self *Definition) GetSchemaNamed(name string) (*Schema, error) {
 }
 
 func (self *Definition) TryGetSchemaNamed(name string) *Schema {
+	if self == nil {
+		return nil
+	}
 	for _, schema := range self.Schemas {
 		// TODO(feat) case insensitivity?
 		if schema.Name == name {

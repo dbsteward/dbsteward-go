@@ -55,7 +55,7 @@ type DBSteward struct {
 	fileOutputPrefix               string
 	IgnoreOldNames                 bool
 	allowFunctionRedefinition      bool
-	alwaysRecreateViews            bool
+	AlwaysRecreateViews            bool
 
 	dbHost string
 	dbPort uint
@@ -101,7 +101,7 @@ func NewDBSteward(operations map[model.SqlFormat]format.Operations) *DBSteward {
 		fileOutputPrefix:               "",
 		IgnoreOldNames:                 false,
 		allowFunctionRedefinition:      false,
-		alwaysRecreateViews:            true,
+		AlwaysRecreateViews:            true,
 
 		dbHost: "",
 		dbPort: 0,
@@ -164,7 +164,7 @@ func (self *DBSteward) ArgParse() {
 	if self.SingleStageUpgrade {
 		// don't recreate views when in single stage upgrade mode
 		// TODO(feat) make view diffing smart enough that this doesn't need to be done
-		self.alwaysRecreateViews = false
+		self.AlwaysRecreateViews = false
 	}
 	self.IgnoreOldNames = args.IgnoreOldNames
 	self.IgnoreCustomRoles = args.IgnoreCustomRoles

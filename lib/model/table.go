@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -253,4 +254,13 @@ func (self *ForeignKey) GetReferencedKey() KeyNames {
 		Columns: cols,
 		KeyName: self.ConstraintName,
 	}
+}
+
+type TableRef struct {
+	Schema *Schema
+	Table  *Table
+}
+
+func (self TableRef) String() string {
+	return fmt.Sprintf("%s.%s", self.Schema.Name, self.Table.Name)
 }
