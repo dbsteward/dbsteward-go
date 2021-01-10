@@ -28,8 +28,14 @@ type ConstraintCreateRaw struct {
 }
 
 func (self *ConstraintCreateRaw) ToSql(q output.Quoter) string {
+	util.Assert(self.Table.Schema != "", "Empty schema name")
+	util.Assert(self.Table.Table != "", "Empty table name")
+	util.Assert(self.Constraint != "", "Empty constraint name")
+	util.Assert(string(self.ConstraintType) != "", "Empty constraint type")
+	util.Assert(self.Definition != "", "Empty constraint defintion")
+
 	return fmt.Sprintf(
-		"ALTER TABLE %s ADD CONSTRAINT %s %s %s;",
+		"ALTER TABLE %s\n  ADD CONSTRAINT %s %s %s;",
 		self.Table.Qualified(q),
 		q.QuoteObject(self.Constraint),
 		string(self.ConstraintType),

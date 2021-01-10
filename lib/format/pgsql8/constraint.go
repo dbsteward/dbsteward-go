@@ -202,7 +202,7 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 				}
 				ref := lib.GlobalDBX.ResolveForeignKey(doc, local, foreign)
 				constraints = append(constraints, &TableConstraint{
-					Name:             ref.KeyName,
+					Name:             util.CoalesceStr(column.ForeignKeyName, GlobalIndex.BuildForeignKeyName(table.Name, column.Name)),
 					Schema:           schema,
 					Table:            table,
 					Columns:          local.Columns,
