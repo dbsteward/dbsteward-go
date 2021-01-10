@@ -29,6 +29,7 @@ type Index struct {
 
 type IndexDim struct {
 	Name  string `xml:"name,attr"` // TODO(go,4) why does a dimension have a name? just for compositing/differencing's sake?
+	Sql   bool   `xml:"sql,attr"`
 	Value string `xml:",chardata"`
 }
 type IndexCond struct {

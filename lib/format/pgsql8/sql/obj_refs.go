@@ -15,6 +15,22 @@ type Quotable interface {
 	Quoted(q output.Quoter) string
 }
 
+type DoNotQuote struct {
+	Text string
+}
+
+func (self *DoNotQuote) Quoted(q output.Quoter) string {
+	return self.Text
+}
+
+type QuoteObject struct {
+	Ident string
+}
+
+func (self *QuoteObject) Quoted(q output.Quoter) string {
+	return q.QuoteObject(self.Ident)
+}
+
 type SchemaRef struct {
 	Schema string
 }

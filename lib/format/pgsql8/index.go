@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
+
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
@@ -19,8 +21,29 @@ func NewIndex() *Index {
 }
 
 func (self *Index) GetCreateSql(schema *model.Schema, table *model.Table, index *model.Index) []output.ToSql {
-	// TODO(go,pgsql)
-	return nil
+	dims := make([]sql.Quotable, len(index.Dimensions))
+	for i, dim := range index.Dimensions {
+		if dim.Sql {
+			dims[i] = &sql.DoNotQuote{dim.Value}
+		} else {
+			dims[i] = &sql.QuoteObject{dim.Value}
+		}
+	}
+	condStr := ""
+	if cond := index.TryGetCondition(model.SqlFormatPgsql8); cond != nil {
+		condStr = cond.Condition
+	}
+	return []output.ToSql{
+		&sql.IndexCreate{
+			Table:        sql.TableRef{schema.Name, table.Name},
+			Index:        index.Name,
+			Unique:       index.Unique,
+			Concurrently: index.Concurrently,
+			Using:        string(index.Using),
+			Dimensions:   dims,
+			Where:        condStr,
+		},
+	}
 }
 
 func (self *Index) GetDropSql(schema *model.Schema, table *model.Table, index *model.Index) []output.ToSql {

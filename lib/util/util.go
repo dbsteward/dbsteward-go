@@ -66,6 +66,17 @@ func CondJoin(sep string, strs ...string) string {
 	return out
 }
 
+func MaybeStr(cond bool, str string) string {
+	return ChooseStr(cond, str, "")
+}
+
+func ChooseStr(cond bool, trueStr, falseStr string) string {
+	if cond {
+		return trueStr
+	}
+	return falseStr
+}
+
 // returns the first non-empty string, or the empty string
 func CoalesceStr(strs ...string) string {
 	for _, s := range strs {
