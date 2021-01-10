@@ -970,6 +970,7 @@ func (self *Operations) SlonyDiff(oldFile string, newFile string) {
 }
 
 func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableRef) {
+	// TODO(go,3) roll this into diffing nil -> doc
 	// schema creation
 	for _, schema := range doc.Schemas {
 		ofs.WriteSql(GlobalSchema.GetCreationSql(schema)...)

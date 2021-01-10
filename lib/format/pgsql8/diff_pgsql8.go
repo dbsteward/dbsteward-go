@@ -2,6 +2,7 @@ package pgsql8
 
 import (
 	"github.com/dbsteward/dbsteward/lib"
+	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -26,7 +27,31 @@ func NewDiff() *Diff {
 }
 
 func (self *Diff) UpdateDatabaseConfigParameters(ofs output.OutputFileSegmenter, oldDoc *model.Definition, newDoc *model.Definition) {
-	// TODO(go,pgsql)
+	if newDoc.Database == nil {
+		newDoc.Database = &model.Database{}
+	}
+	for _, newParam := range newDoc.Database.ConfigParams {
+		var oldParam *model.ConfigParam
+		if oldDoc != nil {
+			if oldDoc.Database == nil {
+				oldDoc.Database = &model.Database{}
+			}
+			oldParam = oldDoc.Database.TryGetConfigParamNamed(newParam.Name)
+		}
+		oldValue := "not defined"
+		if oldParam != nil {
+			oldValue = oldParam.Value
+		}
+		if oldParam == nil || !oldParam.Equals(newParam) {
+			ofs.WriteSql(&sql.Annotated{
+				Wrapped: &sql.ConfigParamSet{
+					Name:  newParam.Name,
+					Value: newParam.Value,
+				},
+				Annotation: "old configurationParameter value: " + oldValue,
+			})
+		}
+	}
 }
 
 func (self *Diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *model.Definition, upgradePrefix string) {

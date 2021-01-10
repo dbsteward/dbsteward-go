@@ -1,14 +1,17 @@
 package model
 
 import (
+	"strings"
+
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 type Database struct {
-	SqlFormat SqlFormat       `xml:"sqlFormat"`
-	Roles     *RoleAssignment `xml:"role"`
+	SqlFormat    SqlFormat       `xml:"sqlFormat"`
+	Roles        *RoleAssignment `xml:"role"`
+	ConfigParams []*ConfigParam  `xml:"configurationParameter"`
 
-	// slony, configurationParameter
+	// slony
 }
 
 type RoleAssignment struct {
@@ -17,6 +20,11 @@ type RoleAssignment struct {
 	Replication string        `xml:"replication"`
 	ReadOnly    string        `xml:"readonly"`
 	CustomRoles DelimitedList `xml:"customRole"`
+}
+
+type ConfigParam struct {
+	Name  string `xml:"name,attr"`
+	Value string `xml:"value,attr"`
 }
 
 func (self *Database) IsRoleDefined(role string) bool {
@@ -31,6 +39,15 @@ func (self *Database) AddCustomRole(role string) {
 		self.Roles = &RoleAssignment{}
 	}
 	self.Roles.AddCustomRole(role)
+}
+
+func (self *Database) TryGetConfigParamNamed(name string) *ConfigParam {
+	for _, param := range self.ConfigParams {
+		if strings.EqualFold(param.Name, name) {
+			return param
+		}
+	}
+	return nil
 }
 
 func (self *Database) Merge(overlay *Database) {
@@ -65,4 +82,11 @@ func (self *RoleAssignment) Merge(overlay *RoleAssignment) {
 	self.Replication = overlay.Replication
 	self.ReadOnly = overlay.ReadOnly
 	self.CustomRoles = overlay.CustomRoles
+}
+
+func (self *ConfigParam) Equals(other *ConfigParam) bool {
+	if self == nil || other == nil {
+		return false
+	}
+	return self.Value != other.Value
 }
