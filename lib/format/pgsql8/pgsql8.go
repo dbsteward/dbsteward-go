@@ -708,10 +708,11 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		}
 
 		// TODO(feat) what should happen if we have two events with different settings??
+		// TODO(go,nth) validate string constant casts
 		trigger.AddEvent(triggerRow["event_manipulation"])
-		trigger.When = util.CoalesceStr(triggerRow["condition_timing"], triggerRow["action_timing"])
+		trigger.Timing = model.TriggerTiming(util.CoalesceStr(triggerRow["condition_timing"], triggerRow["action_timing"]))
 		trigger.Table = triggerRow["event_object_table"]
-		trigger.ForEach = triggerRow["action_orientation"]
+		trigger.ForEach = model.TriggerForEach(triggerRow["action_orientation"])
 		trigger.Function = strings.TrimSpace(util.IReplaceAll(triggerRow["action_statement"], "EXECUTE PROCEDURE", ""))
 	}
 	dbsteward.FatalIfError(triggerRes.Err(), "Error while querying database")
@@ -1062,7 +1063,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	// trigger definitions
 	for _, schema := range doc.Schemas {
 		for _, trigger := range schema.Triggers {
-			if trigger.SqlFormat == model.SqlFormatPgsql8 {
+			if trigger.SqlFormat.Equals(model.SqlFormatPgsql8) {
 				ofs.WriteSql(GlobalTrigger.GetCreationSql(schema, trigger)...)
 			}
 		}

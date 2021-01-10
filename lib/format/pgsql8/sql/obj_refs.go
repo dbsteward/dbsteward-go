@@ -84,6 +84,19 @@ func (self *TypeRef) Quoted(q output.Quoter) string {
 	return q.QuoteObject(self.Type)
 }
 
+type TriggerRef struct {
+	Schema  string
+	Trigger string
+}
+
+func (self *TriggerRef) Qualified(q output.Quoter) string {
+	return q.QualifyObject(self.Schema, self.Trigger)
+}
+
+func (self *TriggerRef) Quoted(q output.Quoter) string {
+	return q.QuoteObject(self.Trigger)
+}
+
 type FunctionRef struct {
 	Schema   string
 	Function string

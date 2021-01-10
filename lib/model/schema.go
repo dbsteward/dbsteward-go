@@ -16,6 +16,8 @@ type Schema struct {
 	Views       []*View     `xml:"view"`
 }
 
+// TODO(go,4) triggers are schema objects, but always only in the scope of a single table. consider moving it to Table
+
 func (self *Schema) GetTableNamed(name string) (*Table, error) {
 	matching := []*Table{}
 	for _, table := range self.Tables {
