@@ -968,7 +968,7 @@ func (self *Operations) SlonyDiff(oldFile string, newFile string) {
 	// TODO(go,slony)
 }
 
-func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableDepEntry) {
+func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableRef) {
 	// schema creation
 	for _, schema := range doc.Schemas {
 		ofs.WriteSql(GlobalSchema.GetCreationSql(schema)...)
@@ -1056,10 +1056,6 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	// use the dependency order to specify foreign keys in an order that will satisfy nested foreign keys and etc
 	// TODO(feat) shouldn't this consider GlobalDBSteward.LimitToTables like BuildData does?
 	for _, entry := range tableDep {
-		if entry.IgnoreEntry {
-			continue
-		}
-
 		GlobalDiffConstraints.CreateConstraintsTable(ofs, nil, nil, entry.Schema, entry.Table, ConstraintTypeConstraint)
 	}
 
@@ -1087,14 +1083,11 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	GlobalDiff.UpdateDatabaseConfigParameters(ofs, nil, doc)
 }
 
-func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableDepEntry) {
+func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableRef) {
 	limitToTables := lib.GlobalDBSteward.LimitToTables
 
 	// use the dependency order to then write out the actual data inserts into the data sql file
 	for _, entry := range tableDep {
-		if entry.IgnoreEntry {
-			continue
-		}
 		schema := entry.Schema
 		table := entry.Table
 
@@ -1120,12 +1113,11 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 			if util.InArrayStr(pkCol, dataCols) {
 				// TODO(go,3) seems like this could be refactored better by putting much of the lookup
 				// into the model structs
-				cols := lib.GlobalXmlParser.InheritanceGetColumn(table, pkCol)
-				if len(cols) != 1 {
+				pk := lib.GlobalXmlParser.InheritanceGetColumn(doc, schema, table, pkCol)
+				if pk == nil {
 					lib.GlobalDBSteward.Fatal("Failed to find primary key column '%s' for %s.%s",
 						pkCol, schema.Name, table.Name)
 				}
-				pk := cols[0]
 				if GlobalDataType.IsLinkedTableType(pk.Type) {
 					if len(pk.SerialStart) > 0 {
 						ofs.WriteSql(&sql.SequenceSetValSerialMax{
@@ -1139,10 +1131,10 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 		}
 
 		// check if primary key columns are columns of this table
-		// TODO(feat) does this check belong here? should there be some kind of post-parse validation?
+		// TODO(go,3) does this check belong here? should there be some kind of post-parse validation?
 		for _, columnName := range table.PrimaryKey {
-			cols := lib.GlobalXmlParser.InheritanceGetColumn(table, columnName)
-			if len(cols) != 1 {
+			col := lib.GlobalXmlParser.InheritanceGetColumn(doc, schema, table, columnName)
+			if col == nil {
 				lib.GlobalDBSteward.Fatal("Declared primary key column (%s) does not exist as column in table %s.%s",
 					columnName, schema.Name, table.Name)
 			}

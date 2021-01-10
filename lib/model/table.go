@@ -24,6 +24,8 @@ type Table struct {
 	Owner          string         `xml:"owner,attr"`
 	PrimaryKey     DelimitedList  `xml:"primaryKey,attr"`
 	PrimaryKeyName string         `xml:"primaryKeyName,attr"`
+	InheritsTable  string         `xml:"inheritsTable,attr"`
+	InheritsSchema string         `xml:"inheritsSchema,attr"`
 	SlonySetId     int            `xml:"slonySetId,attr"`
 	TableOptions   []*TableOption `xml:"tableOption"`
 	Columns        []*Column      `xml:"column"`

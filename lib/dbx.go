@@ -47,18 +47,7 @@ func (self *DBX) GetTerminalForeignColumn(doc *model.Definition, schema *model.S
 }
 
 func (self *DBX) ResolveForeignKey(doc *model.Definition, localKey model.Key, foreignKey model.KeyNames) model.Key {
-	fSchema := localKey.Schema
-	if foreignKey.Schema != "" {
-		fSchema = doc.TryGetSchemaNamed(foreignKey.Schema)
-		if fSchema == nil {
-			GlobalDBSteward.Fatal("Failed to find foreign schema in %s referenced by %s", foreignKey.String(), localKey.String())
-		}
-	}
-
-	fTable := fSchema.TryGetTableNamed(foreignKey.Table)
-	if fTable == nil {
-		GlobalDBSteward.Fatal("Failed to find foreign table in %s referenced by %s", foreignKey.String(), localKey.String())
-	}
+	fSchema, fTable := self.ResolveSchemaTable(doc, localKey.Schema, foreignKey.Schema, foreignKey.Table, "foreign key")
 
 	// if we didn't ask for specific foreign columns, but we have local columns, use those
 	if len(foreignKey.Columns) == 0 {
@@ -93,6 +82,22 @@ func (self *DBX) ResolveForeignKey(doc *model.Definition, localKey model.Key, fo
 	}
 
 	return out
+}
+
+func (self *DBX) ResolveSchemaTable(doc *model.Definition, localSchema *model.Schema, schemaName, tableName string, refType string) (*model.Schema, *model.Table) {
+	fSchema := localSchema
+	if schemaName != "" {
+		fSchema = doc.TryGetSchemaNamed(schemaName)
+		if fSchema == nil {
+			GlobalDBSteward.Fatal("%s reference to unknown schema %s", refType, schemaName)
+		}
+	}
+	fTable := fSchema.TryGetTableNamed(tableName)
+	if fTable == nil {
+		GlobalDBSteward.Fatal("%s reference to unknown table %s.%s", refType, fSchema.Name, tableName)
+	}
+
+	return fSchema, fTable
 }
 
 func (self *DBX) EnumRegex(doc *model.Definition) string {

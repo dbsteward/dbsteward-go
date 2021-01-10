@@ -12,8 +12,8 @@ var GlobalDiff *Diff = NewDiff()
 type Diff struct {
 	*sql99.Diff
 	AsTransaction      bool
-	OldTableDependency []*model.TableDepEntry
-	NewTableDependency []*model.TableDepEntry
+	OldTableDependency []*model.TableRef
+	NewTableDependency []*model.TableRef
 }
 
 func NewDiff() *Diff {
@@ -194,10 +194,6 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 
 		// remove all old constraints before new contraints, in reverse dependency order
 		for _, oldEntry := range self.OldTableDependency {
-			if oldEntry.IgnoreEntry {
-				continue
-			}
-
 			oldSchema := oldEntry.Schema
 			oldTable := oldEntry.Table
 
@@ -230,10 +226,6 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 				processedSchemas[newSchema.Name] = true
 			}
 
-			if newEntry.IgnoreEntry {
-				continue
-			}
-
 			newTable := newEntry.Table
 			var oldTable *model.Table
 			if oldSchema != nil {
@@ -256,10 +248,6 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		// drop old tables in reverse dependency order
 		for i := len(self.OldTableDependency) - 1; i >= 0; i -= 1 {
 			oldEntry := self.OldTableDependency[i]
-			if oldEntry.IgnoreEntry {
-				continue
-			}
-
 			oldSchema := oldEntry.Schema
 			oldTable := oldEntry.Table
 
