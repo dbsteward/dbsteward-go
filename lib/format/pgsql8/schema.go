@@ -11,8 +11,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-var GlobalSchema *Schema = NewSchema()
-
 type Schema struct {
 }
 

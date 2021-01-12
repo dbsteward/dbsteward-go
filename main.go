@@ -9,8 +9,8 @@ import (
 
 func main() {
 	// correlates to bin/dbsteward
-	lib.GlobalDBSteward = lib.NewDBSteward(map[model.SqlFormat]format.Operations{
-		model.SqlFormatPgsql8: pgsql8.GlobalOperations,
+	lib.GlobalDBSteward = lib.NewDBSteward(format.LookupMap{
+		model.SqlFormatPgsql8: pgsql8.GlobalLookup,
 	})
 	lib.GlobalDBSteward.ArgParse()
 	lib.GlobalDBSteward.Notice("Done")

@@ -10,8 +10,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-var GlobalView *View = NewView()
-
 type View struct {
 }
 

@@ -24,8 +24,8 @@ var ApiVersion = "1.4"
 var GlobalDBSteward *DBSteward
 
 type DBSteward struct {
-	logger     zerolog.Logger
-	operations map[model.SqlFormat]format.Operations
+	logger    zerolog.Logger
+	lookupMap format.LookupMap
 
 	SqlFormat model.SqlFormat
 
@@ -68,10 +68,10 @@ type DBSteward struct {
 	NewDatabase *model.Definition
 }
 
-func NewDBSteward(operations map[model.SqlFormat]format.Operations) *DBSteward {
+func NewDBSteward(lookupMap format.LookupMap) *DBSteward {
 	dbsteward := &DBSteward{
-		logger:     zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
-		operations: operations,
+		logger:    zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
+		lookupMap: lookupMap,
 
 		SqlFormat: model.SqlFormatUnknown,
 
@@ -116,8 +116,8 @@ func NewDBSteward(operations map[model.SqlFormat]format.Operations) *DBSteward {
 	return dbsteward
 }
 
-func (self *DBSteward) FormatOperations() format.Operations {
-	return self.operations[self.SqlFormat]
+func (self *DBSteward) Lookup() *format.Lookup {
+	return self.lookupMap[self.SqlFormat]
 }
 
 // correlates to dbsteward->arg_parse()
@@ -587,7 +587,7 @@ func (self *DBSteward) doBuild(files []string, dataFiles []string, addendums uin
 		GlobalXmlParser.SaveDoc(compositeFile, addendumsDoc)
 	}
 
-	self.FormatOperations().Build(outputPrefix, dbDoc)
+	self.Lookup().Operations.Build(outputPrefix, dbDoc)
 }
 func (self *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []string) {
 	self.Info("Compositing old XML files...")
@@ -617,13 +617,13 @@ func (self *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []
 	self.Notice("Saving composite as %s", newCompositeFile)
 	GlobalXmlParser.SaveDoc(newCompositeFile, newDbDoc)
 
-	self.FormatOperations().BuildUpgrade(
+	self.Lookup().Operations.BuildUpgrade(
 		oldOutputPrefix, oldCompositeFile, oldDbDoc, oldFiles,
 		newOutputPrefix, newCompositeFile, newDbDoc, newFiles,
 	)
 }
 func (self *DBSteward) doExtract(dbHost string, dbPort uint, dbName, dbUser, dbPass string, outputFile string) {
-	output := self.FormatOperations().ExtractSchema(dbHost, dbPort, dbName, dbUser, dbPass)
+	output := self.Lookup().Operations.ExtractSchema(dbHost, dbPort, dbName, dbUser, dbPass)
 	self.Notice("Saving extracted database schema to %s", outputFile)
 	GlobalXmlParser.SaveDoc(outputFile, output)
 }
@@ -650,11 +650,11 @@ func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendum
 	self.Notice("Saving composite as %s", compositeFile)
 	GlobalXmlParser.SaveDoc(compositeFile, dbDoc)
 
-	output := self.FormatOperations().CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
+	output := self.Lookup().Operations.CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
 	GlobalXmlParser.SaveDoc(compositeFile, output)
 }
 func (self *DBSteward) doSqlDiff(oldSql, newSql []string, outputFile string) {
-	self.FormatOperations().SqlDiff(oldSql, newSql, outputFile)
+	self.Lookup().Operations.SqlDiff(oldSql, newSql, outputFile)
 }
 func (self *DBSteward) doSlonikConvert(file string, outputFile string) {
 	// TODO(go,nth) is there a nicer way to handle this output idiom?
@@ -667,8 +667,8 @@ func (self *DBSteward) doSlonikConvert(file string, outputFile string) {
 	}
 }
 func (self *DBSteward) doSlonyCompare(file string) {
-	self.operations[model.SqlFormatPgsql8].(format.SlonyOperations).SlonyCompare(file)
+	self.lookupMap[model.SqlFormatPgsql8].Operations.(format.SlonyOperations).SlonyCompare(file)
 }
 func (self *DBSteward) doSlonyDiff(oldFile string, newFile string) {
-	self.operations[model.SqlFormatPgsql8].(format.SlonyOperations).SlonyDiff(oldFile, newFile)
+	self.lookupMap[model.SqlFormatPgsql8].Operations.(format.SlonyOperations).SlonyDiff(oldFile, newFile)
 }

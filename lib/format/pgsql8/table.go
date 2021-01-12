@@ -11,8 +11,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-var GlobalTable *Table = NewTable()
-
 type Table struct {
 	IncludeColumnDefaultNextvalInCreateSql bool
 }

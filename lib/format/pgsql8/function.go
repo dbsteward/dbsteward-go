@@ -11,8 +11,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-var GlobalFunction *Function = NewFunction()
-
 type Function struct {
 	IncludeColumnDefaultNextvalInCreateSql bool
 }

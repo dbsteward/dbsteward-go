@@ -5,8 +5,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-var GlobalDiffSequences *DiffSequences = NewDiffSequences()
-
 type DiffSequences struct {
 }
 

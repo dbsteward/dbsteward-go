@@ -10,8 +10,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-var GlobalDataType *DataType = NewDataType()
-
 type DataType struct {
 }
 

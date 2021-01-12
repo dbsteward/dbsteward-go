@@ -5,8 +5,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-var GlobalLanguage *Language = NewLanguage()
-
 type Language struct {
 }
 

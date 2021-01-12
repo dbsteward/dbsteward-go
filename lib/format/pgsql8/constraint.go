@@ -37,8 +37,6 @@ func (self ConstraintType) Includes(sub ConstraintType) bool {
 	return false
 }
 
-var GlobalConstraint = NewConstraint()
-
 type TableConstraint struct {
 	Schema           *model.Schema
 	Table            *model.Table

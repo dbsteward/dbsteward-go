@@ -5,8 +5,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-var GlobalDiffTriggers *DiffTriggers = NewDiffTriggers()
-
 type DiffTriggers struct {
 }
 

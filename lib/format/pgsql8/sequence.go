@@ -8,8 +8,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-var GlobalSequence *Sequence = NewSequence()
-
 type Sequence struct {
 }
 

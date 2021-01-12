@@ -5,8 +5,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-var GlobalDiffIndexes *DiffIndexes = NewDiffIndexes()
-
 type DiffIndexes struct {
 }
 

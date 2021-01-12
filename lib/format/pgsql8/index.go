@@ -11,8 +11,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-var GlobalIndex = NewIndex()
-
 type Index struct {
 }
 

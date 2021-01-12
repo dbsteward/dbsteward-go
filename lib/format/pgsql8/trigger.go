@@ -7,8 +7,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-var GlobalTrigger *Trigger = NewTrigger()
-
 type Trigger struct {
 	IncludeColumnDefaultNextvalInCreateSql bool
 }

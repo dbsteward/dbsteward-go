@@ -13,8 +13,6 @@ import (
 
 const PatternNextval = `^nextval\((.+)\)$`
 
-var GlobalColumn *Column = NewColumn()
-
 func NewColumn() *Column {
 	return &Column{}
 }

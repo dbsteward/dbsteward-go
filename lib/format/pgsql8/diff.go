@@ -8,8 +8,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-var GlobalDiff *Diff = NewDiff()
-
 type Diff struct {
 	*sql99.Diff
 	AsTransaction      bool

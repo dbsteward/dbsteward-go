@@ -4,8 +4,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-var GlobalDiffLanguages *DiffLanguages = NewDiffLanguages()
-
 type DiffLanguages struct {
 }
 

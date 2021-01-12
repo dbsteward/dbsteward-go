@@ -8,8 +8,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-var GlobalDiffTables *DiffTables = NewDiffTables()
-
 type DiffTables struct {
 }
 

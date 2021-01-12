@@ -6,8 +6,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-var GlobalDiffConstraints = NewDiffConstraints()
-
 type DiffConstraints struct {
 }
 

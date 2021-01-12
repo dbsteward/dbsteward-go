@@ -5,8 +5,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-var GlobalDiffTypes *DiffTypes = NewDiffTypes()
-
 type DiffTypes struct {
 }
 
