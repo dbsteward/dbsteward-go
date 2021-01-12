@@ -27,7 +27,7 @@ type ColumnAlterStatistics struct {
 func (self *ColumnAlterStatistics) ToSql(q output.Quoter) string {
 	return fmt.Sprintf(
 		"ALTER TABLE ONLY %s ALTER COLUMN %s SET STATISTICS %d;",
-		self.Column.QualifiedTable(q),
+		self.Column.TableRef().Qualified(q),
 		self.Column.Quoted(q),
 		self.Statistics,
 	)
@@ -42,7 +42,7 @@ func (self *ColumnSetDefault) ToSql(q output.Quoter) string {
 	// TODO(feat) handle default quoting?
 	return fmt.Sprintf(
 		"ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s;",
-		self.Column.QualifiedTable(q),
+		self.Column.TableRef().Qualified(q),
 		self.Column.Quoted(q),
 		self.Default,
 	)
@@ -61,7 +61,7 @@ func (self *ColumnSetNull) ToSql(q output.Quoter) string {
 	}
 	return fmt.Sprintf(
 		"ALTER TABLE %s ALTER COLUMN %s SET %s",
-		self.Column.QualifiedTable(q),
+		self.Column.TableRef().Qualified(q),
 		self.Column.Quoted(q),
 		null,
 	)

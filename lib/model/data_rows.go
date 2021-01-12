@@ -14,6 +14,18 @@ type DataRows struct {
 	TabRows         []string      `xml:"tabrow"`
 }
 
+type DataRow struct {
+	Columns []*DataCol `xml:"col"`
+	Delete  bool       `xml:"delete,attr"` // TODO(go,core) does this un/marshal properly?
+}
+
+type DataCol struct {
+	Null  bool   `xml:"null,attr"`
+	Empty bool   `xml:"empty,attr"`
+	Sql   bool   `xml:"sql,attr"`
+	Text  string `xml:",chardata"`
+}
+
 func (self *DataRows) AddColumn(name string, value string) error {
 	if self.HasColumn(name) {
 		return errors.Errorf("already has column %s", name)
@@ -60,12 +72,92 @@ func (self *DataRows) ConvertTabRows() {
 	self.TabRows = nil
 }
 
-type DataRow struct {
-	Columns []*DataCol `xml:"col"`
-	Delete  bool       `xml:"delete,attr"` // TODO(go,core) does this un/marshal properly?
+// attempt to find a row in `self.Rows` which has the same values of `key` columns as `target`
+func (self *DataRows) TryGetRowMatchingKeyCols(target *DataRow, key []string) *DataRow {
+	indexes, ok := self.tryGetColIndexesOfNames(key)
+	if !ok {
+		return nil
+	}
+
+outer:
+	for _, row := range self.Rows {
+		for _, index := range indexes {
+			if !target.Columns[index].Equals(row.Columns[index]) {
+				continue outer
+			}
+		}
+		return row
+	}
+	return nil
 }
 
-type DataCol struct {
-	Null bool   `xml:"null,attr"`
-	Text string `xml:",chardata"`
+// get the columns of the `target` row for the matching columns given by `key`
+func (self *DataRows) TryGetColsMatchingKeyCols(target *DataRow, key []string) ([]*DataCol, bool) {
+	colIndexes, ok := self.tryGetColIndexesOfNames(key)
+	if !ok {
+		return nil, false
+	}
+	out := make([]*DataCol, len(key))
+	for i, idx := range colIndexes {
+		out[i] = target.Columns[idx]
+	}
+	return out, true
+}
+func (self *DataRows) tryGetColIndexesOfNames(names []string) ([]int, bool) {
+	out := make([]int, len(names))
+	for i, name := range names {
+		found := false
+		for j, col := range self.Columns {
+			if strings.EqualFold(name, col) {
+				out[i] = j
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, false
+		}
+	}
+	return out, true
+}
+
+// checks to see that ownRow == otherRow, accounting for possible differences in column count or order
+func (self *DataRows) RowEquals(ownRow, otherRow *DataRow, otherColumns []string) bool {
+	if len(self.Columns) != len(otherColumns) {
+		return false
+	}
+
+	if ownRow.Delete != otherRow.Delete {
+		return false
+	}
+
+	otherIndexes, ok := self.tryGetColIndexesOfNames(otherColumns)
+	if !ok {
+		return false
+	}
+
+	for ownIndex, otherIndex := range otherIndexes {
+		if !ownRow.Columns[ownIndex].Equals(otherRow.Columns[otherIndex]) {
+			return false
+		}
+	}
+
+	return false
+}
+
+func (self *DataCol) Equals(other *DataCol) bool {
+	if self == nil || other == nil {
+		return false
+	}
+	if self.Null && other.Null {
+		return true
+	}
+	if self.Empty && other.Empty {
+		return true
+	}
+	if self.Sql != other.Sql {
+		return false
+	}
+	// TODO(feat) something other than plain old string equality?
+	return self.Text == other.Text
 }

@@ -56,6 +56,10 @@ func (self *TableRef) Quoted(q output.Quoter) string {
 	return q.QuoteTable(self.Table)
 }
 
+func (self *TableRef) QualifiedLiteralString(q output.Quoter) string {
+	return q.LiteralString(fmt.Sprintf("%s.%s", self.Schema, self.Table))
+}
+
 type ColumnRef struct {
 	Schema string
 	Table  string
@@ -66,12 +70,12 @@ func (self *ColumnRef) Qualified(q output.Quoter) string {
 	return q.QualifyColumn(self.Schema, self.Table, self.Column)
 }
 
-func (self *ColumnRef) QualifiedTable(q output.Quoter) string {
-	return q.QualifyTable(self.Schema, self.Table)
-}
-
 func (self *ColumnRef) Quoted(q output.Quoter) string {
 	return q.QuoteColumn(self.Column)
+}
+
+func (self *ColumnRef) TableRef() *TableRef {
+	return &TableRef{self.Schema, self.Table}
 }
 
 type SequenceRef struct {

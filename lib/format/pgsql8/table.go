@@ -193,3 +193,11 @@ func (self *Table) GetGrantSql(doc *model.Definition, schema *model.Schema, tabl
 
 	return ddl
 }
+
+func (self *Table) GetSerialStartDml(schema *model.Schema, table *model.Table) []output.ToSql {
+	out := []output.ToSql{}
+	for _, column := range table.Columns {
+		out = append(out, GlobalColumn.GetSerialStartDml(schema, table, column)...)
+	}
+	return out
+}

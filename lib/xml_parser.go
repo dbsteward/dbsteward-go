@@ -225,13 +225,13 @@ func (self *XmlParser) mssql10TypeConvert(column *model.Column) {
 		// pg serial = ms int identity
 		// see http://msdn.microsoft.com/en-us/library/ms186775.aspx
 		column.Type = "int identity(1, 1)"
-		if column.SerialStart != "" {
-			column.Type = fmt.Sprintf("int identity(%s, 1)", column.SerialStart)
+		if column.SerialStart != nil {
+			column.Type = fmt.Sprintf("int identity(%d, 1)", *column.SerialStart)
 		}
 	case "bigserial":
 		column.Type = "bigint identity(1, 1)"
-		if column.SerialStart != "" {
-			column.Type = fmt.Sprintf("bigint identity(%s, 1)", column.SerialStart)
+		if column.SerialStart != nil {
+			column.Type = fmt.Sprintf("bigint identity(%d, 1)", *column.SerialStart)
 		}
 	case "uuid":
 		// PostgreSQL's type uuid adhering to RFC 4122 -- see http://www.postgresql.org/docs/8.4/static/datatype-uuid.html
@@ -442,7 +442,7 @@ func (self *XmlParser) getTableDependencies(doc *model.Definition, schema *model
 	return out
 }
 
-func (self *XmlParser) InheritanceGetColumn(doc *model.Definition, schema *model.Schema, table *model.Table, columnName string) *model.Column {
+func (self *XmlParser) TryInheritanceGetColumn(doc *model.Definition, schema *model.Schema, table *model.Table, columnName string) *model.Column {
 	// TODO(go,3) move to model
 	column := table.TryGetColumnNamed(columnName)
 

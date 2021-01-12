@@ -1105,7 +1105,7 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 			}
 		}
 
-		ofs.WriteSql(GlobalDiffTables.GetDataSql(nil, nil, schema, table, false)...)
+		ofs.WriteSql(GlobalDiffTables.GetCreateDataSql(nil, nil, schema, table)...)
 
 		// set serial primary keys to the max value after inserts have been performed
 		// only if the PRIMARY KEY is not a multi column
@@ -1115,17 +1115,16 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 			if util.InArrayStr(pkCol, dataCols) {
 				// TODO(go,3) seems like this could be refactored better by putting much of the lookup
 				// into the model structs
-				pk := lib.GlobalXmlParser.InheritanceGetColumn(doc, schema, table, pkCol)
+				pk := lib.GlobalXmlParser.TryInheritanceGetColumn(doc, schema, table, pkCol)
 				if pk == nil {
 					lib.GlobalDBSteward.Fatal("Failed to find primary key column '%s' for %s.%s",
 						pkCol, schema.Name, table.Name)
 				}
-				if GlobalDataType.IsLinkedTableType(pk.Type) {
-					if len(pk.SerialStart) > 0 {
-						ofs.WriteSql(&sql.SequenceSetValSerialMax{
-							Schema: schema.Name,
-							Table:  table.Name,
-							Column: pk.Name,
+				// TODO(go,nth) unify DataType.IsLinkedType and Column.IsSerialType
+				if GlobalColumn.IsSerialType(pk) {
+					if pk.SerialStart == nil {
+						ofs.WriteSql(&sql.SequenceSerialSetValMax{
+							Column: sql.ColumnRef{schema.Name, table.Name, pk.Name},
 						})
 					}
 				}
@@ -1135,7 +1134,7 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 		// check if primary key columns are columns of this table
 		// TODO(go,3) does this check belong here? should there be some kind of post-parse validation?
 		for _, columnName := range table.PrimaryKey {
-			col := lib.GlobalXmlParser.InheritanceGetColumn(doc, schema, table, columnName)
+			col := lib.GlobalXmlParser.TryInheritanceGetColumn(doc, schema, table, columnName)
 			if col == nil {
 				lib.GlobalDBSteward.Fatal("Declared primary key column (%s) does not exist as column in table %s.%s",
 					columnName, schema.Name, table.Name)
@@ -1181,6 +1180,46 @@ func (self *Operations) ValueEscape(datatype string, value string, doc *model.De
 	return value
 }
 
+func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Table, columnName string, dataCol *model.DataCol) string {
+	if dataCol.Null {
+		return "NULL"
+	}
+	if dataCol.Empty {
+		if self.EscapeStringValues {
+			return self.LiteralStringEscaped("")
+		} else {
+			return self.LiteralString("")
+		}
+	}
+	if dataCol.Sql {
+		if strings.EqualFold(strings.TrimSpace(dataCol.Text), "default") {
+			return "DEFAULT"
+		} else {
+			return fmt.Sprintf("(%s)", dataCol.Text)
+		}
+	}
+
+	col := lib.GlobalXmlParser.TryInheritanceGetColumn(lib.GlobalDBSteward.NewDatabase, schema, table, columnName)
+	if col == nil {
+		lib.GlobalDBSteward.Fatal("Failed to find table %s.%s column %s for default value check", schema.Name, table.Name, columnName)
+	}
+
+	if dataCol.Text == "" {
+		if col.Default == "" || strings.EqualFold(strings.TrimSpace(col.Default), "null") {
+			return "NULL"
+		}
+		return self.StripStringQuoting(col.Default)
+	}
+
+	valueType := GlobalColumn.GetColumnType(lib.GlobalDBSteward.NewDatabase, schema, table, col)
+	return self.LiteralValue(valueType, dataCol.Text)
+}
+
+func (self *Operations) StripStringQuoting(str string) string {
+	return strings.ReplaceAll(strings.TrimPrefix(strings.TrimSuffix(str, "'"), "'"), "''", "'")
+}
+
+// TODO(go,3) is there ever any reason we wouldn't always E-escape a string?
 func (self *Operations) LiteralString(str string) string {
 	return fmt.Sprintf("'%s'", strings.ReplaceAll(str, "'", "''"))
 }

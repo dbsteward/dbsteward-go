@@ -9,12 +9,12 @@ import (
 type Column struct {
 	Name             string           `xml:"name,attr"`
 	Type             string           `xml:"type,attr"`
-	Nullable         bool             `xml:"null,attr"` // TODO(go,core) this means it will default to being NOT NULL, need to validate usages!
+	Nullable         bool             `xml:"null,attr"`
 	Default          string           `xml:"default,attr"`
 	Description      string           `xml:"description,attr"`
 	Unique           bool             `xml:"unique,attr"`
 	Check            string           `xml:"check,attr"`
-	SerialStart      string           `xml:"serialStart,attr"`
+	SerialStart      *int             `xml:"serialStart,attr"`
 	ForeignSchema    string           `xml:"foreignSchema,attr"`
 	ForeignTable     string           `xml:"foreignTable,attr"`
 	ForeignColumn    string           `xml:"foreignColumn,attr"`

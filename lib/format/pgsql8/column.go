@@ -1,6 +1,7 @@
 package pgsql8
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -128,4 +129,23 @@ func (self *Column) GetReferenceType(coltype string) string {
 	}
 	// TODO(feat) should this include enum types?
 	return coltype
+}
+
+func (self *Column) GetSerialStartDml(schema *model.Schema, table *model.Table, column *model.Column) []output.ToSql {
+	if column.SerialStart == nil {
+		return nil
+	}
+	if !self.IsSerialType(column) {
+		lib.GlobalDBSteward.Fatal("Expected serial type for column %s.%s.%s because serialStart='%s' was defined, found type %s",
+			schema.Name, table.Name, column.Name, *column.SerialStart, column.Type)
+	}
+	return []output.ToSql{
+		&sql.Annotated{
+			Annotation: fmt.Sprintf("serialStart %s specified for %s.%s.%s", *column.SerialStart, schema.Name, table.Name, column.Name),
+			Wrapped: &sql.SequenceSerialSetVal{
+				Column: sql.ColumnRef{schema.Name, table.Name, column.Name},
+				Value:  *column.SerialStart,
+			},
+		},
+	}
 }
