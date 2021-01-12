@@ -257,7 +257,7 @@ func (self *XmlParser) mysql5TypeConvert(typ, def string) (string, string) {
 }
 
 func (self *XmlParser) VendorParse(doc *model.Definition) {
-	// TODO(go,core)
+	GlobalDBSteward.Lookup().XmlParser.Process(doc)
 }
 
 func (self *XmlParser) SaveDoc(filename string, doc *model.Definition) {

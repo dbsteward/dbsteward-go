@@ -23,6 +23,10 @@ type Operations interface {
 	output.Quoter
 }
 
+type XmlParser interface {
+	Process(*model.Definition)
+}
+
 type SlonyOperations interface {
 	SlonyCompare(file string)
 	SlonyDiff(oldFile, newFile string)

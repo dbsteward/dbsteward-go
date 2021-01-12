@@ -25,7 +25,9 @@ var GlobalDiffTriggers = NewDiffTriggers()
 var GlobalDiffTypes = NewDiffTypes()
 var GlobalDiffViews = NewDiffViews()
 var GlobalDiff = NewDiff()
+var GlobalXmlParser = NewXmlParser()
 
 var GlobalLookup = &format.Lookup{
 	Operations: GlobalOperations,
+	XmlParser:  GlobalXmlParser,
 }
