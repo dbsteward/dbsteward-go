@@ -39,6 +39,8 @@ func (self *Sequence) GetCreationSql(schema *model.Schema, sequence *model.Seque
 	}
 
 	if sequence.Owner != "" {
+		// NOTE: Old dbsteward uses ALTER TABLE for this, which is valid according to docs, however
+		// ALTER SEQUENCE also works in pgsql 8, and that's more correct
 		ddl = append(ddl, &sql.SequenceAlterOwner{
 			Sequence: ref,
 			Role:     lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, sequence.Owner),

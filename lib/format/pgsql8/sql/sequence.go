@@ -24,9 +24,15 @@ func (self *SequenceCreate) ToSql(q output.Quoter) string {
 	}
 	if self.Min != nil {
 		ddl += fmt.Sprintf("\n  MINVALUE %d", *self.Min)
+	} else {
+		// NOTE: this is technically not needed, NO MINVALUE is the default
+		ddl += fmt.Sprintf("\n  NO MINVALUE")
 	}
 	if self.Max != nil {
 		ddl += fmt.Sprintf("\n  MAXVALUE %d", *self.Max)
+	} else {
+		// NOTE: this is technically not needed, NO MINVALUE is the default
+		ddl += fmt.Sprintf("\n  NO MAXVALUE")
 	}
 	if self.Start != nil {
 		ddl += fmt.Sprintf("\n  START WITH %d", *self.Start)

@@ -53,7 +53,7 @@ func (self *Index) GetTableIndexes(table *model.Table) []*model.Index {
 	if table == nil {
 		return nil
 	}
-	out := []*model.Index{}
+	out := make([]*model.Index, len(table.Indexes))
 	copy(out, table.Indexes)
 
 	// add column unique indexes to the list
