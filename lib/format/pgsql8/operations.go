@@ -36,7 +36,6 @@ func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
 	// TODO(go,4) can we just consider a build(def) to be diff(null, def)?
 	// some shortcuts, since we're going to be typing a lot here
 	dbsteward := lib.GlobalDBSteward
-	xmlParser := lib.GlobalXmlParser
 	dbx := lib.GlobalDBX
 
 	buildFileName := outputPrefix + "_build.sql"
@@ -54,7 +53,7 @@ func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
 	}
 
 	dbsteward.Info("Calculating table foreign dependency order...")
-	tableDependency := xmlParser.TableDependencyOrder(dbDoc)
+	tableDependency := dbx.TableDependencyOrder(dbDoc)
 
 	// database-specific implementation code refers to dbsteward::$new_database when looking up roles/values/conflicts etc
 	dbsteward.NewDatabase = dbDoc
@@ -137,10 +136,10 @@ func (self *Operations) BuildUpgrade(
 	upgradePrefix := newOutputPrefix + "_upgrade"
 
 	lib.GlobalDBSteward.Info("Calculating old table foreign key dependency order...")
-	GlobalDiff.OldTableDependency = lib.GlobalXmlParser.TableDependencyOrder(oldDoc)
+	GlobalDiff.OldTableDependency = lib.GlobalDBX.TableDependencyOrder(oldDoc)
 
 	lib.GlobalDBSteward.Info("Calculating new table foreign key dependency order...")
-	GlobalDiff.NewTableDependency = lib.GlobalXmlParser.TableDependencyOrder(newDoc)
+	GlobalDiff.NewTableDependency = lib.GlobalDBX.TableDependencyOrder(newDoc)
 
 	GlobalDiff.DiffDoc(oldCompositeFile, newCompositeFile, oldDoc, newDoc, upgradePrefix)
 
@@ -1113,7 +1112,7 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 			if util.InArrayStr(pkCol, dataCols) {
 				// TODO(go,3) seems like this could be refactored better by putting much of the lookup
 				// into the model structs
-				pk := lib.GlobalXmlParser.TryInheritanceGetColumn(doc, schema, table, pkCol)
+				pk := lib.GlobalDBX.TryInheritanceGetColumn(doc, schema, table, pkCol)
 				if pk == nil {
 					lib.GlobalDBSteward.Fatal("Failed to find primary key column '%s' for %s.%s",
 						pkCol, schema.Name, table.Name)
@@ -1132,7 +1131,7 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 		// check if primary key columns are columns of this table
 		// TODO(go,3) does this check belong here? should there be some kind of post-parse validation?
 		for _, columnName := range table.PrimaryKey {
-			col := lib.GlobalXmlParser.TryInheritanceGetColumn(doc, schema, table, columnName)
+			col := lib.GlobalDBX.TryInheritanceGetColumn(doc, schema, table, columnName)
 			if col == nil {
 				lib.GlobalDBSteward.Fatal("Declared primary key column (%s) does not exist as column in table %s.%s",
 					columnName, schema.Name, table.Name)
@@ -1197,7 +1196,7 @@ func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Ta
 		}
 	}
 
-	col := lib.GlobalXmlParser.TryInheritanceGetColumn(lib.GlobalDBSteward.NewDatabase, schema, table, columnName)
+	col := lib.GlobalDBX.TryInheritanceGetColumn(lib.GlobalDBSteward.NewDatabase, schema, table, columnName)
 	if col == nil {
 		lib.GlobalDBSteward.Fatal("Failed to find table %s.%s column %s for default value check", schema.Name, table.Name, columnName)
 	}
@@ -1227,8 +1226,10 @@ func (self *Operations) LiteralStringEscaped(str string) string {
 	return "E" + self.LiteralString(str)
 }
 
-func (self *Operations) SetContextReplicaSetId(setId int) {
-	self.contextReplicaSetId = setId
+func (self *Operations) SetContextReplicaSetId(setId *int) {
+	if setId != nil {
+		self.contextReplicaSetId = *setId
+	}
 }
 
 func (self *Operations) translateRoleName(role string) string {

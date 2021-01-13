@@ -21,7 +21,7 @@ type Function struct {
 	Returns         string                `xml:"returns,attr"`
 	CachePolicy     string                `xml:"cachePolicy,attr"`
 	SecurityDefiner bool                  `xml:"securityDefiner,attr"`
-	SlonySetId      int                   `xml:"slonySetId,attr"`
+	SlonySetId      *int                  `xml:"slonySetId,attr"`
 	Parameters      []*FunctionParameter  `xml:"functionParameter"`
 	Definitions     []*FunctionDefinition `xml:"functionDefinition"`
 	Grants          []*Grant              `xml:"grant"`

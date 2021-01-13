@@ -109,3 +109,188 @@ func (self *DBX) RenamedTableCheckPointer(oldSchema *model.Schema, oldTable *mod
 	// TODO(go,core) dbx::renamed_table_check_pointer()
 	return nil, nil
 }
+
+func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
+	// first, build forward and reverse adjacency lists
+	// forwards: a mapping of local table => foreign tables that it references
+	// reverse: a mapping of foreign table => local tables that reference it
+	forward := map[model.TableRef][]model.TableRef{}
+	reverse := map[model.TableRef][]model.TableRef{}
+	for _, schema := range doc.Schemas {
+		for _, table := range schema.Tables {
+			curr := model.TableRef{schema, table}
+			// initialize them so we know the node is there, even if it has no dependencies
+			if len(forward[curr]) == 0 {
+				forward[curr] = []model.TableRef{}
+			}
+			if len(reverse[curr]) == 0 {
+				reverse[curr] = []model.TableRef{}
+			}
+
+			for _, dep := range self.getTableDependencies(doc, schema, table) {
+				forward[curr] = append(forward[curr], dep)
+				reverse[dep] = append(reverse[dep], curr)
+			}
+		}
+	}
+
+	/*
+		our goal is to produce a list of tables in an order such that creating the tables in order
+		does not depend on any uncreated tables. we also need to fail out when a cycle is detected
+
+		e.g. with a table graph like a -> b -> c
+		                             d -<  >-> g   (d depends on both b and f, both b and f depend on g)
+		                             e -> f
+		then we might return: c, g, b, f, a, d, e
+		                  or: g, c, b, a, f, e, d
+
+		in this example, `forward` will contain what each table "points to"
+		  a => b
+		  b => c, g
+		  c =>
+		  d => b, f
+		  e => f
+		  f => g
+		  g =>
+		and `reverse` will contain what "points at" each table
+		  a =>
+		  b => a, d
+		  c => b
+		  d =>
+		  e =>
+		  f => d, e
+		  g => b, f
+
+		we know we can safely create any table that doesn't have any dependencies (which has no entries in `forward`)
+		so, we add those to the list (c and g in this case), and remove it from the graph,
+		using `reverse` to efficiently inform us which keys in `forward` to remove it from
+
+		after one iteration we're left with `forward`:
+		  a => b
+		  b =>
+		  d => b, f
+		  e => f
+		  f =>
+		and `reverse`:
+		  a =>
+		  b => a, d
+		  d =>
+		  e =>
+		  f => d, e
+
+		now just rinse and repeat until there are no more tables in the adjacency lists.
+
+		if at any point there are no entries in `forward` with len = 0, there is a cycle
+	*/
+
+	// a quick helper to cut down on complexity below, see https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
+	// HACK: this is, IMHO, a really bullshit and footgunny method to do this efficiently
+	remove := func(target model.TableRef, slice []model.TableRef) []model.TableRef {
+		b := slice[:0]
+		for _, x := range slice {
+			if x != target {
+				b = append(b, x)
+			}
+		}
+		// garbage collect
+		for i := len(b); i < len(slice); i++ {
+			slice[i] = model.TableRef{}
+		}
+		return b
+	}
+
+	out := []*model.TableRef{}
+	i := 0
+	for len(forward) > 0 {
+		// fmt.Printf("%d ----\n", i)
+		// fmt.Printf("forward:\n", name)
+		// for key, vals := range forward {
+		// 	fmt.Printf("  %s => %v\n", key, vals)
+		// }
+		// fmt.Printf("reverse:\n", name)
+		// for key, vals := range reverse {
+		// 	fmt.Printf("  %s => %v\n", key, vals)
+		// }
+		i += 1
+		atLeastOne := false
+		for local, foreigns := range forward {
+			if len(foreigns) == 0 {
+				// fmt.Printf("%s has no foreigns\n", local)
+				// GOTCHA: go reuses the same memory for loop iteration variables,
+				// so we need to copy it before we make a pointer to it
+				clone := local
+				out = append(out, &clone)
+				atLeastOne = true
+
+				// remove it from the graph now
+				delete(forward, local)
+				for _, dependent := range reverse[local] {
+					forward[dependent] = remove(local, forward[dependent])
+				}
+				delete(reverse, local)
+			}
+		}
+		if !atLeastOne {
+			// TODO(go,core) add diagnostics about what the cycle is
+			GlobalDBSteward.Fatal("Dependency cycle detected!")
+		}
+		// fmt.Printf("current order: %v\n", out)
+	}
+	return out
+}
+
+func (self *DBX) getTableDependencies(doc *model.Definition, schema *model.Schema, table *model.Table) []model.TableRef {
+	out := []model.TableRef{}
+	// gather foreign keys on the columns
+	for _, column := range table.Columns {
+		if column.ForeignTable != "" {
+			fSchema, fTable := GlobalDBX.ResolveSchemaTable(doc, schema, column.ForeignSchema, column.ForeignTable, "column foreignKey")
+			out = append(out, model.TableRef{fSchema, fTable})
+		}
+	}
+
+	// gather explicit foreign keys
+	for _, fk := range table.ForeignKeys {
+		fSchema, fTable := GlobalDBX.ResolveSchemaTable(doc, schema, fk.ForeignSchema, fk.ForeignTable, "foreignKey element")
+		out = append(out, model.TableRef{fSchema, fTable})
+	}
+
+	// gather constraints
+	for _, constraint := range table.Constraints {
+		if constraint.ForeignTable != "" {
+			fSchema, fTable := GlobalDBX.ResolveSchemaTable(doc, schema, constraint.ForeignSchema, constraint.ForeignTable, "FOREIGN KEY constraint")
+			out = append(out, model.TableRef{fSchema, fTable})
+		}
+	}
+
+	// TODO(feat) examine <constraint type="FOREIGN KEY">
+	// TODO(feat) any other dependencies from a table? sequences? inheritance?
+	// TODO(feat) can we piggyback on Constraint.GetTableConstraints?
+	return out
+}
+
+func (self *DBX) TryInheritanceGetColumn(doc *model.Definition, schema *model.Schema, table *model.Table, columnName string) *model.Column {
+	// TODO(go,3) move to model
+	column := table.TryGetColumnNamed(columnName)
+
+	// just keep walking up the inheritance chain so long as there's a link
+	for column == nil && table.InheritsTable != "" {
+		schema, table = GlobalDBX.ResolveSchemaTable(doc, schema, table.InheritsSchema, table.InheritsTable, "inheritance")
+		column = table.TryGetColumnNamed(columnName)
+	}
+
+	return column
+}
+
+func (self *DBX) TryInheritanceGetColumns(doc *model.Definition, schema *model.Schema, table *model.Table, columnNames []string) ([]*model.Column, bool) {
+	// TODO(go,nth) this could be more efficient (but more complicated) if we did all the columns at once, one table at a time
+	columns := make([]*model.Column, len(columnNames))
+	for i, colName := range columnNames {
+		column := self.TryInheritanceGetColumn(doc, schema, table, colName)
+		if column == nil {
+			return nil, false
+		}
+		columns[i] = column
+	}
+	return columns, true
+}

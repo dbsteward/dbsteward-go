@@ -36,10 +36,20 @@ func (self *Table) GetCreationSql(schema *model.Schema, table *model.Table) []ou
 		}
 	}
 
+	var inherits *sql.TableRef
+	if table.InheritsTable != "" {
+		// TODO(go,nth) validate
+		inherits = &sql.TableRef{
+			Schema: util.CoalesceStr(table.InheritsSchema, schema.Name),
+			Table:  table.InheritsTable,
+		}
+	}
+
 	ddl := []output.ToSql{
 		&sql.TableCreate{
 			Table:        sql.TableRef{schema.Name, table.Name},
 			Columns:      cols,
+			Inherits:     inherits,
 			OtherOptions: opts,
 		},
 	}

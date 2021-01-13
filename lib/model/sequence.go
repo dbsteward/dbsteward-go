@@ -16,7 +16,7 @@ type Sequence struct {
 	Cycle         bool     `xml:"cycle,attr"`
 	OwnedByColumn string   `xml:"ownedBy,attr"`
 	SlonyId       int      `xml:"slonyId,attr"`
-	SlonySetId    int      `xml:"slonySetId,attr"`
+	SlonySetId    *int     `xml:"slonySetId,attr"`
 	Grants        []*Grant `xml:"grant"`
 }
 

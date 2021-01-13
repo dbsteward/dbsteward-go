@@ -20,21 +20,23 @@ const (
 )
 
 type Table struct {
-	Name           string         `xml:"name,attr"`
-	Description    string         `xml:"description,attr"`
-	Owner          string         `xml:"owner,attr"`
-	PrimaryKey     DelimitedList  `xml:"primaryKey,attr"`
-	PrimaryKeyName string         `xml:"primaryKeyName,attr"`
-	InheritsTable  string         `xml:"inheritsTable,attr"`
-	InheritsSchema string         `xml:"inheritsSchema,attr"`
-	SlonySetId     int            `xml:"slonySetId,attr"`
-	TableOptions   []*TableOption `xml:"tableOption"`
-	Columns        []*Column      `xml:"column"`
-	ForeignKeys    []*ForeignKey  `xml:"foreignKey"`
-	Indexes        []*Index       `xml:"index"`
-	Constraints    []*Constraint  `xml:"constraint"`
-	Grants         []*Grant       `xml:"grant"`
-	Rows           *DataRows      `xml:"rows"`
+	Name           string          `xml:"name,attr"`
+	Description    string          `xml:"description,attr"`
+	Owner          string          `xml:"owner,attr"`
+	PrimaryKey     DelimitedList   `xml:"primaryKey,attr"`
+	PrimaryKeyName string          `xml:"primaryKeyName,attr"`
+	InheritsTable  string          `xml:"inheritsTable,attr"`
+	InheritsSchema string          `xml:"inheritsSchema,attr"`
+	SlonySetId     *int            `xml:"slonySetId,attr"`
+	SlonyId        *int            `xml:"slonyId,attr"`
+	TableOptions   []*TableOption  `xml:"tableOption"`
+	Partitioning   *TablePartition `xml:"tablePartition"`
+	Columns        []*Column       `xml:"column"`
+	ForeignKeys    []*ForeignKey   `xml:"foreignKey"`
+	Indexes        []*Index        `xml:"index"`
+	Constraints    []*Constraint   `xml:"constraint"`
+	Grants         []*Grant        `xml:"grant"`
+	Rows           *DataRows       `xml:"rows"`
 }
 
 type TableOption struct {

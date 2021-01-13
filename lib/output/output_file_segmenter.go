@@ -116,7 +116,7 @@ func (self *outputFileSegmenter) WriteSql(stmts ...ToSql) {
 		sql := stmt.ToSql(self.quoter)
 		sql = strings.TrimSpace(sql)
 		sql = strings.TrimSuffix(sql, ";")
-		self.Write(sql + ";\n\n")
+		self.Write("%s", sql+";\n\n")
 	}
 }
 

@@ -19,13 +19,13 @@ type FunctionCreate struct {
 func (self *FunctionCreate) ToSql(q output.Quoter) string {
 	// TODO(feat) should this have `OR REPLACE`?
 	ddl := fmt.Sprintf("CREATE OR REPLACE FUNCTION %s RETURNS %s", self.Function.Qualified(q), self.Returns)
-	ddl += fmt.Sprintf("\n  AS $_$\n  %s\n  $_$", util.PrefixLines(self.Definition, "    "))
-	ddl += "\n  LANGUAGE " + self.Language
+	ddl += fmt.Sprintf("\nAS $_$\n%s\n$_$", util.PrefixLines(self.Definition, "  "))
+	ddl += "\nLANGUAGE " + self.Language
 	if self.CachePolicy != "" {
-		ddl += "\n  " + self.CachePolicy
+		ddl += "\n" + self.CachePolicy
 	}
 	if self.SecurityDefiner {
-		ddl += "\n  SECURITY DEFINER"
+		ddl += "\nSECURITY DEFINER"
 	}
 	return ddl + ";"
 }

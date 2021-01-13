@@ -21,7 +21,7 @@ func (self *View) GetCreationSql(schema *model.Schema, view *model.View) []outpu
 	if view.SlonySetId == nil {
 		GlobalOperations.SetContextReplicaSetId(schema.SlonySetId)
 	} else {
-		GlobalOperations.SetContextReplicaSetId(*view.SlonySetId)
+		GlobalOperations.SetContextReplicaSetId(view.SlonySetId)
 	}
 
 	ref := sql.ViewRef{schema.Name, view.Name}
@@ -53,10 +53,7 @@ func (self *View) GetCreationSql(schema *model.Schema, view *model.View) []outpu
 
 func (self *View) GetGrantSql(doc *model.Definition, schema *model.Schema, view *model.View, grant *model.Grant) []output.ToSql {
 	// NOTE: pgsql views use table grants!
-	// TODO(feat) should we do something else if not set? as originally written, no, but...
-	if view.SlonySetId != nil {
-		GlobalOperations.SetContextReplicaSetId(*view.SlonySetId)
-	}
+	GlobalOperations.SetContextReplicaSetId(view.SlonySetId)
 
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {

@@ -78,16 +78,16 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 			lib.GlobalDBSteward.Fatal("Table %s.%s does not have a primaryKey", schema.Name, table.Name)
 		}
 
-		cols, ok := table.TryGetColumnsNamed(table.PrimaryKey)
+		cols, ok := lib.GlobalDBX.TryInheritanceGetColumns(doc, schema, table, table.PrimaryKey)
 		if !ok {
 			lib.GlobalDBSteward.Fatal("Table %s.%s does not have all named primary keys %v", schema.Name, table.Name, table.PrimaryKey)
 		}
 		constraints = append(constraints, &TableConstraint{
 			Name:    util.CoalesceStr(table.PrimaryKeyName, GlobalIndex.BuildPrimaryKeyName(table.Name)),
+			Type:    ConstraintTypePrimaryKey,
 			Schema:  schema,
 			Table:   table,
 			Columns: cols,
-			Type:    ConstraintTypePrimaryKey,
 		})
 	}
 
@@ -130,9 +130,9 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 
 				constraints = append(constraints, &TableConstraint{
 					Name:             constraint.Name,
+					Type:             ConstraintTypeForeign,
 					Schema:           schema,
 					Table:            table,
-					Type:             ConstraintTypeForeign,
 					UnderlyingType:   constraint.Type,
 					TextDefinition:   constraint.Definition,
 					ForeignIndexName: constraint.ForeignIndexName,
@@ -142,9 +142,9 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 			} else if ct.Includes(ConstraintTypeConstraint) {
 				constraints = append(constraints, &TableConstraint{
 					Name:           constraint.Name,
+					Type:           ConstraintTypeConstraint,
 					Schema:         schema,
 					Table:          table,
-					Type:           ConstraintTypeConstraint,
 					UnderlyingType: constraint.Type,
 					TextDefinition: constraint.Definition,
 				})
@@ -155,7 +155,7 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 	// look for explicit <foreignKey> constraints
 	if ct.Includes(ConstraintTypeForeign) {
 		for _, fk := range table.ForeignKeys {
-			localCols, ok := table.TryGetColumnsNamed(fk.Columns)
+			localCols, ok := lib.GlobalDBX.TryInheritanceGetColumns(doc, schema, table, fk.Columns)
 			if !ok {
 				lib.GlobalDBSteward.Fatal(
 					"foreignKey %s on %s.%s references local columns %v that don't exist",
@@ -175,9 +175,10 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 			ref := lib.GlobalDBX.ResolveForeignKey(doc, localKey, fk.GetReferencedKey())
 			constraints = append(constraints, &TableConstraint{
 				Name:             fk.ConstraintName,
+				Type:             ConstraintTypeForeign,
 				Schema:           schema,
 				Table:            table,
-				Type:             ConstraintTypeForeign,
+				Columns:          localCols,
 				ForeignIndexName: fk.IndexName,
 				ForeignSchema:    ref.Schema,
 				ForeignTable:     ref.Table,
@@ -201,10 +202,10 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 				ref := lib.GlobalDBX.ResolveForeignKey(doc, local, foreign)
 				constraints = append(constraints, &TableConstraint{
 					Name:             util.CoalesceStr(column.ForeignKeyName, GlobalIndex.BuildForeignKeyName(table.Name, column.Name)),
+					Type:             ConstraintTypeForeign,
 					Schema:           schema,
 					Table:            table,
 					Columns:          local.Columns,
-					Type:             ConstraintTypeForeign,
 					ForeignIndexName: column.ForeignIndexName,
 					ForeignSchema:    ref.Schema,
 					ForeignTable:     ref.Table,
@@ -217,10 +218,10 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 			if column.Check != "" {
 				constraints = append(constraints, &TableConstraint{
 					Name:           column.Name + "_check", // TODO(feat) is this correct?
+					Type:           ConstraintTypeConstraint,
 					Schema:         schema,
 					Table:          table,
 					Columns:        []*model.Column{column},
-					Type:           ConstraintTypeConstraint,
 					UnderlyingType: model.ConstraintTypeCheck,
 					TextDefinition: column.Check,
 				})

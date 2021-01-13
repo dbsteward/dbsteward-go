@@ -14,7 +14,7 @@ type Annotated struct {
 
 func (self *Annotated) ToSql(q output.Quoter) string {
 	return fmt.Sprintf(
-		"-- %s\n%s",
+		"%s\n%s",
 		util.PrefixLines(self.Annotation, "-- "),
 		self.Wrapped.ToSql(q),
 	)

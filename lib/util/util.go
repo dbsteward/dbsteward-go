@@ -46,7 +46,7 @@ func Basename(file string, ext string) string {
 }
 
 func PrefixLines(str, prefix string) string {
-	return strings.ReplaceAll(str, "\n", "\n"+prefix)
+	return prefix + strings.ReplaceAll(str, "\n", "\n"+prefix)
 }
 
 // joins the listed strings together with the given separator,
@@ -220,7 +220,7 @@ func IntCeil(num, div int) int {
 }
 
 func IntFloor(num, div int) int {
-	return int(math.Floor(float64(num) / float64(div)))
+	return int(float64(num) / float64(div))
 }
 
 func MustParseInt(val string) int {
@@ -233,4 +233,8 @@ func MustParseInt(val string) int {
 
 func Intp(val int) *int {
 	return &val
+}
+
+func NumDigits(x int) int {
+	return int(math.Log10(float64(x)) + 1)
 }
