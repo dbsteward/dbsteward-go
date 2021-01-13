@@ -9,26 +9,16 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-type ForeignKeyAction string
-
-const (
-	ForeignKeyActionNoAction   ForeignKeyAction = "NO_ACTION"
-	ForeignKeyActionRestrict   ForeignKeyAction = "RESTRICT"
-	ForeignKeyActionCascade    ForeignKeyAction = "CASCADE"
-	ForeignKeyActionSetNull    ForeignKeyAction = "SET_NULL"
-	ForeignKeyActionSetDefault ForeignKeyAction = "SET_DEFAULT"
-)
-
 type Table struct {
 	Name           string          `xml:"name,attr"`
-	Description    string          `xml:"description,attr"`
-	Owner          string          `xml:"owner,attr"`
-	PrimaryKey     DelimitedList   `xml:"primaryKey,attr"`
-	PrimaryKeyName string          `xml:"primaryKeyName,attr"`
-	InheritsTable  string          `xml:"inheritsTable,attr"`
-	InheritsSchema string          `xml:"inheritsSchema,attr"`
-	SlonySetId     *int            `xml:"slonySetId,attr"`
-	SlonyId        *int            `xml:"slonyId,attr"`
+	Description    string          `xml:"description,attr,omitempty"`
+	Owner          string          `xml:"owner,attr,omitempty"`
+	PrimaryKey     DelimitedList   `xml:"primaryKey,attr,omitempty"`
+	PrimaryKeyName string          `xml:"primaryKeyName,attr,omitempty"`
+	InheritsTable  string          `xml:"inheritsTable,attr,omitempty"`
+	InheritsSchema string          `xml:"inheritsSchema,attr,omitempty"`
+	SlonySetId     *int            `xml:"slonySetId,attr,omitempty"`
+	SlonyId        *int            `xml:"slonyId,attr,omitempty"`
 	TableOptions   []*TableOption  `xml:"tableOption"`
 	Partitioning   *TablePartition `xml:"tablePartition"`
 	Columns        []*Column       `xml:"column"`
@@ -43,17 +33,6 @@ type TableOption struct {
 	SqlFormat SqlFormat `xml:"sqlFormat,attr"`
 	Name      string    `xml:"name"`
 	Value     string    `xml:"value"`
-}
-
-type ForeignKey struct {
-	Columns        DelimitedList    `xml:"columns,attr"`
-	ForeignSchema  string           `xml:"foreignSchema,attr"`
-	ForeignTable   string           `xml:"foreignTable,attr"`
-	ForeignColumns DelimitedList    `xml:"foreignColumns,attr"`
-	ConstraintName string           `xml:"constraintName,attr"`
-	IndexName      string           `xml:"indexName,attr"`
-	OnUpdate       ForeignKeyAction `xml:"onUpdate,attr"`
-	OnDelete       ForeignKeyAction `xml:"onDelete,attr"`
 }
 
 func (self *Table) HasDefaultNextVal() bool {
@@ -243,19 +222,6 @@ func (self *TableOption) IdentityMatches(other *TableOption) bool {
 func (self *TableOption) Merge(overlay *TableOption) {
 	// TODO(feat) does this need to be more sophisticated given that sometimes we set name=with,value=<lots of things>?
 	self.Value = overlay.Value
-}
-
-func (self *ForeignKey) GetReferencedKey() KeyNames {
-	cols := self.ForeignColumns
-	if len(cols) == 0 {
-		cols = self.Columns
-	}
-	return KeyNames{
-		Schema:  self.ForeignSchema,
-		Table:   self.ForeignTable,
-		Columns: cols,
-		KeyName: self.ConstraintName,
-	}
 }
 
 type TableRef struct {

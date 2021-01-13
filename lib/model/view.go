@@ -9,17 +9,17 @@ import (
 
 type View struct {
 	Name           string        `xml:"name,attr"`
-	Description    string        `xml:"description,attr"`
-	Owner          string        `xml:"owner,attr"`
-	DependsOnViews DelimitedList `xml:"dependsOnViews,attr"`
-	SlonySetId     *int          `xml:"slonySetId,attr"` // TODO(go,core) we should probably make all of these nilable
+	Description    string        `xml:"description,attr,omitempty"`
+	Owner          string        `xml:"owner,attr,omitempty"`
+	DependsOnViews DelimitedList `xml:"dependsOnViews,attr,omitempty"`
+	SlonySetId     *int          `xml:"slonySetId,attr,omitempty"`
 	Grants         []*Grant      `xml:"grant"`
 	Queries        []*ViewQuery  `xml:"viewQuery"`
 }
 
 type ViewQuery struct {
-	SqlFormat SqlFormat `xml:"sqlFormat,attr"`
-	Text      string    `xml:",chardata"`
+	SqlFormat SqlFormat `xml:"sqlFormat,attr,omitempty"`
+	Text      string    `xml:",cdata"`
 }
 
 func (self *View) GetGrantsForRole(role string) []*Grant {

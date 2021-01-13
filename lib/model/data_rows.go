@@ -8,21 +8,21 @@ import (
 )
 
 type DataRows struct {
-	TabRowDelimiter string        `xml:"tabrowDelimiter,attr"`
-	Columns         DelimitedList `xml:"columns,attr"`
+	TabRowDelimiter string        `xml:"tabrowDelimiter,attr,omitempty"`
+	Columns         DelimitedList `xml:"columns,attr,omitempty"`
 	Rows            []*DataRow    `xml:"row"`
 	TabRows         []string      `xml:"tabrow"`
 }
 
 type DataRow struct {
 	Columns []*DataCol `xml:"col"`
-	Delete  bool       `xml:"delete,attr"` // TODO(go,core) does this un/marshal properly?
+	Delete  bool       `xml:"delete,attr,omitempty"` // TODO(go,core) does this un/marshal properly?
 }
 
 type DataCol struct {
-	Null  bool   `xml:"null,attr"`
-	Empty bool   `xml:"empty,attr"`
-	Sql   bool   `xml:"sql,attr"`
+	Null  bool   `xml:"null,attr,omitempty"`
+	Empty bool   `xml:"empty,attr,omitempty"`
+	Sql   bool   `xml:"sql,attr,omitempty"`
 	Text  string `xml:",chardata"`
 }
 

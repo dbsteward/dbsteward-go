@@ -15,12 +15,12 @@ func (self ConstraintType) Equals(other ConstraintType) bool {
 }
 
 type Constraint struct {
-	Name             string         `xml:"name,attr"`
-	Type             ConstraintType `xml:"type,attr"`
-	Definition       string         `xml:"definition,attr"`
-	ForeignIndexName string         `xml:"foreignIndexName,attr"`
-	ForeignSchema    string         `xml:"foreignSchema,attr"`
-	ForeignTable     string         `xml:"foreignTable,attr"`
+	Name             string         `xml:"name,attr,omitempty"`
+	Type             ConstraintType `xml:"type,attr,omitempty"`
+	Definition       string         `xml:"definition,attr,omitempty"`
+	ForeignIndexName string         `xml:"foreignIndexName,attr,omitempty"`
+	ForeignSchema    string         `xml:"foreignSchema,attr,omitempty"`
+	ForeignTable     string         `xml:"foreignTable,attr,omitempty"`
 }
 
 func (self *Constraint) IdentityMatches(other *Constraint) bool {

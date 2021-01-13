@@ -19,21 +19,21 @@ func (self IndexType) Equals(other IndexType) bool {
 }
 
 type Index struct {
-	Name         string       `xml:"name,attr"`
-	Using        IndexType    `xml:"using,attr"`
-	Unique       bool         `xml:"unique,attr"`
-	Concurrently bool         `xml:"concurrently,attr"`
+	Name         string       `xml:"name,attr,omitempty"`
+	Using        IndexType    `xml:"using,attr,omitempty"`
+	Unique       bool         `xml:"unique,attr,omitempty"`
+	Concurrently bool         `xml:"concurrently,attr,omitempty"`
 	Dimensions   []*IndexDim  `xml:"indexDimension"`
 	Conditions   []*IndexCond `xml:"indexWhere"`
 }
 
 type IndexDim struct {
 	Name  string `xml:"name,attr"` // TODO(go,4) why does a dimension have a name? just for compositing/differencing's sake?
-	Sql   bool   `xml:"sql,attr"`
+	Sql   bool   `xml:"sql,attr,omitempty"`
 	Value string `xml:",chardata"`
 }
 type IndexCond struct {
-	SqlFormat SqlFormat `xml:"sqlFormat,attr"`
+	SqlFormat SqlFormat `xml:"sqlFormat,attr,omitempty"`
 	Condition string    `xml:",chardata"`
 }
 
@@ -53,6 +53,7 @@ func (self *Index) AddDimension(value string) {
 }
 
 func (self *Index) TryGetCondition(sqlFormat SqlFormat) *IndexCond {
+	// TODO(go,core) fallback to returning empty sqlformat condition if it exists
 	for _, cond := range self.Conditions {
 		if cond.SqlFormat.Equals(sqlFormat) {
 			return cond

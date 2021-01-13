@@ -15,28 +15,28 @@ const (
 )
 
 type Function struct {
-	Name            string                `xml:"name,attr"`
-	Owner           string                `xml:"owner,attr"`
-	Description     string                `xml:"description,attr"`
-	Returns         string                `xml:"returns,attr"`
-	CachePolicy     string                `xml:"cachePolicy,attr"`
-	SecurityDefiner bool                  `xml:"securityDefiner,attr"`
-	SlonySetId      *int                  `xml:"slonySetId,attr"`
+	Name            string                `xml:"name,attr,omitempty"`
+	Owner           string                `xml:"owner,attr,omitempty"`
+	Description     string                `xml:"description,attr,omitempty"`
+	Returns         string                `xml:"returns,attr,omitempty"`
+	CachePolicy     string                `xml:"cachePolicy,attr,omitempty"`
+	SecurityDefiner bool                  `xml:"securityDefiner,attr,omitempty"`
+	SlonySetId      *int                  `xml:"slonySetId,attr,omitempty"`
 	Parameters      []*FunctionParameter  `xml:"functionParameter"`
 	Definitions     []*FunctionDefinition `xml:"functionDefinition"`
 	Grants          []*Grant              `xml:"grant"`
 }
 
 type FunctionParameter struct {
-	Name      string       `xml:"name,attr"`
+	Name      string       `xml:"name,attr,omitempty"`
 	Type      string       `xml:"type,attr"`
-	Direction FuncParamDir `xml:"direction,attr"`
+	Direction FuncParamDir `xml:"direction,attr,omitempty"`
 }
 
 type FunctionDefinition struct {
-	SqlFormat SqlFormat `xml:"sqlFormat,attr"`
-	Language  string    `xml:"language,attr"`
-	Text      string    `xml:",chardata"`
+	SqlFormat SqlFormat `xml:"sqlFormat,attr,omitempty"`
+	Language  string    `xml:"language,attr,omitempty"`
+	Text      string    `xml:",cdata"`
 }
 
 func (self *Function) HasDefinition(sqlFormat SqlFormat) bool {

@@ -16,7 +16,7 @@ func (self TablePartitionType) Equals(other TablePartitionType) bool {
 
 type TablePartition struct {
 	Type      TablePartitionType       `xml:"type,attr"`
-	SqlFormat SqlFormat                `xml:"sqlFormat,attr"`
+	SqlFormat SqlFormat                `xml:"sqlFormat,attr,omitempty"`
 	Options   []*TablePartitionOption  `xml:"tablePartitionOption"`
 	Segments  []*TablePartitionSegment `xml:"tablePartitionSegment"`
 }

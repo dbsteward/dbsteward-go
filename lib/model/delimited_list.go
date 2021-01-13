@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/xml"
 	"regexp"
+	"strings"
 )
 
 var spaceCommaRegex = regexp.MustCompile(`[\,\s]+`)
@@ -19,6 +20,14 @@ func (self *DelimitedList) UnmarshalXMLAttr(attr xml.Attr) error {
 	return nil
 }
 
+func (self *DelimitedList) MarshalXMLAttr(name xml.Name) (xml.Attr, error) {
+	// TODO(go,nth) retain the original separators used and reuse them when marshalling
+	return xml.Attr{
+		Name:  name,
+		Value: strings.Join([]string(*self), ", "),
+	}, nil
+}
+
 type CommaDelimitedList []string
 
 func (self *CommaDelimitedList) UnmarshalXMLAttr(attr xml.Attr) error {
@@ -28,4 +37,12 @@ func (self *CommaDelimitedList) UnmarshalXMLAttr(attr xml.Attr) error {
 		(*self)[i] = item
 	}
 	return nil
+}
+
+func (self *CommaDelimitedList) MarshalXMLAttr(name xml.Name) (xml.Attr, error) {
+	// TODO(go,nth) retain the original separators used and reuse them when marshalling
+	return xml.Attr{
+		Name:  name,
+		Value: strings.Join([]string(*self), ", "),
+	}, nil
 }

@@ -37,6 +37,26 @@ func (self *XmlParser) LoadDefintion(file string) (*model.Definition, error) {
 	return doc, nil
 }
 
+func (self *XmlParser) SaveDoc(filename string, doc *model.Definition) {
+	f, err := os.Create(filename)
+	GlobalDBSteward.FatalIfError(err, "Could not open file %s for writing", filename)
+	defer f.Close()
+
+	// TODO(go,nth) get rid of empty closing tags like <grant ...></grant> => <grant .../>
+	// Go doesn't natively support this (yet?), and google is being google about it
+	// https://github.com/golang/go/issues/21399
+	enc := xml.NewEncoder(f)
+	enc.Indent("", "  ")
+	err = enc.Encode(doc)
+	GlobalDBSteward.FatalIfError(err, "Could not marshal document")
+}
+
+func (self *XmlParser) FormatXml(doc *model.Definition) string {
+	d, err := xml.MarshalIndent(doc, "", "  ")
+	GlobalDBSteward.FatalIfError(err, "could not marshal definition")
+	return string(d)
+}
+
 func (self *XmlParser) GetSqlFormat(files []string) model.SqlFormat {
 	// TODO(go,core)
 	return model.SqlFormatPgsql8
@@ -260,10 +280,6 @@ func (self *XmlParser) VendorParse(doc *model.Definition) {
 	GlobalDBSteward.Lookup().XmlParser.Process(doc)
 }
 
-func (self *XmlParser) SaveDoc(filename string, doc *model.Definition) {
-	// TODO(go,core)
-}
-
 func (self *XmlParser) SlonyIdNumber(doc *model.Definition) *model.Definition {
 	// TODO(go,slony)
 	return nil
@@ -271,12 +287,6 @@ func (self *XmlParser) SlonyIdNumber(doc *model.Definition) *model.Definition {
 
 func (self *XmlParser) FileSort(file, sortedFile string) {
 	// TODO(go,xmlutil)
-}
-
-func (self *XmlParser) FormatXml(doc *model.Definition) string {
-	d, err := xml.MarshalIndent(doc, "", "    ")
-	GlobalDBSteward.FatalIfError(err, "could not marshal definition")
-	return string(d)
 }
 
 func (self *XmlParser) ValidateXml(xmlstr string) {

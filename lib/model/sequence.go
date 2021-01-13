@@ -6,17 +6,17 @@ import (
 
 type Sequence struct {
 	Name          string   `xml:"name,attr"`
-	Owner         string   `xml:"owner,attr"`
-	Description   string   `xml:"description,attr"`
-	Cache         *int     `xml:"cache,attr"`
-	Start         *int     `xml:"start,attr"`
-	Min           *int     `xml:"min,attr"`
-	Max           *int     `xml:"max,attr"`
-	Increment     *int     `xml:"inc,attr"`
-	Cycle         bool     `xml:"cycle,attr"`
-	OwnedByColumn string   `xml:"ownedBy,attr"`
-	SlonyId       int      `xml:"slonyId,attr"`
-	SlonySetId    *int     `xml:"slonySetId,attr"`
+	Owner         string   `xml:"owner,attr,omitempty"`
+	Description   string   `xml:"description,attr,omitempty"`
+	Cache         *int     `xml:"cache,attr,omitempty"`
+	Start         *int     `xml:"start,attr,omitempty"`
+	Min           *int     `xml:"min,attr,omitempty"`
+	Max           *int     `xml:"max,attr,omitempty"`
+	Increment     *int     `xml:"inc,attr,omitempty"`
+	Cycle         bool     `xml:"cycle,attr,omitempty"`
+	OwnedByColumn string   `xml:"ownedBy,attr,omitempty"`
+	SlonyId       int      `xml:"slonyId,attr,omitempty"`
+	SlonySetId    *int     `xml:"slonySetId,attr,omitempty"`
 	Grants        []*Grant `xml:"grant"`
 }
 

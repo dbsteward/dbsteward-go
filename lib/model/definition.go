@@ -1,13 +1,17 @@
 package model
 
 import (
-	"github.com/dbsteward/dbsteward/lib/util"
+	"encoding/xml"
+
 	"github.com/pkg/errors"
+
+	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 // TODO(go,3) move most public fields to private, use accessors to better enable encapsulation, validation; "make invalid states unrepresentable"
 
 type Definition struct {
+	XMLName        xml.Name          `xml:"dbsteward"`
 	IncludeFiles   []*IncludeFile    `xml:"includeFile"`
 	InlineAssembly []*InlineAssembly `xml:"inlineAssembly"`
 	Database       *Database         `xml:"database"`
@@ -30,7 +34,7 @@ type Sql struct {
 	Version    string   `xml:"version,attr"`
 	Comment    string   `xml:"comment,attr"`
 	Stage      SqlStage `xml:"stage,attr"`
-	SlonySetId int      `xml:"slonySetId,attr"`
+	SlonySetId *int     `xml:"slonySetId,attr"`
 	Text       string   `xml:",chardata"`
 }
 

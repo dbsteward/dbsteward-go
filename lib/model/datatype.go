@@ -9,9 +9,9 @@ const (
 )
 
 type DataType struct {
-	Name              string                      `xml:"name,attr"`
-	Kind              DataTypeKind                `xml:"type,attr"`
-	SlonySetId        int                         `xml:"slonySetId,attr"`
+	Name              string                      `xml:"name,attr,omitempty"`
+	Kind              DataTypeKind                `xml:"type,attr,omitempty"`
+	SlonySetId        *int                        `xml:"slonySetId,attr,omitempty"`
 	EnumValues        []string                    `xml:"enum"`
 	CompositeFields   []*DataTypeCompositeField   `xml:"typeCompositeElement"`
 	DomainType        *DataTypeDomainType         `xml:"domainType"`
@@ -25,12 +25,12 @@ type DataTypeCompositeField struct {
 
 type DataTypeDomainType struct {
 	BaseType string `xml:"baseType,attr"`
-	Default  string `xml:"default,attr"`
-	Nullable bool   `xml:"null,attr"`
+	Default  string `xml:"default,attr,omitempty"`
+	Nullable bool   `xml:"null,attr,omitempty"`
 }
 
 type DataTypeDomainConstraint struct {
-	Name  string `xml:"name,attr"`
+	Name  string `xml:"name,attr,omitempty"`
 	Check string `xml:",chardata"`
 }
 

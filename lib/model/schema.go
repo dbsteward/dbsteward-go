@@ -4,9 +4,9 @@ import "github.com/pkg/errors"
 
 type Schema struct {
 	Name        string      `xml:"name,attr"`
-	Description string      `xml:"description,attr"`
-	Owner       string      `xml:"owner,attr"`
-	SlonySetId  *int        `xml:"slonySetId,attr"`
+	Description string      `xml:"description,attr,omitempty"`
+	Owner       string      `xml:"owner,attr,omitempty"`
+	SlonySetId  *int        `xml:"slonySetId,attr,omitempty"`
 	Tables      []*Table    `xml:"table"`
 	Grants      []*Grant    `xml:"grant"`
 	Types       []*DataType `xml:"type"`
