@@ -76,6 +76,10 @@ func (self *Function) ParamSigs() []string {
 	return out
 }
 
+func (self *Function) GetGrants() []*Grant {
+	return self.Grants
+}
+
 func (self *Function) AddGrant(grant *Grant) {
 	// TODO(feat) sanity check
 	self.Grants = append(self.Grants, grant)

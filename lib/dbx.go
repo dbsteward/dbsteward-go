@@ -1,6 +1,8 @@
 package lib
 
 import (
+	"strings"
+
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
@@ -24,8 +26,22 @@ func (self *DBX) GetDefaultSchema() *model.Schema {
 	return self.defaultSchema
 }
 
-func (self *DBX) BuildStagedSql(doc *model.Definition, ofs output.OutputFileSegmenter, stage string) {
-	// TODO(go,core) dbx::build_staged_sql()
+func (self *DBX) BuildStagedSql(doc *model.Definition, ofs output.OutputFileSegmenter, stage model.SqlStage) {
+	if stage == "" {
+		ofs.Write("\n-- NON-STAGED SQL COMMANDS\n")
+	} else {
+		ofs.Write("\n-- SQL STAGE %s COMMANDS\n", stage)
+	}
+	for _, sql := range doc.Sql {
+		GlobalDBSteward.Lookup().Operations.SetContextReplicaSetId(sql.SlonySetId)
+		if sql.Stage.Equals(stage) {
+			if sql.Comment != "" {
+				ofs.Write("%s\n", util.PrefixLines(sql.Comment, "-- "))
+			}
+			ofs.Write("%s\n", strings.TrimSpace(sql.Text))
+		}
+	}
+	ofs.Write("\n")
 }
 
 func (self *DBX) GetTerminalForeignColumn(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) *model.Column {

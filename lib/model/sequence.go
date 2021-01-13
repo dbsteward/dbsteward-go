@@ -30,6 +30,10 @@ func (self *Sequence) GetGrantsForRole(role string) []*Grant {
 	return out
 }
 
+func (self *Sequence) GetGrants() []*Grant {
+	return self.Grants
+}
+
 func (self *Sequence) AddGrant(grant *Grant) {
 	// TODO(feat) sanity check
 	self.Grants = append(self.Grants, grant)

@@ -15,6 +15,8 @@ type Operations interface {
 	CompareDbData(dbDoc *model.Definition, host string, port uint, name, user, pass string) *model.Definition
 	SqlDiff(old, new []string, outputFile string)
 
+	SetContextReplicaSetId(*int)
+
 	GetQuoteChar() string
 	IsIllegalIdentifier(string) bool
 	IsReservedIdentifier(string) bool

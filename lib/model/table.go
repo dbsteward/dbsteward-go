@@ -73,6 +73,10 @@ func (self *Table) GetGrantsForRole(role string) []*Grant {
 	return out
 }
 
+func (self *Table) GetGrants() []*Grant {
+	return self.Grants
+}
+
 func (self *Table) AddGrant(grant *Grant) {
 	// TODO(feat) sanity check
 	self.Grants = append(self.Grants, grant)

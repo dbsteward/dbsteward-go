@@ -29,6 +29,10 @@ const (
 	SqlStage4       SqlStage = "STAGE4"
 )
 
+func (self SqlStage) Equals(other SqlStage) bool {
+	return strings.EqualFold(string(self), string(other))
+}
+
 // Not making these a type because they need to live alongside non-constant roles
 const (
 	RolePgsql       = "PGSQL"

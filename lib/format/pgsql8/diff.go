@@ -18,7 +18,7 @@ type Diff struct {
 func NewDiff() *Diff {
 	diff := &Diff{
 		AsTransaction: true, // TODO(go,pgsql8) where does this get set from?
-		Diff:          sql99.NewDiff(),
+		Diff:          sql99.NewDiff(GlobalLookup),
 	}
 	diff.Diff.Diff = diff
 	return diff
@@ -286,7 +286,63 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 }
 
 func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {
-	// TODO(go,pgsql8)
+	// TODO(feat) what if readonly user changed? we need to rebuild those grants
+	// TODO(feat) what about removed permissions, shouldn't we REVOKE those?
+
+	newDoc := lib.GlobalDBSteward.NewDatabase
+	oldDoc := lib.GlobalDBSteward.OldDatabase
+	for _, newSchema := range newDoc.Schemas {
+		GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
+		oldSchema := oldDoc.TryGetSchemaNamed(newSchema.Name)
+
+		for _, newGrant := range newSchema.Grants {
+			if oldSchema == nil || !model.HasPermissionsOf(oldSchema, newGrant, model.SqlFormatPgsql8) {
+				stage1.WriteSql(GlobalSchema.GetGrantSql(newDoc, newSchema, newGrant)...)
+			}
+		}
+
+		for _, newTable := range newSchema.Tables {
+			GlobalOperations.SetContextReplicaSetId(newTable.SlonySetId)
+			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
+			if !lib.GlobalDBSteward.IgnoreOldNames && GlobalDiffTables.IsRenamedTable(newSchema, newTable) {
+				// skip permission diffing on it, it is the same
+				// TODO(feat) that seems unlikely? we should probably check permissions on renamed table
+				continue
+			}
+			for _, newGrant := range newTable.Grants {
+				if oldTable == nil || !model.HasPermissionsOf(oldTable, newGrant, model.SqlFormatPgsql8) {
+					stage1.WriteSql(GlobalTable.GetGrantSql(newDoc, newSchema, newTable, newGrant)...)
+				}
+			}
+		}
+
+		for _, newSeq := range newSchema.Sequences {
+			oldSeq := oldSchema.TryGetSequenceNamed(newSeq.Name)
+			for _, newGrant := range newSeq.Grants {
+				if oldSeq == nil || !model.HasPermissionsOf(oldSeq, newGrant, model.SqlFormatPgsql8) {
+					stage1.WriteSql(GlobalSequence.GetGrantSql(newDoc, newSchema, newSeq, newGrant)...)
+				}
+			}
+		}
+
+		for _, newFunc := range newSchema.Functions {
+			oldFunc := oldSchema.TryGetFunctionMatching(newFunc)
+			for _, newGrant := range newFunc.Grants {
+				if oldFunc == nil || !model.HasPermissionsOf(oldFunc, newGrant, model.SqlFormatPgsql8) {
+					stage1.WriteSql(GlobalFunction.GetGrantSql(newDoc, newSchema, newFunc, newGrant)...)
+				}
+			}
+		}
+
+		for _, newView := range newSchema.Views {
+			oldView := oldSchema.TryGetViewNamed(newView.Name)
+			for _, newGrant := range newView.Grants {
+				if lib.GlobalDBSteward.AlwaysRecreateViews || oldView == nil || !model.HasPermissionsOf(oldView, newGrant, model.SqlFormatPgsql8) || !oldView.Equals(newView, model.SqlFormatPgsql8) {
+					stage3.WriteSql(GlobalView.GetGrantSql(newDoc, newSchema, newView, newGrant)...)
+				}
+			}
+		}
+	}
 }
 func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 	// TODO(go,pgsql8)

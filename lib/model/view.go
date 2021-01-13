@@ -32,6 +32,10 @@ func (self *View) GetGrantsForRole(role string) []*Grant {
 	return out
 }
 
+func (self *View) GetGrants() []*Grant {
+	return self.Grants
+}
+
 func (self *View) AddGrant(grant *Grant) {
 	// TODO(feat) sanity check
 	self.Grants = append(self.Grants, grant)

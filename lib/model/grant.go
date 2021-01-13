@@ -2,6 +2,8 @@ package model
 
 import (
 	"strings"
+
+	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 // TODO(go,nth) can we make this a dedicated type? it makes some other code icky though
@@ -50,6 +52,16 @@ var PermissionListAllMssql10 = []string{
 	PermissionAlter,
 }
 
+var PermissionListAllMysql5 = []string{
+	// TODO(go,mysql)
+}
+
+var PermissionListSqlFormatMap = map[SqlFormat][]string{
+	SqlFormatPgsql8:  PermissionListAllPgsql8,
+	SqlFormatMysql5:  PermissionListAllMysql5,
+	SqlFormatMssql10: PermissionListAllMssql10,
+}
+
 var PermissionListValidSchema = []string{
 	PermissionAll,
 	PermissionUsage,
@@ -89,6 +101,11 @@ var PermissionListValidFunction = []string{
 
 const PermOptionGrant = "GRANT"
 
+// Identifies things that have Grants
+type HasGrants interface {
+	GetGrants() []*Grant
+}
+
 type Grant struct {
 	Roles       DelimitedList      `xml:"role,attr,omitempty"`
 	Permissions CommaDelimitedList `xml:"operation,attr,omitempty"`
@@ -109,4 +126,43 @@ func (self *Grant) SetCanGrant(canGrant bool) {
 	} else {
 		self.With = ""
 	}
+}
+
+func HasPermissionsOf(object HasGrants, target *Grant, sqlFormat SqlFormat) bool {
+	formatPerms := PermissionListSqlFormatMap[sqlFormat]
+	targetPerms := util.IIntersectStrs(target.Permissions, formatPerms)
+
+	// first, catalog the effective permissions provided by the target grant
+	rolePerms := map[string][]string{}
+	roleWith := map[string]string{}
+	for _, role := range target.Roles {
+		rolePerms[role] = make([]string, len(targetPerms))
+		copy(rolePerms[role], targetPerms)
+		roleWith[role] = target.With
+	}
+
+	// then for each grant in the object, remove that grant's permissions from the role
+	// signalling that that permission has been accounted for
+	for _, grant := range object.GetGrants() {
+		for _, role := range grant.Roles {
+			rolePerms[role] = util.IDifferenceStrs(rolePerms[role], grant.Permissions)
+			if grant.With == roleWith[role] {
+				roleWith[role] = ""
+			}
+		}
+	}
+
+	// finally, if all roles have had all permissions accounted for, then yes, object HasPermissionsOf target
+	// if any have unaccounted-for permissions, then no, object does not HasPermissionsOf target
+	for _, perms := range rolePerms {
+		if len(perms) > 0 {
+			return false
+		}
+	}
+	for _, with := range roleWith {
+		if with != "" {
+			return false
+		}
+	}
+	return true
 }

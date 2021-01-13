@@ -35,6 +35,9 @@ func (self *Schema) GetTableNamed(name string) (*Table, error) {
 }
 
 func (self *Schema) TryGetTableNamed(name string) *Table {
+	if self == nil {
+		return nil
+	}
 	for _, table := range self.Tables {
 		// TODO(feat) case insensitivity?
 		if table.Name == name {
@@ -65,6 +68,9 @@ func (self *Schema) AddType(t *DataType) {
 }
 
 func (self *Schema) TryGetSequenceNamed(name string) *Sequence {
+	if self == nil {
+		return nil
+	}
 	for _, sequence := range self.Sequences {
 		// TODO(feat) case insensitivity?
 		if sequence.Name == name {
@@ -137,6 +143,10 @@ func (self *Schema) TryGetTriggerMatching(target *Trigger) *Trigger {
 func (self *Schema) AddTrigger(trigger *Trigger) {
 	// TODO(feat) sanity check
 	self.Triggers = append(self.Triggers, trigger)
+}
+
+func (self *Schema) GetGrants() []*Grant {
+	return self.Grants
 }
 
 func (self *Schema) AddGrant(grant *Grant) {
