@@ -34,7 +34,19 @@ func (self *DiffViews) shouldCreateView(oldView, newView *model.View) bool {
 }
 
 func (self *DiffViews) DropViewsOrdered(ofs output.OutputFileSegmenter, oldDoc *model.Definition, newDoc *model.Definition) {
-	// TODO(go,pgsql)
+	self.forEachViewInDepOrder(oldDoc, func(oldViewRef model.ViewRef) {
+		newSchema := newDoc.TryGetSchemaNamed(oldViewRef.Schema.Name)
+		newView := newSchema.TryGetViewNamed(oldViewRef.View.Name)
+		if self.shouldDropView(oldViewRef.View, newSchema, newView) {
+			ofs.WriteSql(GlobalView.GetDropSql(oldViewRef.Schema, oldViewRef.View)...)
+		}
+	})
+}
+
+func (self *DiffViews) shouldDropView(oldView *model.View, newSchema *model.Schema, newView *model.View) bool {
+	// don't drop the view if new_schema is null - we've already dropped the view by this point
+	// otherwise, drop if it changed or no longer exists
+	return newSchema != nil && !oldView.Equals(newView, model.SqlFormatPgsql8)
 }
 
 func (self *DiffViews) forEachViewInDepOrder(doc *model.Definition, callback func(model.ViewRef)) {

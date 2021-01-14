@@ -42,3 +42,12 @@ func (self *ViewAlterOwner) ToSql(q output.Quoter) string {
 		q.QuoteRole(self.Role),
 	)
 }
+
+type ViewDrop struct {
+	View ViewRef
+}
+
+func (self *ViewDrop) ToSql(q output.Quoter) string {
+	// TODO(feat) IF EXISTS?
+	return fmt.Sprintf("DROP VIEW IF EXISTS %s;", self.View.Qualified(q))
+}

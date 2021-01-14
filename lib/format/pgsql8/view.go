@@ -51,6 +51,19 @@ func (self *View) GetCreationSql(schema *model.Schema, view *model.View) []outpu
 	return out
 }
 
+func (self *View) GetDropSql(schema *model.Schema, view *model.View) []output.ToSql {
+	if view.SlonySetId == nil {
+		GlobalOperations.SetContextReplicaSetId(schema.SlonySetId)
+	} else {
+		GlobalOperations.SetContextReplicaSetId(view.SlonySetId)
+	}
+	return []output.ToSql{
+		&sql.ViewDrop{
+			View: sql.ViewRef{schema.Name, view.Name},
+		},
+	}
+}
+
 func (self *View) GetGrantSql(doc *model.Definition, schema *model.Schema, view *model.View, grant *model.Grant) []output.ToSql {
 	// NOTE: pgsql views use table grants!
 	GlobalOperations.SetContextReplicaSetId(view.SlonySetId)
