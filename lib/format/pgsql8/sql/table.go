@@ -96,3 +96,11 @@ func (self *TableGrant) ToSql(q output.Quoter) string {
 		self.CanGrant,
 	}).ToSql(q)
 }
+
+type TableDrop struct {
+	Table TableRef
+}
+
+func (self *TableDrop) ToSql(q output.Quoter) string {
+	return fmt.Sprintf("DROP TABLE %s;", self.Table.Qualified(q))
+}

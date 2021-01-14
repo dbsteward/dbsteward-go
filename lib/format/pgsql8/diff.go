@@ -173,6 +173,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 	// TODO(go,4) would be so cool if we could parse the view def and only recreate what's required
 	GlobalDiffViews.DropViewsOrdered(stage1, dbsteward.OldDatabase, dbsteward.NewDatabase)
 
+	// TODO(go,3) should we just always use table deps?
 	if len(self.NewTableDependency) == 0 {
 		for _, newSchema := range dbsteward.NewDatabase.Schemas {
 			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
@@ -275,12 +276,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			oldTable := oldEntry.Table
 
 			newSchema := dbsteward.NewDatabase.TryGetSchemaNamed(oldSchema.Name)
-			var newTable *model.Table
-			if newSchema != nil {
-				newTable = newSchema.TryGetTableNamed(oldTable.Name)
-			}
-
-			GlobalDiffTables.DropTable(stage3, oldSchema, newSchema, oldTable, newTable)
+			GlobalDiffTables.DropTable(stage3, oldSchema, oldTable, newSchema)
 		}
 	}
 }

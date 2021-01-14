@@ -86,6 +86,15 @@ func (self *Table) GetCreationSql(schema *model.Schema, table *model.Table) []ou
 	return ddl
 }
 
+func (self *Table) GetDropSql(schema *model.Schema, table *model.Table) []output.ToSql {
+	GlobalOperations.SetContextReplicaSetId(table.SlonySetId)
+	return []output.ToSql{
+		&sql.TableDrop{
+			Table: sql.TableRef{schema.Name, table.Name},
+		},
+	}
+}
+
 func (self *Table) GetDefaultNextvalSql(schema *model.Schema, table *model.Table) []output.ToSql {
 	out := []output.ToSql{}
 	for _, column := range table.Columns {

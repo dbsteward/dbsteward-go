@@ -63,7 +63,7 @@ func (self *DBX) GetTerminalForeignColumn(doc *model.Definition, schema *model.S
 }
 
 func (self *DBX) ResolveForeignKey(doc *model.Definition, localKey model.Key, foreignKey model.KeyNames) model.Key {
-	fSchema, fTable := self.ResolveSchemaTable(doc, localKey.Schema, foreignKey.Schema, foreignKey.Table, "foreign key")
+	fref := self.ResolveSchemaTable(doc, localKey.Schema, foreignKey.Schema, foreignKey.Table, "foreign key")
 
 	// if we didn't ask for specific foreign columns, but we have local columns, use those
 	if len(foreignKey.Columns) == 0 {
@@ -76,8 +76,8 @@ func (self *DBX) ResolveForeignKey(doc *model.Definition, localKey model.Key, fo
 	}
 
 	out := model.Key{
-		Schema:  fSchema,
-		Table:   fTable,
+		Schema:  fref.Schema,
+		Table:   fref.Table,
 		Columns: make([]*model.Column, len(foreignKey.Columns)),
 		KeyName: foreignKey.KeyName,
 	}
@@ -90,7 +90,7 @@ func (self *DBX) ResolveForeignKey(doc *model.Definition, localKey model.Key, fo
 			col = localKey.Columns[i].Name
 		}
 
-		fCol := fTable.TryGetColumnNamed(col)
+		fCol := fref.Table.TryGetColumnNamed(col)
 		if fCol == nil {
 			GlobalDBSteward.Fatal("Failed to find foreign column %s in %s referenced by %s", col, foreignKey.String(), localKey.String())
 		}
@@ -100,7 +100,7 @@ func (self *DBX) ResolveForeignKey(doc *model.Definition, localKey model.Key, fo
 	return out
 }
 
-func (self *DBX) ResolveSchemaTable(doc *model.Definition, localSchema *model.Schema, schemaName, tableName string, refType string) (*model.Schema, *model.Table) {
+func (self *DBX) ResolveSchemaTable(doc *model.Definition, localSchema *model.Schema, schemaName, tableName string, refType string) model.TableRef {
 	fSchema := localSchema
 	if schemaName != "" {
 		fSchema = doc.TryGetSchemaNamed(schemaName)
@@ -108,12 +108,31 @@ func (self *DBX) ResolveSchemaTable(doc *model.Definition, localSchema *model.Sc
 			GlobalDBSteward.Fatal("%s reference to unknown schema %s", refType, schemaName)
 		}
 	}
+
 	fTable := fSchema.TryGetTableNamed(tableName)
 	if fTable == nil {
 		GlobalDBSteward.Fatal("%s reference to unknown table %s.%s", refType, fSchema.Name, tableName)
 	}
 
-	return fSchema, fTable
+	return model.TableRef{fSchema, fTable}
+}
+
+// attempts to find the new table that claims it is renamed from the old table
+func (self *DBX) TryGetTableFormerlyKnownAs(newDoc *model.Definition, oldSchema *model.Schema, oldTable *model.Table) *model.TableRef {
+	util.Assert(!GlobalDBSteward.IgnoreOldNames, "Should not attempt to look up renamed tables if IgnoreOldNames is set")
+	// TODO(go,3) move to model
+	for _, newSchema := range newDoc.Schemas {
+		for _, newTable := range newSchema.Tables {
+			if newTable.OldTableName != "" || newTable.OldSchemaName != "" {
+				oldTableName := util.CoalesceStr(newTable.OldTableName, newTable.Name)
+				oldSchemaName := util.CoalesceStr(newTable.OldSchemaName, newSchema.Name)
+				if strings.EqualFold(oldSchema.Name, oldSchemaName) && strings.EqualFold(oldTable.Name, oldTableName) {
+					return &model.TableRef{newSchema, newTable}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (self *DBX) EnumRegex(doc *model.Definition) string {
@@ -260,22 +279,22 @@ func (self *DBX) getTableDependencies(doc *model.Definition, schema *model.Schem
 	// gather foreign keys on the columns
 	for _, column := range table.Columns {
 		if column.ForeignTable != "" {
-			fSchema, fTable := GlobalDBX.ResolveSchemaTable(doc, schema, column.ForeignSchema, column.ForeignTable, "column foreignKey")
-			out = append(out, model.TableRef{fSchema, fTable})
+			fref := GlobalDBX.ResolveSchemaTable(doc, schema, column.ForeignSchema, column.ForeignTable, "column foreignKey")
+			out = append(out, fref)
 		}
 	}
 
 	// gather explicit foreign keys
 	for _, fk := range table.ForeignKeys {
-		fSchema, fTable := GlobalDBX.ResolveSchemaTable(doc, schema, fk.ForeignSchema, fk.ForeignTable, "foreignKey element")
-		out = append(out, model.TableRef{fSchema, fTable})
+		fref := GlobalDBX.ResolveSchemaTable(doc, schema, fk.ForeignSchema, fk.ForeignTable, "foreignKey element")
+		out = append(out, fref)
 	}
 
 	// gather constraints
 	for _, constraint := range table.Constraints {
 		if constraint.ForeignTable != "" {
-			fSchema, fTable := GlobalDBX.ResolveSchemaTable(doc, schema, constraint.ForeignSchema, constraint.ForeignTable, "FOREIGN KEY constraint")
-			out = append(out, model.TableRef{fSchema, fTable})
+			fref := GlobalDBX.ResolveSchemaTable(doc, schema, constraint.ForeignSchema, constraint.ForeignTable, "FOREIGN KEY constraint")
+			out = append(out, fref)
 		}
 	}
 
@@ -291,7 +310,8 @@ func (self *DBX) TryInheritanceGetColumn(doc *model.Definition, schema *model.Sc
 
 	// just keep walking up the inheritance chain so long as there's a link
 	for column == nil && table.InheritsTable != "" {
-		schema, table = GlobalDBX.ResolveSchemaTable(doc, schema, table.InheritsSchema, table.InheritsTable, "inheritance")
+		ref := GlobalDBX.ResolveSchemaTable(doc, schema, table.InheritsSchema, table.InheritsTable, "inheritance")
+		table = ref.Table
 		column = table.TryGetColumnNamed(columnName)
 	}
 

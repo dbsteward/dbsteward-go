@@ -17,6 +17,8 @@ type Table struct {
 	PrimaryKeyName string          `xml:"primaryKeyName,attr,omitempty"`
 	InheritsTable  string          `xml:"inheritsTable,attr,omitempty"`
 	InheritsSchema string          `xml:"inheritsSchema,attr,omitempty"`
+	OldTableName   string          `xml:"oldTableName,attr,omitempty"`
+	OldSchemaName  string          `xml:"oldSchemaName,attr,omitempty"`
 	SlonySetId     *int            `xml:"slonySetId,attr,omitempty"`
 	SlonyId        *int            `xml:"slonyId,attr,omitempty"`
 	TableOptions   []*TableOption  `xml:"tableOption"`

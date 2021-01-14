@@ -29,11 +29,29 @@ func (self *DiffTables) IsRenamedTable(schema *model.Schema, table *model.Table)
 }
 
 func (self *DiffTables) DropTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
-	// TODO(go,pgsql)
+	// if newSchema is nil, we'll have already dropped all the tables in it
+	if oldSchema != nil && newSchema != nil {
+		for _, oldTable := range oldSchema.Tables {
+			self.DropTable(ofs, oldSchema, oldTable, newSchema)
+		}
+	}
 }
 
-func (self *DiffTables) DropTable(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, oldTable, newTable *model.Table) {
-	// TODO(go,pgsql)
+func (self *DiffTables) DropTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema) {
+	newTable := newSchema.TryGetTableNamed(oldTable.Name)
+	if newTable != nil {
+		// table exists, nothing to do
+		return
+	}
+	if !lib.GlobalDBSteward.IgnoreOldNames {
+		renamedRef := lib.GlobalDBX.TryGetTableFormerlyKnownAs(lib.GlobalDBSteward.NewDatabase, oldSchema, oldTable)
+		if renamedRef != nil {
+			ofs.Write("-- DROP TABLE %s.%s omitted: new table %s indicates it is her replacement", oldSchema.Name, oldTable.Name, renamedRef)
+			return
+		}
+	}
+
+	ofs.WriteSql(GlobalTable.GetDropSql(oldSchema, oldTable)...)
 }
 
 func (self *DiffTables) DiffClusters(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
