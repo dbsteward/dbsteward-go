@@ -1,10 +1,32 @@
 # DBSteward (Go Edition)
 
-2.0.0 Goal: Almost straight port of PHP DBSteward to Go. Keep API/CLI compat with PHP DBSteward
+**NOTE** This codebase is **VERY** work-in-progress, and **is not functional yet**
+
+This repo contains a rewrite of https://github.com/dbsteward/dbsteward. If you're looking for working software, go there.
+
+2.0.0 Goal: Almost straight port of PHP DBSteward to Go. Keep API/CLI compat (version 1.4) with PHP DBSteward
 
 3.0.0 Goal: Refactor to be more object-oriented, cleaner, more go-like. Keep API/CLI compat with PHP DBSteward
 
 4.0.0 Goal: Break API compat, start working on next-gen features
+
+## What is DBSteward
+
+Before too long I'll put something up here about the general operating theory, but for now, the TL;DR is, DBSteward diffs two XML files that represent a database schema, producing the SQL needed to get from the old version to the new version. It's intended as a replacement for the traditional migration workflow.
+
+For more info, check out https://github.com/dbsteward/dbsteward
+
+## Why are we doing this?
+
+There's a number of reasons why we're rewriting DBSteward.
+
+Firstly, it was originally written for PHP 5.2 or 5.3 (can't really remember). At that time, they had introduced classes, but not much else. Over time, the codebase evolved a little bit to take advantage of newer PHP features, but for the most part did not. Now, there's nothing wrong with PHP, and the latest versions of PHP are are very nice, but, PHP carries a lot of stigma, especially among teams that otherwise really want to use or contribute to DBSteward, but don't know or want to mess with managing a PHP environment for it.
+
+Golang, on the other hand, is a very popular, very productive, and "modern" language (again, not that modern PHP isn't a modern langugage, but that's certainly the perception), meaning that it's a very low barrier of entry for anyone that wants to contribute. Furthermore, because Go generates self-contained statically linked binaries, users of DBSteward don't need to know anything about Go unless they want to build from source - they can just install a single pre-built binary and be off to the races.
+
+Secondly, the existing DBSteward architecture is not very flexible and has a number of odd, undocumented features of dubious usefulness. The architecture as it stands is very hard to maintain, and while robust, fixing bugs or major issues (see "Quoting and Identifiers" below for an example) is extremely challenging. If we wanted to support e.g. Postgres 13 without breaking compatibility with Postgres 8 users, that would be nearly impossible without a monumental amount of work (which is what this undertaking is).
+
+Simply rewriting and doing a straight port naturally doesn't fix many things (although distributing a single binary will sure be nice), but it does give us the opportunity to go through the whole codebase with a fine toothed comb, start making small changes, and recording thoughts that will allow us to make the big architectural shifts that I believe will make DBSteward a successful long-term, maintainable, and popular project.
 
 ## What needs to be done?
 
@@ -21,6 +43,15 @@ In descending order of priority:
 - `TODO(go,nth)` - nice-to-haves. things that we should come back and fix or clean up as part of this rewrite, but not critical
 - `TODO(feat)` - feature work, bug fixes, improvements. Things that don't have to do with the go port. these are either carry-overs from the old codebase, or things I notice as I go.
 - `TODO(go,3)` - marking areas I know for sure I want to fix as part of the 3.0 refactor
+- `TODO(go,4)` - marking thoughts I have about what I'd like to change as part of the 4.0 refactor
+
+In general, for each of `pgsql`, `mysql`, and `mssql`, we need to implement `build`, `diff`, and `extract` codepaths. `pgsql` additionally/conditionally supports `slony` as a replication appliance. Finally, there's a handful of miscellaneous utility functions.
+
+Once most things have solidified (I'm still changing idioms and whatnot frequently), we'll need to start writing unit tests, starting with those defined in old DBSteward, then onto the rest of the new code.
+
+I've been trying to keep this README up-to-date as I change things and think about where I want things to go, but at the moment it's not guaranteed to be an accurate depiction of the current state of affairs. At the time of writing, I mostly have pgsql builds at parity with the legacy code, and am working my way through pgsql diffing.
+
+At the moment, I (@austinhyde) am the only one actively working on this, and as such, am just pushing to master, working my way through pgsql codepaths, comparing outputs to original DBSteward outputs. If you would like to contribute, please open an issue and let me know, and I can start breaking work up into tickets so we don't step on each other's toes and we can communicate any changes.
   
 ## Differences from PHP codebase
 
@@ -177,7 +208,7 @@ func DoSomethingWithTable() []output.ToSql {
 
 ## Thoughts for the future
 
-### General Thoughts
+### General Architecture
 
 Everything is just a diff; build is just diff of empty -> new
 
@@ -239,6 +270,8 @@ This also begs the question of, why wouldn't DBSteward simply quote everything? 
 
 In light of the Postgres quoting behavior though, the real answer is somewhat more complicated:
 
+https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS:
+
 > Quoting an identifier also makes it case-sensitive, whereas unquoted names are always folded to lower case. For example, the identifiers FOO, foo, and "foo" are considered the same by PostgreSQL, but "Foo" and "FOO" are different from these three and each other. (The folding of unquoted names to lower case in PostgreSQL is incompatible with the SQL standard, which says that unquoted names should be folded to upper case. Thus, foo should be equivalent to "FOO" not "foo" according to the standard. If you want to write portable applications you are advised to always quote a particular name or never quote it.)
 
 So, there's a few things to think about here:
@@ -246,3 +279,102 @@ So, there's a few things to think about here:
 - Other engines likely treat `foo`, `FOO` and `"FOO"` as identical because they fold to upper case, but _not_ `FOO` and `"foo"`.
 - We need to have a smarter quoting system, and we almost certainly need to rely on the user to tell us per-identifier whether it should be quoted or not.
 - Is there some way to reliably, in a dialect-dependent way, automatically determine identifier equality in the face of lacking quoting information? e.g. if we see a name `Foo`, we might infer from the capital that case is important, and therefore we treat it as quoted and case-sensitive in Postgres. How would this work in a very fluid environment as in proposed by the "Strategy Architecture" section above?
+
+### New Schema Sources & Formats
+
+At the moment, DBSteward only recognizes DBXML files as a valid source of a database schema.
+
+For many reasons, I don't think this is sufficient. The most obvious being, that lots of people have an intense dislike of XML. It can be verbose and hard to read, hard to validate, and can sometimes have poor editor support.
+
+But more importantly, XML has a number of limitations for relevant to this usecase. Most chiefly that there is no support for any kind of scalar data types. Lists and objects are implicit through the structure of the document, but, look no further than the data column element:
+
+```
+<!ELEMENT col (#PCDATA)>
+<!ATTLIST col sql (true|false) #IMPLIED>
+<!ATTLIST col null (true|false) #IMPLIED>
+<!ATTLIST col empty (true|false) #IMPLIED>
+```
+
+- The element can contain arbitrary character data (read: byte array at minimum, but probably UTF-8 string). DBSteward currently interprets everything as a unicode string, but what if it was an automatically generated file containing, say, raw image data? Most databases do have a `blob` type after all.
+- The attributes contain the literal string values "true" or "false", not real values. Several other places allow `t` or `f`. But what if someone typed `ture`? The attribute is clearly intended to be a boolean type, but is actually a string.
+- The attributes exist solely to inform DBSteward how to handle ambiguities in the arbitrary character data: does `<col />` represent a null value or empty string? does `<col>now()</col>` represent the string `"now()"` or the function call `now()`?
+
+Similarly, table primary keys (and many other cases) are defined through `<!ATTLIST table primaryKey CDATA #REQUIRED>`, which is a delimited list of identifiers. Delimited by what? it's not specified, but is commonly `[\s,]+`. What happens if one of those identifiers legitimately contains a comma and needs to be quoted, and how do we express a quote? `primaryKey="'foo,bar', baz"` would be parsed as `["'foo", "bar'", "baz"]`, and even if it was quote aware, single quotes identify literal strings, not a quoted identifier. With the revelations in the "Quoting and Identifiers" section, it's clear we'll need _some_ way of marking specific identifiers as quoted.
+
+#### Live Database Schema
+
+Another good reason to support more than XML is that schemas _already_ exist in formats other than XML. The most obvious being, a live database! DBSteward more or less treats it this way with its extract functionality, but in that scenario the only thing you can do is dump it to XML and then separately do a diff/build. Imagine if instead of extract, then diff, we just treated the live database as the "old" and the XML as "new". Now we'd have no more awkwardness around imperfect extracts or data lost in XML serialization, or in checking out old VCS copies of the schema to compare to.
+
+#### SQL Schema
+
+If we want to stick to file formats, what could be better for expressing a database schema than actual SQL? That is, after all, what it's made for. Instead of asking users to manually write out e.g. an `ADD COLUMN` statement, we could just parse two sets of SQL files like
+
+```sql
+-- old.sql
+CREATE TABLE foo (
+  id uuid PRIMARY KEY,
+  bar text
+);
+
+-- new.sql
+CREATE TABLE foo (
+  id uuid PRIMARY KEY,
+  bar text REFERENCES baz(bar),
+  created_at timestamptz not null default now(),
+);
+```
+
+and generate the `ALTER TABLE foo ADD COLUMN`'s on behalf of the user. The hardest part of this will be the need to understand most of every dialect of SQL we want to support, but comes without so many of the limitations of XML.
+
+#### HCL Schema
+
+HCL also seems like a potentially promising format, as it has a less verbose syntax, built-in expression language, first-class scalar types besides string, first-class list and map types, and offers alternative JSON and YAML representations for those that really want it. A sample might look like this:
+
+```hcl
+schema "public" {
+  table "foo" {
+    primaryKey = [id]
+    column "id" { type = "uuid" }
+    column "bar" {
+      type = "text"
+      references = public.baz.baz
+    }
+    column "created_at" {
+      type = "timestamptz"
+      nullable = false
+      default = sql("now()")
+    }
+  }
+}
+```
+
+Here, we see a few very nice features as compared to the XML:
+- `primaryKey` is a proper list type
+- `primaryKey` is populated by actual variables referencing later columns
+- the foreign key reference on column `bar` uses a variable expression to a different table/column in the schema
+- `nullable` on column `created_at` is an actual boolean value
+- `default` on column `created_at` uses a function call expression to clearly demarcate a value that should be interpreted as SQL and not a string value
+
+#### MVC/ORM Framework Models
+
+And thinking more creatively, observing that almost no one uses DBSteward (yet!) and instead mostly uses either plain old SQL migrations or auto-generated migrations via e.g. Rails or SQLAlchemy or Laravel or GORM or what have you, we could instead treat those ORM models as the schema definition themselves.
+
+However, there's a real opportunity in consuming raw framework models: being able to, say, read all the SQLAlchemy models in an existing application and diff between on-disk and live-database would allow DBSteward to effectively replace Alembic as a migration tool, and while I'm definitely biased here, I think that's a no-brainer switch for most any developer or team if we can make it happen reliably.
+
+The biggest challenge here, obviously, is in actually interfacing with these definitions. In most cases this will probably involve, somehow, programmatically executing the files containing the models. Attempting to parse, say, a SQLAlchemy model definition, will almost definitely end in fire and tears. So, that means that somehow, we'd need to load up a Python interpreter and actually parse (if not execute) the definitions. This represents a huge amount of work.
+
+On the other hand, I would observe that this would be a prime candidate for something like a paid closed-source plugin. To teams trying to optimize their workflow and get over the scalability problems of the traditional migration pattern (partially optimized by a framework or not), having a way to both reuse their existing code and drop its problematic by-products in favor of something that can reliably work without human intervention would be worth a lot of money.
+
+#### And Beyond and In General
+
+Why stop with these ideas, though? I think that by the time we're considering any of these options, it would be quite doable to adopt a plugin-type architecture allowing almost any schema source imaginable.
+
+The two hard parts will be:
+- Figuring out what the plugin interface will be
+- Figuring out how this go binary will load the plugin
+
+One interesting technique I saw discussed somewhere ages ago was to skip past the standard shared library/dynamic linking plugin implementation, and instead treat plugins as a subprocess daemon that talks over RPC instead of ABI.
+
+I really like the idea of this approach here. If it's implemented well, it would massively increase the potential ecosystem of DBSteward, and open up ideas like the MVC/ORM model schema source discussed above, as instead of trying to find e.g. a Golang Python parser, we can just lean on the language itself and communicate over a well-defined interface. This also means that plugins would be able to be shipped separately from the main binary, opening the doors for paid and/or closed-source plugins.
+
+This would even apply beyond schema sources, and could even support generation strategies for new dialects and versions, as discussed above in "Strategy Architecture"
