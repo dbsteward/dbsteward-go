@@ -130,6 +130,15 @@ func (self *Table) TryGetColumnNamed(name string) *Column {
 	return nil
 }
 
+func (self *Table) TryGetColumnOldNamed(oldName string) *Column {
+	for _, column := range self.Columns {
+		if strings.EqualFold(column.OldColumnName, oldName) {
+			return column
+		}
+	}
+	return nil
+}
+
 func (self *Table) TryGetColumnsNamed(names []string) ([]*Column, bool) {
 	out := make([]*Column, len(names))
 	ok := true

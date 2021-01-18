@@ -19,3 +19,17 @@ func (self *Annotated) ToSql(q output.Quoter) string {
 		self.Wrapped.ToSql(q),
 	)
 }
+
+type Comment struct {
+	Comment string
+}
+
+func NewComment(format string, args ...interface{}) *Comment {
+	return &Comment{
+		Comment: fmt.Sprintf(format, args...),
+	}
+}
+
+func (self *Comment) ToSql(q output.Quoter) string {
+	return util.PrefixLines(self.Comment, "-- ")
+}

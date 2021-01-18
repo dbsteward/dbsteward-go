@@ -200,3 +200,49 @@ Everything is just a diff; build is just diff of empty -> new
   - live db
   - 4-stage migration
   - 1-stage migration
+
+### Strategy Architecture
+
+Currently we utilize "inheritance" to implement strategies for different things - the baseline/default strategies that work most of the time are in `sql99`, and then specific dialects can override either high-level or specific aspects of the strategies.
+
+Except, this is a hard-to-follow and un-extensible pattern.
+
+For example, currently, the `pgsql8` dialect package implements a set of things that are compatible with Postgres 8.0, but since then so many great features have come out that we can take advantage of: materialized views, DO blocks, concurrent indexes, native partitioning, etc. In the current architecture, there's no way for us to say, "oh, if we're targeting Postgres 8, use _this_ and if we're targeting Postgres 13, use _that_", without implementing an entirely new format/dialect.
+
+It's also hard to follow, because of the limitations described in the "Static classes & Globals", "Magic format classes & circular dependencies", and "Sql99 and Abstract Classes" sections above. "Inheritance" is simply not a good match for the Go way of doing it, and, I believe, rarely a good pattern in general compared to different composition architectures.
+
+So one pattern I'm thinking about implementing is a more explicit "strategy" architecture:
+
+1. Every _type_ of algorithm in DBSteward's differencing and sql generation engine would conform to an interface, e.g. `type TableCreateStrategy interface { CreateNewTables(oldSchema, newSchema) }`.
+2. Instead of "sql99", most algorithms would just have a default implementation that does things a bog-standard way, e.g. for every table, if the table doesn't exist in oldSchema, create it
+3. If a given strategy implementation has sub-strategies, then those would be declared interface dependencies of the strategy implementation, e.g. `type DefaultTableCreateStrategy struct { repStrategy CreateTableReplicationStrategy }`
+4. Every dialect and dialect version can have different implementations of each strategy as needed. Auxilliary concerns like replication tools can have separate strategies as well (e.g. Slony vs some other replication provider).
+5. The concrete implementations of strategies are decided up front as a result of parsing inputs and CLI parameters, and then the "root strategy" would be invoked and trickle down the strategy-tree
+
+This approach would give us a number of interesting properties:
+- Extensible, opens the doors for dialect plugins, as dialects are now just a set of concrete implementations of strategies + a hook into the "strategy resolver"
+- Easily allows for different versions of the same dialect. e.g. If we're targeting Postgres 13 we can generate a more concise/efficient diff than if we're targeting Postgres 8.
+- Composable. Anything that conforms to a strategy interface is capable of fulfilling that role, not just predefined, hardcoded global instances.
+- Makes it trivial to implement alternate/experimental algorithms even within a specific dialect/version.
+- Opens the doors for more easily implemented polyfills. e.g. Polyfilling sequences in MySQL is now just a different strategy, rather than a pervasive set of feature flags through the code.
+
+
+### Quoting and Identifiers
+
+Currently DBSteward mostly considers quoting of identifiers to be a generation-layer concern; internally, it doesn't really care about quoted identifiers.
+
+Except, this is incorrect in many cases. Postgres, for example, handles unquoted identifiers case insensitively, but quoted identifiers case sensitively.
+
+This implies that "quotedness" is a property of the identifier itself, rather than a preference of the application.
+
+This also begs the question of, why wouldn't DBSteward simply quote everything? If not-quoting can lead to invalid identifier errors, then why bother with conditional quoting? It doesn't cost us anything to always generate quotes.
+
+In light of the Postgres quoting behavior though, the real answer is somewhat more complicated:
+
+> Quoting an identifier also makes it case-sensitive, whereas unquoted names are always folded to lower case. For example, the identifiers FOO, foo, and "foo" are considered the same by PostgreSQL, but "Foo" and "FOO" are different from these three and each other. (The folding of unquoted names to lower case in PostgreSQL is incompatible with the SQL standard, which says that unquoted names should be folded to upper case. Thus, foo should be equivalent to "FOO" not "foo" according to the standard. If you want to write portable applications you are advised to always quote a particular name or never quote it.)
+
+So, there's a few things to think about here:
+- Postgres treats `foo` and `"foo"` as identical, but `FOO` and `"foo"` are not, because they fold to lowercase, not upper case
+- Other engines likely treat `foo`, `FOO` and `"FOO"` as identical because they fold to upper case, but _not_ `FOO` and `"foo"`.
+- We need to have a smarter quoting system, and we almost certainly need to rely on the user to tell us per-identifier whether it should be quoted or not.
+- Is there some way to reliably, in a dialect-dependent way, automatically determine identifier equality in the face of lacking quoting information? e.g. if we see a name `Foo`, we might infer from the capital that case is important, and therefore we treat it as quoted and case-sensitive in Postgres. How would this work in a very fluid environment as in proposed by the "Strategy Architecture" section above?

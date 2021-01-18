@@ -23,6 +23,8 @@ const (
 	SqlStageNone    SqlStage = ""
 	SqlStage1Before SqlStage = "STAGE1BEFORE"
 	SqlStage2Before SqlStage = "STAGE2BEFORE"
+	SqlStage3Before SqlStage = "STAGE3BEFORE"
+	SqlStage4Before SqlStage = "STAGE4BEFORE"
 	SqlStage1       SqlStage = "STAGE1"
 	SqlStage2       SqlStage = "STAGE2"
 	SqlStage3       SqlStage = "STAGE3"

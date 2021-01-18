@@ -68,22 +68,6 @@ func (self *DiffTables) updateTableOptions(stage1 output.OutputFileSegmenter, ol
 	self.applyTableOptionsDiff(stage1, newSchema, newTable, updateOpts, createOpts, deleteOpts)
 }
 
-func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
-
-}
-
-func (self *DiffTables) checkPartition(oldTable, newTable *model.Table) {
-
-}
-
-func (self *DiffTables) checkInherits(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
-
-}
-
-func (self *DiffTables) addAlterStatistics(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
-
-}
-
 func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *model.Schema, table *model.Table, updateOpts, createOpts, deleteOpts map[string]string) {
 	alters := []sql.TableAlterPart{}
 	ref := sql.TableRef{schema.Name, table.Name}
@@ -144,6 +128,106 @@ func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter,
 			Parts: alters,
 		})
 	}
+}
+
+type updateTableColumnsAgg struct {
+	before1          []output.ToSql
+	before3          []output.ToSql
+	stage1           []sql.TableAlterPart
+	stage3           []sql.TableAlterPart
+	after1           []output.ToSql
+	after3           []output.ToSql
+	dropDefaultsCols []string
+}
+
+func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+	agg := &updateTableColumnsAgg{}
+
+	// TODO(go,pgsql) old dbsteward interleaved commands into a single list, and output in the same order
+	// meaning that a BEFORE3 could be output before a BEFORE1. in this implementation, _all_ BEFORE1s
+	// are printed before BEFORE3s. Double check that this doesn't break anything.
+
+	self.addDropTableColumns(agg, oldTable, newTable)
+	self.addCreateTableColumns(agg, oldTable, newSchema, newTable)
+	self.addModifyTableColumns(agg, oldTable, newSchema, newTable)
+
+	// Note: in the case of single stage upgrades, stage1==stage3, so do all the Before's before all of the stages, and do them in stage order
+	stage1.WriteSql(agg.before1...)
+	stage3.WriteSql(agg.before3...)
+
+	ref := sql.TableRef{newSchema.Name, newTable.Name}
+	if newTable.SlonyId != nil {
+		// slony will make the alter table statement changes as its super user
+		// which if the db owner is different,
+		// implicit sequence creation will fail with:
+		// ERROR:  55000: sequence must have same owner as table it is linked to
+		// so if the alter statement contains a new serial column,
+		// change the user to the slony user for the alter, then (see similar block below)
+
+		// TODO
+	}
+	stage1.WriteSql(&sql.TableAlterParts{
+		Table: ref,
+		Parts: agg.stage1,
+	})
+	if newTable.SlonyId != nil {
+		// replicated table? put ownership back
+
+		// TODO
+	}
+
+	stage3.WriteSql(&sql.TableAlterParts{
+		Table: ref,
+		Parts: agg.stage3,
+	})
+
+	defaultDrops := make([]sql.TableAlterPart, len(agg.dropDefaultsCols))
+	for i, col := range agg.dropDefaultsCols {
+		defaultDrops[i] = &sql.TableAlterPartColumnDropDefault{col}
+	}
+	stage1.WriteSql(&sql.TableAlterParts{ref, defaultDrops})
+
+	stage1.WriteSql(agg.after1...)
+	stage3.WriteSql(agg.after3...)
+}
+
+func (self *DiffTables) addDropTableColumns(agg *updateTableColumnsAgg, oldTable, newTable *model.Table) {
+	for _, oldColumn := range oldTable.Columns {
+		if newTable.TryGetColumnNamed(oldColumn.Name) != nil {
+			// new column exists, not dropping it
+			continue
+		}
+
+		renamedColumn := newTable.TryGetColumnOldNamed(oldColumn.Name)
+		if !lib.GlobalDBSteward.IgnoreOldNames && renamedColumn != nil {
+			agg.after3 = append(agg.after3, sql.NewComment(
+				"%s DROP COLUMN %s omitted: new column %s indicates it is the replacement for %s",
+				oldTable.Name, oldColumn.Name, renamedColumn.Name, oldColumn.Name,
+			))
+		} else {
+			agg.stage3 = append(agg.stage3, &sql.TableAlterPartColumnDrop{oldColumn.Name})
+		}
+	}
+}
+
+func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+
+}
+
+func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+
+}
+
+func (self *DiffTables) checkPartition(oldTable, newTable *model.Table) {
+
+}
+
+func (self *DiffTables) checkInherits(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+
+}
+
+func (self *DiffTables) addAlterStatistics(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+
 }
 
 func (self *DiffTables) IsRenamedTable(schema *model.Schema, table *model.Table) bool {
