@@ -1,6 +1,8 @@
 package pgsql8
 
 import (
+	"strings"
+
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/model"
@@ -15,17 +17,211 @@ func NewDiffTables() *DiffTables {
 	return &DiffTables{}
 }
 
+// TODO(go,core) lift much of this up to sql99
+
+// applies transformations to tables that exist in both old and new
 func (self *DiffTables) DiffTables(stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
-	// TODO(go,pgsql)
+	// note: old dbsteward called create_tables here, but because we split out DiffTable, we can't call it both places,
+	// so callers were updated to call CreateTables or CreateTable just before calling DiffTables or DiffTable, respectively
+
+	if oldSchema == nil {
+		return
+	}
+	for _, newTable := range newSchema.Tables {
+		oldTable := oldSchema.TryGetTableNamed(newTable.Name)
+		oldSchema, oldTable = lib.GlobalDBX.RenamedTableCheckPointer(oldSchema, oldTable, newSchema, newTable)
+		self.DiffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
+	}
 }
 
-func (self *DiffTables) DiffTable(stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, oldTable, newTable *model.Table) {
-	// TODO(go,pgsql)
+func (self *DiffTables) DiffTable(stage1, stage3 output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+	if oldTable == nil || newTable == nil {
+		// create and drop are handled elsewhere
+		return
+	}
+
+	self.updateTableOptions(stage1, oldSchema, oldTable, newSchema, newTable)
+	self.updateTableColumns(stage1, stage3, oldTable, newSchema, newTable)
+	self.checkPartition(oldTable, newTable)
+	self.checkInherits(stage1, oldTable, newSchema, newTable)
+	self.addAlterStatistics(stage1, oldTable, newSchema, newTable)
+}
+
+func (self *DiffTables) updateTableOptions(stage1 output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+	util.Assert(oldTable != nil, "expect oldTable to not be nil")
+	util.Assert(newTable != nil, "expect newTable to not be nil")
+
+	oldOpts := oldTable.GetTableOptionStrMap(model.SqlFormatPgsql8)
+	newOpts := newTable.GetTableOptionStrMap(model.SqlFormatPgsql8)
+
+	// dropped options are those present in old table but not new
+	deleteOpts := util.IDifferenceStrMapKeys(oldOpts, newOpts)
+
+	// added options are those present in new table but not old
+	createOpts := util.IDifferenceStrMapKeys(newOpts, oldOpts)
+
+	// changed options are those present in both tables but with different values
+	updateOpts := util.IntersectStrMapFunc(newOpts, oldOpts, func(newKey, oldKey string) bool {
+		return strings.EqualFold(newKey, oldKey) && !strings.EqualFold(newOpts[newKey], oldOpts[oldKey])
+	})
+
+	self.applyTableOptionsDiff(stage1, newSchema, newTable, updateOpts, createOpts, deleteOpts)
+}
+
+func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+
+}
+
+func (self *DiffTables) checkPartition(oldTable, newTable *model.Table) {
+
+}
+
+func (self *DiffTables) checkInherits(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+
+}
+
+func (self *DiffTables) addAlterStatistics(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+
+}
+
+func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *model.Schema, table *model.Table, updateOpts, createOpts, deleteOpts map[string]string) {
+	alters := []sql.TableAlterPart{}
+	ref := sql.TableRef{schema.Name, table.Name}
+
+	// in pgsql create and alter have the same syntax
+	for name, value := range util.IUnionStrMapKeys(createOpts, updateOpts) {
+		if strings.EqualFold(name, "with") {
+			// ALTER TABLE ... SET (params) doesn't accept oids=true/false unlike CREATE TABLE
+			// only WITH OIDS or WITHOUT OIDS
+			params := GlobalTable.ParseStorageParams(value)
+			if oids, ok := params["oids"]; ok {
+				delete(params, "oids")
+				if util.IsTruthy(oids) {
+					alters = append(alters, &sql.TableAlterPartWithOids{})
+				} else {
+					alters = append(alters, &sql.TableAlterPartWithoutOids{})
+				}
+			} else {
+				// we might have gotten rid of the oids param
+				alters = append(alters, &sql.TableAlterPartWithoutOids{})
+			}
+
+			// set rest of params normally
+			alters = append(alters, &sql.TableAlterPartSetStorageParams{params})
+		} else if strings.EqualFold(name, "tablespace") {
+			alters = append(alters, &sql.TableAlterPartSetTablespace{value})
+			stage1.WriteSql(&sql.TableMoveTablespaceIndexes{
+				Table:      ref,
+				Tablespace: value,
+			})
+		} else {
+			lib.GlobalDBSteward.Warning("Ignoring create/update of unknown table option %s on table %s.%s", name, schema.Name, table.Name)
+		}
+	}
+
+	for name, value := range deleteOpts {
+		if strings.EqualFold(name, "with") {
+			params := GlobalTable.ParseStorageParams(value)
+			// handle oids separately since pgsql doesn't recognize it as a storage parameter in an ALTER TABLE
+			if _, ok := params["oids"]; ok {
+				delete(params, "oids")
+				alters = append(alters, &sql.TableAlterPartWithoutOids{})
+			}
+			// handle rest normally
+			alters = append(alters, &sql.TableAlterPartResetStorageParams{util.StrMapKeys(params)})
+		} else if strings.EqualFold(name, "tablespace") {
+			stage1.WriteSql(&sql.TableResetTablespace{
+				Table: ref,
+			})
+		} else {
+			lib.GlobalDBSteward.Warning("Ignoring removal of unknown table option %s on table %s.%s", name, schema.Name, table.Name)
+		}
+	}
+
+	if len(alters) > 0 {
+		stage1.WriteSql(&sql.TableAlterParts{
+			Table: ref,
+			Parts: alters,
+		})
+	}
 }
 
 func (self *DiffTables) IsRenamedTable(schema *model.Schema, table *model.Table) bool {
-	// TODO(go,pgsql)
+	util.Assert(!lib.GlobalDBSteward.IgnoreOldNames, "should check IgnoreOldNames before calling IsRenamedTable")
+	if table.OldTableName == "" {
+		return false
+	}
+	if schema.TryGetTableNamed(table.OldTableName) != nil {
+		// TODO(feat) what if the table moves schemas?
+		// TODO(feat) what if we move a table and replace it with a table of the same name?
+		lib.GlobalDBSteward.Fatal("oldTableName panic - new schema %s still contains table named %s", schema.Name, table.OldTableName)
+	}
+
+	oldSchema := GlobalTable.GetOldTableSchema(schema, table)
+	if oldSchema != nil {
+		if oldSchema.TryGetTableNamed(table.OldTableName) == nil {
+			lib.GlobalDBSteward.Fatal("oldTableName panic - old schema %s does not contain table named %s", oldSchema.Name, table.OldTableName)
+		}
+	}
+
+	// it is a new old named table rename if:
+	// table.OldTableName exists in old schema
+	// table.OldTableName does not exist in new schema
+	if oldSchema.TryGetTableNamed(table.OldTableName) != nil && schema.TryGetTableNamed(table.OldTableName) == nil {
+		lib.GlobalDBSteward.Info("Table %s used to be called %s", table.Name, table.OldTableName)
+		return true
+	}
 	return false
+}
+
+func (self *DiffTables) CreateTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
+	if newSchema == nil {
+		// if the new schema is nil, there's no tables to create
+		return
+	}
+	for _, newTable := range newSchema.Tables {
+		self.CreateTable(ofs, oldSchema, newSchema, newTable)
+	}
+}
+
+func (self *DiffTables) CreateTable(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, newTable *model.Table) {
+	if newTable == nil {
+		// TODO(go,nth) we shouldn't be here? should this be an Assert?
+		return
+	}
+	if oldSchema.TryGetTableNamed(newTable.Name) != nil {
+		// old table exists, alters or drops will be handled by other code
+		return
+	}
+
+	if !lib.GlobalDBSteward.IgnoreOldNames && self.IsRenamedTable(newSchema, newTable) {
+		// this is a renamed table, so rename it instead of creating a new one
+		oldTableSchema := GlobalTable.GetOldTableSchema(newSchema, newTable)
+		oldTable := GlobalTable.GetOldTable(newSchema, newTable)
+
+		// ALTER TABLE ... RENAME TO does not accept schema qualifiers ...
+		oldRef := sql.TableRef{oldTableSchema.Name, oldTable.Name}
+		ofs.WriteSql(&sql.Annotated{
+			Annotation: "table rename from oldTableName specification",
+			Wrapped: &sql.TableAlterRename{
+				Table:   oldRef,
+				NewName: newTable.Name,
+			},
+		})
+		// ... so if the schema changes issue a SET SCHEMA
+		if !strings.EqualFold(oldTableSchema.Name, newSchema.Name) {
+			ofs.WriteSql(&sql.Annotated{
+				Annotation: "table reschema from oldSchemaName specification",
+				Wrapped: &sql.TableAlterSetSchema{
+					Table:     oldRef,
+					NewSchema: newSchema.Name,
+				},
+			})
+		}
+	} else {
+		ofs.WriteSql(GlobalTable.GetCreationSql(newSchema, newTable)...)
+		ofs.WriteSql(GlobalTable.DefineTableColumnDefaults(newSchema, newTable)...)
+	}
 }
 
 func (self *DiffTables) DropTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {

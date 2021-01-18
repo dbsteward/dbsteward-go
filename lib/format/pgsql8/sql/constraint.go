@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/util"
-
 	"github.com/dbsteward/dbsteward/lib/model"
-
 	"github.com/dbsteward/dbsteward/lib/output"
+	"github.com/dbsteward/dbsteward/lib/util"
 )
+
+// TODO(go,nth) implement these in terms of TableAlterParts
 
 type ConstraintDrop struct {
 	Table      TableRef

@@ -39,10 +39,19 @@ type Schema interface {
 	GetDropSql(*model.Schema) []output.ToSql
 }
 
+type Table interface {
+	GetOldTableSchema(*model.Schema, *model.Table) *model.Schema
+	GetOldTable(*model.Schema, *model.Table) *model.Table
+}
+
 type Diff interface {
 	DiffDoc(oldFile, newFile string, oldDoc, newDoc *model.Definition, upgradePrefix string)
 	DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegmenter)
 
 	DropOldSchemas(output.OutputFileSegmenter)
 	CreateNewSchemas(output.OutputFileSegmenter)
+}
+
+type DiffTables interface {
+	IsRenamedTable(*model.Schema, *model.Table) bool
 }

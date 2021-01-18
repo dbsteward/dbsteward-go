@@ -40,6 +40,11 @@ func (self *Schema) GetCreationSql(schema *model.Schema) []output.ToSql {
 	return ddl
 }
 
+func (self *Schema) GetDropSql(schema *model.Schema) []output.ToSql {
+	// TODO(go,pgsql)
+	return nil
+}
+
 func (self *Schema) GetGrantSql(doc *model.Definition, schema *model.Schema, grant *model.Grant) []output.ToSql {
 	GlobalOperations.SetContextReplicaSetId(schema.SlonySetId)
 

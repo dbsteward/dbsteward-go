@@ -87,6 +87,27 @@ func CoalesceStr(strs ...string) string {
 	return ""
 }
 
+func ParseKV(str, fieldSep, keySep string) map[string]string {
+	out := map[string]string{}
+	for _, field := range strings.Split(str, fieldSep) {
+		kv := strings.Split(field, keySep)
+		if len(kv) == 1 {
+			out[kv[0]] = ""
+		} else {
+			out[kv[0]] = kv[1]
+		}
+	}
+	return out
+}
+
+func EncodeKV(kv map[string]string, fieldSep, keySep string) string {
+	parts := make([]string, 0, len(kv))
+	for k, v := range kv {
+		parts = append(parts, k+keySep+v)
+	}
+	return strings.Join(parts, fieldSep)
+}
+
 // TODO(go,nth) DEPRECATED just use IndexOfStr instead
 func InArrayStr(target string, list []string) bool {
 	return IndexOfStr(target, list) >= 0
@@ -186,6 +207,77 @@ outer:
 	return out
 }
 
+// returns a map containing keys from left that are not in right, by case-insensitive key equality
+func IDifferenceStrMapKeys(left, right map[string]string) map[string]string {
+	return DifferenceStrMapFunc(left, right, strings.EqualFold)
+}
+
+// returns a map containing keys from left that are not in right, using a custom key-equality function
+func DifferenceStrMapFunc(left, right map[string]string, equals func(string, string) bool) map[string]string {
+	out := map[string]string{}
+	for l, lv := range left {
+		inRight := false
+		for r := range right {
+			if equals(l, r) {
+				inRight = true
+				break
+			}
+		}
+		if !inRight {
+			out[l] = lv
+		}
+	}
+	return out
+}
+
+// returns keys from left that are also in right, using a custom key-equality function
+func IntersectStrMapFunc(left, right map[string]string, equals func(string, string) bool) map[string]string {
+	out := map[string]string{}
+	for l, lv := range left {
+		for r := range right {
+			if equals(l, r) {
+				out[l] = lv
+				break
+			}
+		}
+	}
+	return out
+}
+
+// returns keys from left and right, using case-insensitive key equality, preferring values from left
+// this means union({foo: 1}, {FOO: 2}) => {foo: 1}
+func IUnionStrMapKeys(left, right map[string]string) map[string]string {
+	return UnionStrMapFunc(left, right, strings.EqualFold)
+}
+
+func UnionStrMapFunc(left, right map[string]string, equals func(string, string) bool) map[string]string {
+	out := map[string]string{}
+	for l, lv := range left {
+		out[l] = lv
+	}
+	for r, rv := range right {
+		found := false
+		for o := range out {
+			if equals(r, o) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out[r] = rv
+		}
+	}
+	return out
+}
+
+func StrMapKeys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
 // returns true if the string explicitly represents a "true" value.
 // TODO(go,nth) search for cases of testing a value equal to one of these and replace
 func IsTruthy(s string) bool {
@@ -206,6 +298,14 @@ func IsFalsey(s string) bool {
 	default:
 		return false
 	}
+}
+
+// returns "true" if string explicitly represents a true value
+func NormalizeTruthyBoolStr(s string) string {
+	if IsTruthy(s) {
+		return "true"
+	}
+	return "false"
 }
 
 func IntMin(a, b int) int {

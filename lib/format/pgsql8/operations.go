@@ -238,19 +238,12 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		`, table.Name, schema.Name)
 		dbsteward.FatalIfError(err, "Could not query database")
 
-		// TODO(go,pgsql) this logic is a little different than legacy, need to double check everything works as expected here
-		// legacy shoved everything in a single table option with name = "with", this adds separate table options
-
 		// reloptions is formatted as {name=value,name=value}
 		reloptions := paramsRow["reloptions"]
-		params := strings.Split(reloptions[1:len(reloptions)-1], ",")
-		for _, param := range params {
-			nameval := strings.Split(param, "=")
-			table.SetTableOption(model.SqlFormatPgsql8, nameval[0], nameval[1])
-		}
-
+		params := util.ParseKV(reloptions[1:len(reloptions)-1], ",", "=")
 		// TODO(feat) pg 11.0 dropped support for "with oids" or "oids=true"
-		table.SetTableOption(model.SqlFormatPgsql8, "oids", paramsRow["relhasoids"])
+		params["oids"] = util.NormalizeTruthyBoolStr(paramsRow["relhasoids"])
+		table.SetTableOption(model.SqlFormatPgsql8, "with", "("+util.EncodeKV(params, ",", "=")+")")
 
 		dbsteward.Info("Analyze table columns %s.%s", schema.Name, table.Name)
 		columnDescriptions := map[string]string{}

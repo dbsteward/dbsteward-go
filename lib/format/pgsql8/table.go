@@ -218,3 +218,25 @@ func (self *Table) GetSerialStartDml(schema *model.Schema, table *model.Table) [
 	}
 	return out
 }
+
+func (self *Table) GetOldTableSchema(schema *model.Schema, table *model.Table) *model.Schema {
+	if table.OldSchemaName == "" {
+		return schema
+	}
+	if lib.GlobalDBSteward.OldDatabase == nil {
+		return nil
+	}
+	return lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(table.OldSchemaName)
+}
+
+func (self *Table) GetOldTable(schema *model.Schema, table *model.Table) *model.Table {
+	if table.OldTableName == "" {
+		return nil
+	}
+	oldSchema := self.GetOldTableSchema(schema, table)
+	return oldSchema.TryGetTableNamed(table.OldTableName)
+}
+
+func (self *Table) ParseStorageParams(value string) map[string]string {
+	return util.ParseKV(value[1:len(value)-1], ",", "=")
+}

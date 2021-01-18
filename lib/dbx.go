@@ -118,9 +118,12 @@ func (self *DBX) ResolveSchemaTable(doc *model.Definition, localSchema *model.Sc
 }
 
 // attempts to find the new table that claims it is renamed from the old table
+// this is the "forwards looking" version of RenamedTableCheckPointer
 func (self *DBX) TryGetTableFormerlyKnownAs(newDoc *model.Definition, oldSchema *model.Schema, oldTable *model.Table) *model.TableRef {
+	// TODO(go,nth) can we remove the assertion in favor of just returning nil? or should callers continue to check IgnoreOldNames themselves?
 	util.Assert(!GlobalDBSteward.IgnoreOldNames, "Should not attempt to look up renamed tables if IgnoreOldNames is set")
-	// TODO(go,3) move to model
+
+	// TODO(go,3) move to model, and/or compositing pass
 	for _, newSchema := range newDoc.Schemas {
 		for _, newTable := range newSchema.Tables {
 			if newTable.OldTableName != "" || newTable.OldSchemaName != "" {
@@ -135,14 +138,41 @@ func (self *DBX) TryGetTableFormerlyKnownAs(newDoc *model.Definition, oldSchema 
 	return nil
 }
 
+// attempts to find, and sanity checks, the table pointed to by oldSchema/TableName attributes
+// this is the "backwards looking" version of TryGetTableFormerlyKnownAs
+// TODO(go,nth) rename this, clean it up, get rid of those damn gotos
+func (self *DBX) RenamedTableCheckPointer(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) (*model.Schema, *model.Table) {
+	if GlobalDBSteward.IgnoreOldNames {
+		goto end
+	}
+	if newSchema == nil || newTable == nil {
+		goto end
+	}
+	if !GlobalDBSteward.Lookup().DiffTables.IsRenamedTable(newSchema, newTable) {
+		goto end
+	}
+
+	if newTable.OldSchemaName != "" {
+		oldSchema = GlobalDBSteward.Lookup().Table.GetOldTableSchema(newSchema, newTable)
+		if oldSchema == nil {
+			GlobalDBSteward.Fatal("Sanity failure: %s.%s has oldSchemaName attribute but old_schema not found", newSchema.Name, newTable.Name)
+		}
+	} else if oldSchema == nil {
+		GlobalDBSteward.Fatal("Sanity failure: %s.%s has oldTableName attribute but passed old_schema is not defined", newSchema.Name, newTable.Name)
+	}
+
+	oldTable = GlobalDBSteward.Lookup().Table.GetOldTable(newSchema, newTable)
+	if oldTable == nil {
+		GlobalDBSteward.Fatal("Sanity failure: %s.%s has oldTableName attribute, but table %s.%s not found", newSchema.Name, newTable.Name, oldSchema.Name, newTable.OldTableName)
+	}
+
+end:
+	return oldSchema, oldTable
+}
+
 func (self *DBX) EnumRegex(doc *model.Definition) string {
 	// TODO(go,core) dbx::enum_regex()
 	return ""
-}
-
-func (self *DBX) RenamedTableCheckPointer(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) (*model.Schema, *model.Table) {
-	// TODO(go,core) dbx::renamed_table_check_pointer()
-	return nil, nil
 }
 
 func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {

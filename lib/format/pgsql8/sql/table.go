@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/output"
+	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 type TableCreate struct {
@@ -73,11 +74,7 @@ type TableAlterOwner struct {
 }
 
 func (self *TableAlterOwner) ToSql(q output.Quoter) string {
-	return fmt.Sprintf(
-		"ALTER TABLE %s OWNER TO %s;",
-		self.Table.Qualified(q),
-		q.QuoteRole(self.Role),
-	)
+	return NewTableAlter(self.Table, &TableAlterPartOwner{self.Role}).ToSql(q)
 }
 
 type TableGrant struct {
@@ -103,4 +100,170 @@ type TableDrop struct {
 
 func (self *TableDrop) ToSql(q output.Quoter) string {
 	return fmt.Sprintf("DROP TABLE %s;", self.Table.Qualified(q))
+}
+
+type TableAlterRename struct {
+	Table   TableRef
+	NewName string
+}
+
+func (self *TableAlterRename) ToSql(q output.Quoter) string {
+	return NewTableAlter(self.Table, &TableAlterPartRename{self.NewName}).ToSql(q)
+}
+
+type TableAlterSetSchema struct {
+	Table     TableRef
+	NewSchema string
+}
+
+func (self *TableAlterSetSchema) ToSql(q output.Quoter) string {
+	return NewTableAlter(self.Table, &TableAlterPartSetSchema{self.NewSchema}).ToSql(q)
+}
+
+type TableMoveTablespaceIndexes struct {
+	Table      TableRef
+	Tablespace string
+}
+
+func (self *TableMoveTablespaceIndexes) ToSql(q output.Quoter) string {
+	// TODO(go,pgsql) DO blocks are introduced in 9.0, that would be much nicer than the IIFE
+	return fmt.Sprintf(`
+CREATE FUNCTION __dbsteward_migrate_move_index_tablespace(TEXT,TEXT,TEXT) RETURNS void AS $$
+  DECLARE idx RECORD;
+BEGIN
+  -- need to move the tablespace of the indexes as well
+  FOR idx IN SELECT index_pgc.relname FROM pg_index
+               INNER JOIN pg_class index_pgc ON index_pgc.oid = pg_index.indexrelid
+               INNER JOIN pg_class table_pgc ON table_pgc.oid = pg_index.indrelid AND table_pgc.relname=$2
+               INNER JOIN pg_namespace ON pg_namespace.oid = table_pgc.relnamespace AND pg_namespace.nspname=$1 LOOP
+    EXECUTE 'ALTER INDEX ' || quote_ident($1) || '.' || quote_ident(idx.relname) || ' SET TABLESPACE ' || quote_ident($3) || ';';
+  END LOOP;
+END $$ LANGUAGE plpgsql;
+SELECT __dbsteward_migrate_move_index_tablespace(%s,%s,%s);
+DROP FUNCTION __dbsteward_migrate_move_index_tablespace(TEXT,TEXT,TEXT);
+	`, q.LiteralString(self.Table.Schema), q.LiteralString(self.Table.Table), q.LiteralString(self.Tablespace))
+}
+
+type TableResetTablespace struct {
+	Table TableRef
+}
+
+func (self *TableResetTablespace) ToSql(q output.Quoter) string {
+	return fmt.Sprintf(`
+CREATE OR REPLACE FUNCTION __dbsteward_migrate_reset_tablespace(TEXT,TEXT) RETURNS void AS $$
+  DECLARE tbsp TEXT;
+  DECLARE idx RECORD;
+BEGIN
+  SELECT setting FROM pg_settings WHERE name='default_tablespace' INTO tbsp;
+
+  IF tbsp = '' THEN
+    tbsp := 'pg_default';
+  END IF;
+
+  EXECUTE 'ALTER TABLE ' || quote_ident($1) || '.' || quote_ident($2) || ' SET TABLESPACE ' || quote_ident(tbsp) || ';';
+
+  -- need to move the tablespace of the indexes as well
+  FOR idx IN SELECT index_pgc.relname FROM pg_index
+               INNER JOIN pg_class index_pgc ON index_pgc.oid = pg_index.indexrelid
+               INNER JOIN pg_class table_pgc ON table_pgc.oid = pg_index.indrelid AND table_pgc.relname=$2
+               INNER JOIN pg_namespace ON pg_namespace.oid = table_pgc.relnamespace AND pg_namespace.nspname=$1 LOOP
+    EXECUTE 'ALTER INDEX ' || quote_ident($1) || '.' || quote_ident(idx.relname) || ' SET TABLESPACE ' || quote_ident(tbsp) || ';';
+  END LOOP;
+END $$ LANGUAGE plpgsql;
+SELECT __dbsteward_migrate_reset_tablespace(%s,%s);
+DROP FUNCTION __dbsteward_migrate_reset_tablespace(TEXT,TEXT);
+	`, q.LiteralString(self.Table.Schema), q.LiteralString(self.Table.Table))
+}
+
+type TableAlterParts struct {
+	Table TableRef
+	Parts []TableAlterPart
+}
+type TableAlterPart interface {
+	GetAlterPartSql(q output.Quoter) string
+}
+
+func NewTableAlter(table TableRef, parts ...TableAlterPart) *TableAlterParts {
+	return &TableAlterParts{table, parts}
+}
+
+func (self *TableAlterParts) ToSql(q output.Quoter) string {
+	parts := ""
+	for _, part := range self.Parts {
+		partSql := part.GetAlterPartSql(q)
+		if partSql == "" {
+			continue
+		}
+		parts += "\n  " + partSql
+	}
+	if parts == "" {
+		return ""
+	}
+	return fmt.Sprintf("ALTER TABLE %s%s;", self.Table.Qualified(q), parts)
+}
+
+type TableAlterPartOwner struct {
+	Role string
+}
+
+func (self *TableAlterPartOwner) GetAlterPartSql(q output.Quoter) string {
+	return fmt.Sprintf("OWNER TO %s", q.QuoteRole(self.Role))
+}
+
+type TableAlterPartWithOids struct{}
+
+func (self *TableAlterPartWithOids) GetAlterPartSql(output.Quoter) string {
+	return "SET WITH OIDS"
+}
+
+type TableAlterPartWithoutOids struct{}
+
+func (self *TableAlterPartWithoutOids) GetAlterPartSql(output.Quoter) string {
+	return "SET WITHOUT OIDS"
+}
+
+type TableAlterPartSetStorageParams struct {
+	Params map[string]string
+}
+
+func (self *TableAlterPartSetStorageParams) GetAlterPartSql(output.Quoter) string {
+	if len(self.Params) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("SET (%s)", util.EncodeKV(self.Params, ",", "="))
+}
+
+type TableAlterPartResetStorageParams struct {
+	Params []string
+}
+
+func (self *TableAlterPartResetStorageParams) GetAlterPartSql(output.Quoter) string {
+	if len(self.Params) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("RESET (%s)", strings.Join(self.Params, ","))
+}
+
+type TableAlterPartSetTablespace struct {
+	TablespaceName string
+}
+
+func (self *TableAlterPartSetTablespace) GetAlterPartSql(q output.Quoter) string {
+	return fmt.Sprintf("SET TABLESPACE %s", q.QuoteObject(self.TablespaceName))
+}
+
+type TableAlterPartRename struct {
+	Name string
+}
+
+func (self *TableAlterPartRename) GetAlterPartSql(q output.Quoter) string {
+	return fmt.Sprintf("RENAME TO %s", q.QuoteTable(self.Name))
+}
+
+type TableAlterPartSetSchema struct {
+	Name string
+}
+
+func (self *TableAlterPartSetSchema) GetAlterPartSql(q output.Quoter) string {
+	return fmt.Sprintf("SET SCHEMA %s", q.QuoteSchema(self.Name))
 }

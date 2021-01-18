@@ -186,6 +186,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			GlobalDiffConstraints.DropConstraints(stage1, oldSchema, newSchema, ConstraintTypeConstraint)
 			GlobalDiffConstraints.DropConstraints(stage1, oldSchema, newSchema, ConstraintTypePrimaryKey)
 			GlobalDiffTables.DropTables(stage1, oldSchema, newSchema)
+			GlobalDiffTables.CreateTables(stage1, oldSchema, newSchema)
 			GlobalDiffTables.DiffTables(stage1, stage3, oldSchema, newSchema)
 			GlobalDiffIndexes.DiffIndexes(stage1, oldSchema, newSchema)
 			GlobalDiffTables.DiffClusters(stage1, oldSchema, newSchema)
@@ -261,7 +262,8 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			// when a table has an oldTableName oldSchemaName specified,
 			// GlobalDBX.RenamedTableCheckPointer() will modify these pointers to be the old table
 			oldSchema, oldTable = lib.GlobalDBX.RenamedTableCheckPointer(oldSchema, oldTable, newSchema, newTable)
-			GlobalDiffTables.DiffTable(stage1, stage3, oldSchema, newSchema, oldTable, newTable)
+			GlobalDiffTables.CreateTable(stage1, oldSchema, newSchema, newTable)
+			GlobalDiffTables.DiffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
 			GlobalDiffIndexes.DiffIndexesTable(stage1, oldSchema, oldTable, newSchema, newTable)
 			GlobalDiffTables.DiffClustersTable(stage1, oldSchema, oldTable, newSchema, newTable)
 			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypePrimaryKey)

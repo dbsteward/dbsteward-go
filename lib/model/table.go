@@ -51,6 +51,24 @@ func (self *Table) TryGetTableOptionMatching(target *TableOption) *TableOption {
 	return nil
 }
 
+func (self *Table) GetTableOptions(sqlFormat SqlFormat) []*TableOption {
+	out := make([]*TableOption, 0, len(self.TableOptions))
+	for _, opt := range self.TableOptions {
+		if opt.SqlFormat.Equals(sqlFormat) {
+			out = append(out, opt)
+		}
+	}
+	return out
+}
+
+func (self *Table) GetTableOptionStrMap(sqlFormat SqlFormat) map[string]string {
+	out := map[string]string{}
+	for _, opt := range self.GetTableOptions(sqlFormat) {
+		out[opt.Name] = opt.Value
+	}
+	return out
+}
+
 func (self *Table) SetTableOption(sqlFormat SqlFormat, name, value string) {
 	// TODO(feat) sanity check
 	self.AddTableOption(&TableOption{
@@ -215,14 +233,18 @@ func (self *Table) Merge(overlay *Table) {
 
 func (self *Table) MergeDataRows(overlay *DataRows) {
 	// TODO(go,core) data addendum stuff
-	// TODO(go,core) impl from xml_parser::data_rows_overlay()
+	// TODO(go,core) impl from xml_parser::data_rows_overlay(); should this maybe go in XmlParser instead?
 }
 
 func (self *TableOption) IdentityMatches(other *TableOption) bool {
-	if other == nil {
+	if self == nil || other == nil {
 		return false
 	}
 	return self.SqlFormat.Equals(other.SqlFormat) && strings.EqualFold(self.Name, other.Name)
+}
+
+func (self *TableOption) Equals(other *TableOption) bool {
+	return self.IdentityMatches(other) && strings.EqualFold(self.Value, other.Value)
 }
 
 func (self *TableOption) Merge(overlay *TableOption) {

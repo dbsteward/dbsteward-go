@@ -115,6 +115,9 @@ func (self *outputFileSegmenter) WriteSql(stmts ...ToSql) {
 		// make sure every sql statement ends with ;\n\n for consistency, and has no other leading/trailing whitespace
 		sql := stmt.ToSql(self.quoter)
 		sql = strings.TrimSpace(sql)
+		if sql == "" {
+			return
+		}
 		sql = strings.TrimSuffix(sql, ";")
 		self.Write("%s", sql+";\n\n")
 	}
