@@ -20,11 +20,46 @@ func NewColumn() *Column {
 type Column struct {
 }
 
-func (self *Column) GetReducedDefinition(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) sql.TableCreateColumn {
-	return sql.TableCreateColumn{
-		Column: column.Name,
-		Type:   self.GetColumnType(doc, schema, table, column),
+func (self *Column) GetReducedDefinition(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) sql.ColumnDefinition {
+	return sql.ColumnDefinition{
+		Name: column.Name,
+		Type: self.GetColumnType(doc, schema, table, column),
 	}
+}
+
+func (self *Column) GetFullDefinition(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column, addDefaults, includeNullDefinition, includeDefaultNextval bool) sql.ColumnDefinition {
+	out := sql.ColumnDefinition{
+		Name:     column.Name,
+		Type:     self.GetColumnType(doc, schema, table, column),
+		Default:  nil,
+		Nullable: nil,
+	}
+
+	if column.Default != "" {
+		if !includeDefaultNextval && self.HasDefaultNextval(column) {
+			// if the default is a nextval expression, don't specify it in the regular full definition
+			// because if the sequence has not been defined yet,
+			// the nextval expression will be evaluated inline and fail
+			lib.GlobalDBSteward.Info(
+				"Skipping %s.%s default expression \"%s\" - this default expression will be applied after all sequences have been created",
+				table.Name,
+				column.Name,
+				column.Default,
+			)
+		} else {
+			deftmp := sql.RawSql(column.Default)
+			out.Default = &deftmp
+		}
+	} else if !column.Nullable && addDefaults {
+		out.Default = GlobalColumn.GetDefaultValue(out.Type)
+	}
+
+	if includeNullDefinition {
+		nulltmp := column.Nullable
+		out.Nullable = &nulltmp
+	}
+
+	return out
 }
 
 func (self *Column) GetSetupSql(schema *model.Schema, table *model.Table, column *model.Column) []output.ToSql {
@@ -66,18 +101,29 @@ func (self *Column) GetColumnDefaultSql(schema *model.Schema, table *model.Table
 	if column.Default != "" {
 		out = append(out, &sql.ColumnSetDefault{
 			Column:  ref,
-			Default: column.Default,
+			Default: sql.RawSql(column.Default),
 		})
 	}
 
 	if !column.Nullable {
 		out = append(out, &sql.ColumnSetNull{
-			Column: ref,
-			Null:   false,
+			Column:   ref,
+			Nullable: false,
 		})
 	}
 
 	return out
+}
+
+func (self *Column) GetDefaultValue(coltype string) sql.ToSqlValue {
+	if util.IMatch("^(smallint|int.*|bigint|decimal.*|numeric.*|real|double precision|float.*|double|money)$", coltype) != nil {
+		return sql.IntValue(0)
+	} else if util.IMatch("^(character varying.*|varchar.*|char.*|text)$", coltype) != nil {
+		return sql.StringValue("")
+	} else if util.IMatch("^bool(ean)?$", coltype) != nil {
+		return sql.BoolValue(false)
+	}
+	return nil
 }
 
 func (self *Column) IsSerialType(column *model.Column) bool {
@@ -90,6 +136,11 @@ func (self *Column) HasDefaultNextval(column *model.Column) bool {
 		return len(util.IMatch(PatternNextval, column.Default)) > 0
 	}
 	return false
+}
+
+func (self *Column) HasDefaultNow(table *model.Table, column *model.Column) bool {
+	// TODO(feat) what about expressions with now/current_timestamp?
+	return strings.EqualFold(column.Default, "now()") || strings.EqualFold(column.Default, "current_timestamp")
 }
 
 func (self *Column) GetColumnType(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) string {

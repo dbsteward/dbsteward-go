@@ -1170,22 +1170,18 @@ func (self *Operations) ValueEscape(datatype string, value string, doc *model.De
 	return value
 }
 
-func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Table, columnName string, dataCol *model.DataCol) string {
+func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Table, columnName string, dataCol *model.DataCol) sql.ToSqlValue {
 	if dataCol.Null {
-		return "NULL"
+		return sql.ValueNull
 	}
 	if dataCol.Empty {
-		if self.EscapeStringValues {
-			return self.LiteralStringEscaped("")
-		} else {
-			return self.LiteralString("")
-		}
+		return sql.StringValue("")
 	}
 	if dataCol.Sql {
 		if strings.EqualFold(strings.TrimSpace(dataCol.Text), "default") {
-			return "DEFAULT"
+			return sql.ValueDefault
 		} else {
-			return fmt.Sprintf("(%s)", dataCol.Text)
+			return sql.ExpressionValue(dataCol.Text)
 		}
 	}
 
@@ -1194,15 +1190,25 @@ func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Ta
 		lib.GlobalDBSteward.Fatal("Failed to find table %s.%s column %s for default value check", schema.Name, table.Name, columnName)
 	}
 
+	// if col is zero length, make it default or db null
 	if dataCol.Text == "" {
+		// note: inlined and simplified from xml_parser::column_default_value
 		if col.Default == "" || strings.EqualFold(strings.TrimSpace(col.Default), "null") {
-			return "NULL"
+			return sql.ValueNull
 		}
-		return self.StripStringQuoting(col.Default)
+		// TODO(go,pgsql) xml_parser::column_default_value strips quoting, but I'm not sure why, that doesn't seem right
+		// if we have <column ... default="'foo'"/> then this would result in INSERT ... VALUES (..., foo, ...) instead of 'foo'
+		// we need to test this very thoroughly to establish intended behavior
+		// until then, we'll treat the default as literal sql, as in other locations in the code
+		// return self.StripStringQuoting(col.Default)
+		return sql.RawSql(col.Default)
 	}
 
 	valueType := GlobalColumn.GetColumnType(lib.GlobalDBSteward.NewDatabase, schema, table, col)
-	return self.LiteralValue(valueType, dataCol.Text)
+	// TODO(go,pgsql) I'd like to push sql value encoding/escpaing down to the sql package and the ToSqlValue interface
+	// which means LiteralValue should change to return a ToSqlValue, not a string. but that's going to be a bigger thing
+	// than I'm going to implement right now, so we're going to treat the LiteralValue return as RawSql
+	return sql.RawSql(self.LiteralValue(valueType, dataCol.Text))
 }
 
 func (self *Operations) StripStringQuoting(str string) string {

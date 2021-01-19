@@ -1,5 +1,5 @@
 -- example/someapp_v1_build.sql
--- full database definition file generated Tue, 19 Jan 2021 10:37:21 -0500
+-- full database definition file generated Tue, 19 Jan 2021 14:30:46 -0500
 BEGIN;
 
 
@@ -209,23 +209,32 @@ COMMENT ON FUNCTION _p_public_sql_user.insert_trigger() IS 'DBSteward auto-gener
 
 GRANT EXECUTE ON FUNCTION _p_public_sql_user.insert_trigger() TO someapp;
 
-ALTER TABLE public.user_status_list ALTER COLUMN is_visible SET DEFAULT true;
+ALTER TABLE public.user_status_list
+  ALTER COLUMN is_visible SET DEFAULT true;
 
-ALTER TABLE public.user_status_list ALTER COLUMN is_visible SET NOT NULL;
+ALTER TABLE public.user_status_list
+  ALTER COLUMN is_visible SET NOT NULL;
 
-ALTER TABLE public.user_status_list ALTER COLUMN can_login SET DEFAULT true;
+ALTER TABLE public.user_status_list
+  ALTER COLUMN can_login SET DEFAULT true;
 
-ALTER TABLE public.user_status_list ALTER COLUMN can_login SET NOT NULL;
+ALTER TABLE public.user_status_list
+  ALTER COLUMN can_login SET NOT NULL;
 
-ALTER TABLE public.user_status_list ALTER COLUMN user_status SET NOT NULL;
+ALTER TABLE public.user_status_list
+  ALTER COLUMN user_status SET NOT NULL;
 
-ALTER TABLE public.session_information ALTER COLUMN session_id SET NOT NULL;
+ALTER TABLE public.session_information
+  ALTER COLUMN session_id SET NOT NULL;
 
-ALTER TABLE public.group_list ALTER COLUMN group_create_time SET NOT NULL;
+ALTER TABLE public.group_list
+  ALTER COLUMN group_create_time SET NOT NULL;
 
-ALTER TABLE public.group_list ALTER COLUMN group_permission SET DEFAULT true;
+ALTER TABLE public.group_list
+  ALTER COLUMN group_permission SET DEFAULT true;
 
-ALTER TABLE public.group_list ALTER COLUMN group_deleted SET DEFAULT false;
+ALTER TABLE public.group_list
+  ALTER COLUMN group_deleted SET DEFAULT false;
 
 ALTER TABLE public.sql_user
   ADD CONSTRAINT sql_user_pkey PRIMARY KEY (user_id);

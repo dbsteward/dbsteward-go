@@ -4,6 +4,8 @@ This folder contains example applications of DBSteward.
 
 At the moment, this will be evolving as we implement more functionality. The diffs between two commits will show what's changed about sql generation in that commit.
 
+Can run everything with `example/run`
+
 ## Clean Build
 
 This generates the whole schema:

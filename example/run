@@ -1,0 +1,25 @@
+#!/bin/bash
+set -e -o pipefail
+cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1
+
+cd ..
+
+function clean() {
+  echo "Cleaning dir"
+  rm example/{someapp_v{1,2}_composite.xml,*.sql}
+}
+
+function build() {
+  echo "Running build..."
+  go run . --xml example/someapp_v1.xml "$@"
+}
+
+function diff() {
+  echo "Running diff..."
+  go run . --oldxml example/someapp_v1.xml --newxml example/someapp_v2.xml "$@"
+}
+
+clean
+build "$@"
+echo "------"
+diff "$@"

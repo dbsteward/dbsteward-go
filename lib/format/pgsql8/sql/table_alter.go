@@ -101,6 +101,15 @@ func (self *TableAlterPartSetSchema) GetAlterPartSql(q output.Quoter) string {
 	return fmt.Sprintf("SET SCHEMA %s", q.QuoteSchema(self.Name))
 }
 
+type TableAlterPartColumnSetDefault struct {
+	Column  string
+	Default ToSqlValue
+}
+
+func (self *TableAlterPartColumnSetDefault) GetAlterPartSql(q output.Quoter) string {
+	return fmt.Sprintf("ALTER COLUMN %s SET DEFAULT %s", self.Column, self.Default.GetValueSql(q))
+}
+
 type TableAlterPartColumnDropDefault struct {
 	Column string
 }
@@ -115,4 +124,43 @@ type TableAlterPartColumnDrop struct {
 
 func (self *TableAlterPartColumnDrop) GetAlterPartSql(q output.Quoter) string {
 	return fmt.Sprintf("DROP COLUMN %s", q.QuoteColumn(self.Column))
+}
+
+type TableAlterPartColumnRename struct {
+	Column  string
+	NewName string
+}
+
+func (self *TableAlterPartColumnRename) GetAlterPartSql(q output.Quoter) string {
+	return fmt.Sprintf("RENAME COLUMN %s TO %s", q.QuoteColumn(self.Column), q.QuoteColumn(self.NewName))
+}
+
+type TableAlterPartColumnCreate struct {
+	ColumnDef ColumnDefinition
+}
+
+func (self *TableAlterPartColumnCreate) GetAlterPartSql(q output.Quoter) string {
+	return fmt.Sprintf("ADD COLUMN %s", self.ColumnDef.GetSql(q))
+}
+
+type TableAlterPartColumnSetNull struct {
+	Column   string
+	Nullable bool
+}
+
+func (self *TableAlterPartColumnSetNull) GetAlterPartSql(q output.Quoter) string {
+	null := "NOT NULL"
+	if self.Nullable {
+		null = "NULL"
+	}
+	return fmt.Sprintf("ALTER COLUMN %s SET %s", self.Column, null)
+}
+
+type TableAlterPartColumnSetStatistics struct {
+	Column     string
+	Statistics int
+}
+
+func (self *TableAlterPartColumnSetStatistics) GetAlterPartSql(q output.Quoter) string {
+	return fmt.Sprintf("ALTER COLUMN %s SET STATISTICS %d", self.Column, self.Statistics)
 }

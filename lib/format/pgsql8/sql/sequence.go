@@ -99,7 +99,7 @@ type SequenceSerialSetValMax struct {
 func (self *SequenceSerialSetValMax) ToSql(q output.Quoter) string {
 	return (&SequenceSetVal{
 		Sequence:  &SequenceGetSerialName{self.Column},
-		Value:     &RawSql{fmt.Sprintf("MAX(%s)", self.Column.Quoted(q))},
+		Value:     RawSql(fmt.Sprintf("MAX(%s)", self.Column.Quoted(q))),
 		IsCalled:  true,
 		FromTable: self.Column.TableRef(),
 	}).ToSql(q)
@@ -115,7 +115,7 @@ func (self *SequenceSerialSetVal) ToSql(q output.Quoter) string {
 		Sequence: &SequenceGetSerialName{
 			Column: self.Column,
 		},
-		Value:    &RawIntValue{self.Value},
+		Value:    IntValue(self.Value),
 		IsCalled: true,
 	}).ToSql(q)
 }

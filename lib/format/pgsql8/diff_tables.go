@@ -1,6 +1,7 @@
 package pgsql8
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -94,6 +95,7 @@ func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter,
 			alters = append(alters, &sql.TableAlterPartSetStorageParams{params})
 		} else if strings.EqualFold(name, "tablespace") {
 			alters = append(alters, &sql.TableAlterPartSetTablespace{value})
+			// TODO(go,3) MoveTablespaceIndexes generates a whole function that just walks indexes and issues ALTER INDEXes. can we move that to this side?
 			stage1.WriteSql(&sql.TableMoveTablespaceIndexes{
 				Table:      ref,
 				Tablespace: value,
@@ -211,7 +213,99 @@ func (self *DiffTables) addDropTableColumns(agg *updateTableColumnsAgg, oldTable
 }
 
 func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+	// note that postgres treats identifiers as case-sensitive when quoted
+	// TODO(go,3) find a way to generalize/streamline this
+	caseSensitive := lib.GlobalDBSteward.QuoteAllNames || lib.GlobalDBSteward.QuoteColumnNames
 
+	for _, newColumn := range newTable.Columns {
+		if oldTable.TryGetColumnNamedCase(newColumn.Name, caseSensitive) != nil {
+			// old column exists, nothing to create
+			continue
+		}
+
+		if !lib.GlobalDBSteward.IgnoreOldNames && self.IsRenamedColumn(oldTable, newTable, newColumn) {
+			agg.after1 = append(agg.after1, &sql.Annotated{
+				Annotation: "column rename from oldColumnName specification",
+				Wrapped: &sql.ColumnRename{
+					Column:  sql.ColumnRef{newSchema.Name, newTable.Name, newColumn.OldColumnName},
+					NewName: newColumn.Name,
+				},
+			})
+			continue
+		}
+
+		// notice $include_null_definition is false
+		// this is because ADD COLUMNs with NOT NULL will fail when there are existing rows
+		agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnCreate{
+			// TODO(go,nth) clean up this call, get rid of booleans and global flag
+			ColumnDef: GlobalColumn.GetFullDefinition(lib.GlobalDBSteward.NewDatabase, newSchema, newTable, newColumn, GlobalDiff.AddDefaults, false, true),
+		})
+
+		// instead we put the NOT NULL defintion in stage3 schema changes once data has been updated in stage2 data
+		if !newColumn.Nullable {
+			agg.stage3 = append(agg.stage3, &sql.TableAlterPartColumnSetNull{
+				Column:   newColumn.Name,
+				Nullable: false,
+			})
+			// also, if it's defined, default the column in stage 1 so the SET NULL will actually pass in stage 3
+			if newColumn.Default != "" {
+				agg.after1 = append(agg.after1, &sql.DataUpdate{
+					Table:          sql.TableRef{newSchema.Name, newTable.Name},
+					UpdatedColumns: []string{newColumn.Name},
+					UpdatedValues:  []sql.ToSqlValue{sql.ValueDefault},
+					KeyColumns:     []string{newColumn.Name},
+					KeyValues:      []sql.ToSqlValue{sql.ValueNull},
+				})
+			}
+		}
+
+		// FS#15997 - dbsteward - replica inconsistency on added new columns with default now()
+		// slony replicas that add columns via DDL that have a default of NOW() will be out of sync
+		// because the data in those columns is being placed in as a default by the local db server
+		// to compensate, add UPDATE statements to make the these column's values NOW() from the master
+		if GlobalColumn.HasDefaultNow(newTable, newColumn) {
+			agg.after1 = append(agg.after1, &sql.Annotated{
+				Annotation: "has_default_now: this statement is to make sure new columns are in sync on replicas",
+				Wrapped: &sql.DataUpdate{
+					Table:          sql.TableRef{newSchema.Name, newTable.Name},
+					UpdatedColumns: []string{newColumn.Name},
+					UpdatedValues:  []sql.ToSqlValue{sql.RawSql(newColumn.Default)},
+				},
+			})
+		}
+
+		if GlobalDiff.AddDefaults && newColumn.Nullable {
+			agg.dropDefaultsCols = append(agg.dropDefaultsCols, newColumn.Name)
+		}
+
+		// some columns need to be filled with values before any new constraints can be applied
+		// this is accomplished by defining arbitrary SQL in the column element afterAddPre/PostStageX attribute
+		// TODO(go,nth) original code re-traverses doc->schema->table->column, and I'm not sure why; need to make sure this is well tested and reviewed
+		if newColumn.BeforeAddStage1 != "" {
+			agg.before1 = append(agg.before1, &sql.Annotated{
+				Annotation: fmt.Sprintf("from %s.%s.%s beforeAddStage1 definition", newSchema.Name, newTable.Name, newColumn.Name),
+				Wrapped:    sql.RawSql(newColumn.BeforeAddStage1),
+			})
+		}
+		if newColumn.AfterAddStage1 != "" {
+			agg.after1 = append(agg.after1, &sql.Annotated{
+				Annotation: fmt.Sprintf("from %s.%s.%s afterAddStage1 definition", newSchema.Name, newTable.Name, newColumn.Name),
+				Wrapped:    sql.RawSql(newColumn.AfterAddStage1),
+			})
+		}
+		if newColumn.BeforeAddStage3 != "" {
+			agg.before1 = append(agg.before1, &sql.Annotated{
+				Annotation: fmt.Sprintf("from %s.%s.%s beforeAddStage3 definition", newSchema.Name, newTable.Name, newColumn.Name),
+				Wrapped:    sql.RawSql(newColumn.BeforeAddStage3),
+			})
+		}
+		if newColumn.AfterAddStage3 != "" {
+			agg.after1 = append(agg.after1, &sql.Annotated{
+				Annotation: fmt.Sprintf("from %s.%s.%s afterAddStage3 definition", newSchema.Name, newTable.Name, newColumn.Name),
+				Wrapped:    sql.RawSql(newColumn.AfterAddStage3),
+			})
+		}
+	}
 }
 
 func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
@@ -253,6 +347,46 @@ func (self *DiffTables) IsRenamedTable(schema *model.Schema, table *model.Table)
 	// table.OldTableName does not exist in new schema
 	if oldSchema.TryGetTableNamed(table.OldTableName) != nil && schema.TryGetTableNamed(table.OldTableName) == nil {
 		lib.GlobalDBSteward.Info("Table %s used to be called %s", table.Name, table.OldTableName)
+		return true
+	}
+	return false
+}
+
+func (self *DiffTables) IsRenamedColumn(oldTable, newTable *model.Table, newColumn *model.Column) bool {
+	dbsteward := lib.GlobalDBSteward
+	util.Assert(!dbsteward.IgnoreOldNames, "should check IgnoreOldNames before calling IsRenamedColumn")
+
+	caseSensitive := false
+	if dbsteward.QuoteColumnNames || dbsteward.QuoteAllNames || dbsteward.SqlFormat.Equals(model.SqlFormatMysql5) {
+		for _, oldColumn := range oldTable.Columns {
+			if strings.EqualFold(oldColumn.Name, newColumn.Name) {
+				if oldColumn.Name != newColumn.Name && newColumn.OldColumnName == "" {
+					dbsteward.Fatal(
+						"Ambiguous operation! It looks like column name case changed between old_column %s.%s and new_column %s.%s",
+						oldTable.Name, oldColumn.Name, newTable.Name, newColumn.Name,
+					)
+				}
+				break
+			}
+		}
+		caseSensitive = true
+	}
+	if newColumn.OldColumnName == "" {
+		return false
+	}
+	if newTable.TryGetColumnNamedCase(newColumn.OldColumnName, caseSensitive) != nil {
+		// TODO(feat) what if we are both renaming the old column and creating a new one with the old name?
+		dbsteward.Fatal("oldColumnName panic - new table %s still contains column named %s", newTable.Name, newColumn.OldColumnName)
+	}
+	if oldTable.TryGetColumnNamedCase(newColumn.OldColumnName, caseSensitive) == nil {
+		dbsteward.Fatal("oldColumnName panic - old table %s does not contain column named %s", oldTable.Name, newColumn.OldColumnName)
+	}
+
+	// it is a new old named table rename if:
+	// newColumn.OldColumnName exists in old schema
+	// newColumn.OldColumnName does not exist in new schema
+	if oldTable.TryGetColumnNamedCase(newColumn.OldColumnName, caseSensitive) != nil && newTable.TryGetColumnNamedCase(newColumn.OldColumnName, caseSensitive) == nil {
+		dbsteward.Info("Column %s.%s used to be called %s", newTable.Name, newColumn.Name, newColumn.OldColumnName)
 		return true
 	}
 	return false
@@ -444,7 +578,7 @@ func (self *DiffTables) getOldRows(oldTable, newTable *model.Table) []*model.Dat
 func (self *DiffTables) buildDataInsert(schema *model.Schema, table *model.Table, row *model.DataRow) output.ToSql {
 	util.Assert(table.Rows != nil, "table.Rows should not be nil when calling buildDataInsert")
 	util.Assert(!row.Delete, "do not call buildDataInsert for a row marked for deletion")
-	values := make([]string, len(row.Columns))
+	values := make([]sql.ToSqlValue, len(row.Columns))
 	for i, col := range table.Rows.Columns {
 		values[i] = GlobalOperations.ColumnValueDefault(schema, table, col, row.Columns[i])
 	}
@@ -461,7 +595,7 @@ func (self *DiffTables) buildDataUpdate(schema *model.Schema, table *model.Table
 	util.Assert(!change.newRow.Delete, "do not call buildDataUpdate for a row marked for deletion")
 
 	updateCols := []string{}
-	updateVals := []string{}
+	updateVals := []sql.ToSqlValue{}
 	for i, newCol := range change.newRow.Columns {
 		newColName := table.Rows.Columns[i]
 
@@ -477,7 +611,7 @@ func (self *DiffTables) buildDataUpdate(schema *model.Schema, table *model.Table
 		}
 	}
 
-	keyVals := []string{}
+	keyVals := []sql.ToSqlValue{}
 	pkCols, ok := table.Rows.TryGetColsMatchingKeyCols(change.newRow, table.PrimaryKey)
 	if !ok {
 		lib.GlobalDBSteward.Fatal("Could not compare rows: could not find primary key columns %v in <rows columns=%v> in table %s.%s", table.PrimaryKey, table.Rows.Columns, schema.Name, table.Name)
@@ -497,7 +631,7 @@ func (self *DiffTables) buildDataUpdate(schema *model.Schema, table *model.Table
 }
 
 func (self *DiffTables) buildDataDelete(schema *model.Schema, table *model.Table, row *model.DataRow) output.ToSql {
-	keyVals := []string{}
+	keyVals := []sql.ToSqlValue{}
 	pkCols, ok := table.Rows.TryGetColsMatchingKeyCols(row, table.PrimaryKey)
 	if !ok {
 		lib.GlobalDBSteward.Fatal("Could not compare rows: could not find primary key columns %v in <rows columns=%v> in table %s.%s", table.PrimaryKey, table.Rows.Columns, schema.Name, table.Name)
@@ -507,8 +641,8 @@ func (self *DiffTables) buildDataDelete(schema *model.Schema, table *model.Table
 		keyVals = append(keyVals, GlobalOperations.ColumnValueDefault(schema, table, table.PrimaryKey[i], pkCol))
 	}
 	return &sql.DataDelete{
-		Table:   sql.TableRef{schema.Name, table.Name},
-		Columns: table.PrimaryKey,
-		Values:  keyVals,
+		Table:      sql.TableRef{schema.Name, table.Name},
+		KeyColumns: table.PrimaryKey,
+		KeyValues:  keyVals,
 	}
 }

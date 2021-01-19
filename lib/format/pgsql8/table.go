@@ -22,7 +22,7 @@ func NewTable() *Table {
 func (self *Table) GetCreationSql(schema *model.Schema, table *model.Table) []output.ToSql {
 	GlobalOperations.SetContextReplicaSetId(table.SlonySetId)
 
-	cols := []sql.TableCreateColumn{}
+	cols := []sql.ColumnDefinition{}
 	colSetup := []output.ToSql{}
 	for _, col := range table.Columns {
 		cols = append(cols, GlobalColumn.GetReducedDefinition(lib.GlobalDBSteward.NewDatabase, schema, table, col))
@@ -103,7 +103,7 @@ func (self *Table) GetDefaultNextvalSql(schema *model.Schema, table *model.Table
 			out = append(out, &sql.Annotated{
 				Wrapped: &sql.ColumnSetDefault{
 					Column:  sql.ColumnRef{schema.Name, table.Name, column.Name},
-					Default: column.Default,
+					Default: sql.RawSql(column.Default),
 				},
 				Annotation: "column default nextval expression being added post table creation",
 			})

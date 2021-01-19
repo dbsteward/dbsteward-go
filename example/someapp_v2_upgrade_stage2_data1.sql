@@ -1,5 +1,5 @@
 -- example/someapp_v2_upgrade_stage2_data1.sql
--- DBSteward stage 2 data definitions removed - generated Tue, 19 Jan 2021 10:37:52 -0500
+-- DBSteward stage 2 data definitions removed - generated Tue, 19 Jan 2021 14:30:46 -0500
 -- Old definition: example/someapp_v1_composite.xml
 -- New definition example/someapp_v2_composite.xml
 

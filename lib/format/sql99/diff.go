@@ -48,7 +48,7 @@ func (self *Diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *model.Definit
 		stage2.SetHeader("-- DBSteward stage 2 data definitions removed - generated %s\n%s", timestamp, oldSetNewSet)
 		stage3 = output.NewOutputFileSegmenter(dbsteward, self.lookup.Operations, upgradePrefix+"_stage3_schema", 1, dbsteward.OutputFileStatementLimit)
 		stage3.SetHeader("-- DBSteward stage 3 structure changes, constraints, and removals - generated %s\n%s", timestamp, oldSetNewSet)
-		stage4 = output.NewOutputFileSegmenter(dbsteward, self.lookup.Operations, upgradePrefix+"_stage4_schema", 1, dbsteward.OutputFileStatementLimit)
+		stage4 = output.NewOutputFileSegmenter(dbsteward, self.lookup.Operations, upgradePrefix+"_stage4_data", 1, dbsteward.OutputFileStatementLimit)
 		stage4.SetHeader("-- DBSteward stage 4 data definition changes and additions - generated %s\n%s", timestamp, oldSetNewSet)
 	}
 

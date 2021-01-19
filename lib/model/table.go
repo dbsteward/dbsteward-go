@@ -121,9 +121,18 @@ func (self *Table) GetColumnNamed(name string) (*Column, error) {
 }
 
 func (self *Table) TryGetColumnNamed(name string) *Column {
+	// TODO(feat) case insensitivity?
+	// TODO(go,3) case sensitivity & quoting
+	return self.TryGetColumnNamedCase(name, false)
+}
+
+func (self *Table) TryGetColumnNamedCase(name string, caseSensitive bool) *Column {
+	eq := strings.EqualFold
+	if caseSensitive {
+		eq = func(a, b string) bool { return a == b }
+	}
 	for _, column := range self.Columns {
-		// TODO(feat) case insensitivity?
-		if column.Name == name {
+		if eq(column.Name, name) {
 			return column
 		}
 	}

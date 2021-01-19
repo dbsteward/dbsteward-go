@@ -11,14 +11,16 @@ import (
 type Diff struct {
 	*sql99.Diff
 	AsTransaction      bool
+	AddDefaults        bool
 	OldTableDependency []*model.TableRef
 	NewTableDependency []*model.TableRef
 }
 
 func NewDiff() *Diff {
 	diff := &Diff{
-		AsTransaction: true, // TODO(go,pgsql8) where does this get set from?
 		Diff:          sql99.NewDiff(GlobalLookup),
+		AsTransaction: true,  // TODO(go,pgsql) where does this get set from?
+		AddDefaults:   false, // TODO(go,pgsql) where does this get set from?
 	}
 	diff.Diff.Diff = diff
 	return diff

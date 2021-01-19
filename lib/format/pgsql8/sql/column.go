@@ -25,44 +25,64 @@ type ColumnAlterStatistics struct {
 }
 
 func (self *ColumnAlterStatistics) ToSql(q output.Quoter) string {
-	return fmt.Sprintf(
-		"ALTER TABLE ONLY %s ALTER COLUMN %s SET STATISTICS %d;",
-		self.Column.TableRef().Qualified(q),
-		self.Column.Quoted(q),
-		self.Statistics,
-	)
+	return NewTableAlter(*self.Column.TableRef(), &TableAlterPartColumnSetStatistics{
+		Column:     self.Column.Column,
+		Statistics: self.Statistics,
+	}).ToSql(q)
 }
 
 type ColumnSetDefault struct {
 	Column  ColumnRef
-	Default string
+	Default ToSqlValue
 }
 
 func (self *ColumnSetDefault) ToSql(q output.Quoter) string {
-	// TODO(feat) handle default quoting?
-	return fmt.Sprintf(
-		"ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s;",
-		self.Column.TableRef().Qualified(q),
-		self.Column.Quoted(q),
-		self.Default,
-	)
+	return NewTableAlter(*self.Column.TableRef(), &TableAlterPartColumnSetDefault{
+		Column:  self.Column.Column,
+		Default: self.Default,
+	}).ToSql(q)
 }
 
 type ColumnSetNull struct {
-	Column ColumnRef
-	Null   bool
+	Column   ColumnRef
+	Nullable bool
 }
 
 func (self *ColumnSetNull) ToSql(q output.Quoter) string {
-	// TODO(feat) handle default quoting?
-	null := "NULL"
-	if !self.Null {
-		null = "NOT NULL"
+	return NewTableAlter(*self.Column.TableRef(), &TableAlterPartColumnSetNull{
+		Column:   self.Column.Column,
+		Nullable: self.Nullable,
+	}).ToSql(q)
+}
+
+type ColumnRename struct {
+	Column  ColumnRef
+	NewName string
+}
+
+func (self *ColumnRename) ToSql(q output.Quoter) string {
+	return NewTableAlter(*self.Column.TableRef(), &TableAlterPartColumnRename{
+		Column:  self.Column.Column,
+		NewName: self.NewName,
+	}).ToSql(q)
+}
+
+type ColumnDefinition struct {
+	Name     string
+	Type     string
+	Default  ToSqlValue
+	Nullable *bool
+}
+
+func (self *ColumnDefinition) GetSql(q output.Quoter) string {
+	sql := q.QuoteColumn(self.Name) + " " + self.Type
+
+	if self.Default != nil {
+		sql += " DEFAULT " + self.Default.GetValueSql(q)
 	}
-	return fmt.Sprintf(
-		"ALTER TABLE %s ALTER COLUMN %s SET %s",
-		self.Column.TableRef().Qualified(q),
-		self.Column.Quoted(q),
-		null,
-	)
+	if self.Nullable != nil && !*self.Nullable {
+		sql += " NOT NULL"
+	}
+
+	return sql
 }

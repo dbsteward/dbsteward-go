@@ -9,14 +9,9 @@ import (
 
 type TableCreate struct {
 	Table        TableRef
-	Columns      []TableCreateColumn
+	Columns      []ColumnDefinition
 	Inherits     *TableRef
 	OtherOptions []TableCreateOption // TODO make individual options first-class
-}
-
-type TableCreateColumn struct {
-	Column string
-	Type   string
 }
 
 type TableCreateOption struct {
@@ -27,7 +22,7 @@ type TableCreateOption struct {
 func (self *TableCreate) ToSql(q output.Quoter) string {
 	cols := []string{}
 	for _, col := range self.Columns {
-		cols = append(cols, fmt.Sprintf("%s %s", q.QuoteColumn(col.Column), col.Type))
+		cols = append(cols, col.GetSql(q))
 	}
 	colsql := ""
 	if len(cols) > 0 {

@@ -10,18 +10,47 @@ type ToSqlValue interface {
 	GetValueSql(q output.Quoter) string
 }
 
-type RawSql struct {
-	Sql string
+var ValueDefault = RawSql("DEFAULT")
+var ValueNull = RawSql("NULL")
+
+type RawSql string
+
+func (self RawSql) GetValueSql(q output.Quoter) string {
+	return string(self)
 }
 
-func (self *RawSql) GetValueSql(q output.Quoter) string {
-	return self.Sql
+func (self RawSql) ToSql(q output.Quoter) string {
+	return string(self)
 }
 
-type RawIntValue struct {
-	Value int
+type IntValue int
+
+func (self IntValue) GetValueSql(q output.Quoter) string {
+	return fmt.Sprintf("%d", int(self))
 }
 
-func (self *RawIntValue) GetValueSql(q output.Quoter) string {
-	return fmt.Sprintf("%d", self.Value)
+type BoolValue bool
+
+func (self BoolValue) GetValueSql(q output.Quoter) string {
+	return fmt.Sprintf("%t", bool(self))
+}
+
+type StringValue string
+
+func (self StringValue) GetValueSql(q output.Quoter) string {
+	return q.LiteralString(string(self))
+}
+
+// EscapedStringValues get turned into E'...'
+type EscapedStringValue string
+
+func (self EscapedStringValue) GetValueSql(q output.Quoter) string {
+	return q.LiteralStringEscaped(string(self))
+}
+
+// ExpressionValues are self-contained SQL expressions wrapped in parentheses
+type ExpressionValue string
+
+func (self ExpressionValue) GetValueSql(q output.Quoter) string {
+	return fmt.Sprintf("(%s)", string(self))
 }
