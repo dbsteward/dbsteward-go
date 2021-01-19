@@ -158,6 +158,11 @@ func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegme
 	stage3.WriteSql(agg.before3...)
 
 	ref := sql.TableRef{newSchema.Name, newTable.Name}
+	useReplicationOwner := false
+	ownRole := newTable.Owner
+	if ownRole == "" {
+		ownRole = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, model.RoleOwner)
+	}
 	if newTable.SlonyId != nil {
 		// slony will make the alter table statement changes as its super user
 		// which if the db owner is different,
@@ -165,17 +170,57 @@ func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegme
 		// ERROR:  55000: sequence must have same owner as table it is linked to
 		// so if the alter statement contains a new serial column,
 		// change the user to the slony user for the alter, then (see similar block below)
+		for _, part := range agg.stage1 {
+			// unwrap annotations
+			if annot, ok := part.(*sql.TableAlterPartAnnotation); ok {
+				part = annot.Wrapped
+			}
 
-		// TODO
+			// inspect the alter table parts for indications that we're creating a serial column
+			switch pt := part.(type) {
+			case *sql.TableAlterPartColumnCreate:
+				if GlobalDataType.IsSerialType(pt.ColumnDef.Type) {
+					useReplicationOwner = true
+				}
+			case *sql.TableAlterPartColumnChangeType:
+				if GlobalDataType.IsSerialType(pt.Type) {
+					useReplicationOwner = true
+				}
+			}
+
+			if useReplicationOwner {
+				break
+			}
+		}
+
+		repRole := lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, model.RoleReplication)
+		if repRole == "" || repRole == ownRole {
+			useReplicationOwner = false
+		}
+
+		if useReplicationOwner {
+			stage1.WriteSql(&sql.Annotated{
+				Annotation: "postgres needs to be appeased by making the owner the user we are executing as when pushing DDL through slony",
+				Wrapped: &sql.TableAlterOwner{
+					Table: ref,
+					Role:  repRole,
+				},
+			})
+		}
 	}
 	stage1.WriteSql(&sql.TableAlterParts{
 		Table: ref,
 		Parts: agg.stage1,
 	})
-	if newTable.SlonyId != nil {
+	if useReplicationOwner {
 		// replicated table? put ownership back
-
-		// TODO
+		stage1.WriteSql(&sql.Annotated{
+			Annotation: "postgresql has been appeased, see above",
+			Wrapped: &sql.TableAlterOwner{
+				Table: ref,
+				Role:  ownRole,
+			},
+		})
 	}
 
 	stage3.WriteSql(&sql.TableAlterParts{
@@ -309,7 +354,103 @@ func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTab
 }
 
 func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+	dbsteward := lib.GlobalDBSteward
 
+	// note that postgres treats identifiers as case-sensitive when quoted
+	// TODO(go,3) find a way to generalize/streamline this
+	caseSensitive := dbsteward.QuoteAllNames || dbsteward.QuoteColumnNames
+
+	for _, newColumn := range newTable.Columns {
+		oldColumn := oldTable.TryGetColumnNamedCase(newColumn.Name, caseSensitive)
+		if oldColumn == nil {
+			// old table does not contain column, CREATE handled by addCreateTableColumns
+			continue
+		}
+		if !dbsteward.IgnoreOldNames && self.IsRenamedColumn(oldTable, newTable, newColumn) {
+			// column is renamed, RENAME is handled by addCreateTableColumns
+			// TODO(feat) doens't this mean the ONLY change to a renamed column is the RENAME? That doesn't seem right, could lead to bad data
+			continue
+		}
+
+		// TODO(go,pgsql) orig code calls (oldDB, *newSchema*, oldTable, oldColumn) but that seems wrong, need to validate this
+		oldType := GlobalColumn.GetColumnType(dbsteward.OldDatabase, newSchema, oldTable, oldColumn)
+		newType := GlobalColumn.GetColumnType(dbsteward.NewDatabase, newSchema, newTable, newColumn)
+
+		if !GlobalDataType.IsLinkedTableType(oldType) && GlobalDataType.IsLinkedTableType(newType) {
+			// TODO(feat) can we remove this restriction? or is this a postgres thing?
+			dbsteward.Fatal(
+				"Column %s.%s.%s has linked type %s. Column types cannot be altered to serial. If this column cannot be recreated as part of database change control, a user defined serial should be created, and corresponding nextval() defined as the default for the column.",
+				newSchema.Name, newTable.Name, newColumn.Name, newType,
+			)
+		}
+
+		// TODO(feat) should this be case-insensitive?
+		if oldType != newType {
+			// ALTER TYPE ... USING support by looking up the new type in the xml definition
+			alterType := &sql.TableAlterPartColumnChangeType{
+				Column: newColumn.Name,
+				Type:   newType,
+			}
+			if newColumn.ConvertUsing != "" {
+				expr := sql.ExpressionValue(newColumn.ConvertUsing)
+				alterType.Using = &expr
+			}
+			agg.stage1 = append(agg.stage1, &sql.TableAlterPartAnnotation{
+				Annotation: "changing from type " + oldType,
+				Wrapped:    alterType,
+			})
+		}
+
+		if oldColumn.Default != newColumn.Default {
+			if newColumn.Default == "" {
+				agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnDropDefault{newColumn.Name})
+			} else {
+				agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnSetDefault{newColumn.Name, sql.RawSql(newColumn.Default)})
+			}
+		}
+
+		if oldColumn.Nullable != newColumn.Nullable {
+			if newColumn.Nullable {
+				agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnSetNull{newColumn.Name, true})
+			} else {
+				if GlobalDiff.AddDefaults {
+					if defaultVal := GlobalColumn.GetDefaultValue(newType); defaultVal != nil {
+						agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnSetDefault{newColumn.Name, defaultVal})
+						agg.dropDefaultsCols = append(agg.dropDefaultsCols, newColumn.Name)
+					}
+				}
+
+				// if the default value is defined in the dbsteward XML
+				// set the value of the column to the default in end of stage 1 so that NOT NULL can be applied in stage 3
+				// this way custom <sql> tags can be avoided for upgrade generation if defaults are specified
+				if newColumn.Default != "" {
+					agg.after1 = append(agg.after1, &sql.Annotated{
+						Annotation: "make modified column that is null the default value before NOT NULL hits",
+						Wrapped: &sql.DataUpdate{
+							Table:          sql.TableRef{newSchema.Name, newTable.Name},
+							UpdatedColumns: []string{newColumn.Name},
+							UpdatedValues:  []sql.ToSqlValue{sql.RawSql(newColumn.Default)},
+							KeyColumns:     []string{newColumn.Name},
+							KeyValues:      []sql.ToSqlValue{sql.ValueNull},
+						},
+					})
+				}
+
+				agg.stage3 = append(agg.stage3, &sql.TableAlterPartColumnSetNull{newColumn.Name, false})
+			}
+		}
+
+		// drop sequence and default if converting from serial to int
+		if GlobalDataType.IsSerialType(oldColumn.Type) && GlobalDataType.IsIntType(newColumn.Type) {
+			agg.before3 = append(agg.before3, &sql.SequenceDrop{
+				Sequence: sql.SequenceRef{
+					Schema:   newSchema.Name,
+					Sequence: GlobalOperations.BuildSequenceName(newSchema.Name, newTable.Name, newColumn.Name),
+				},
+			})
+			agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnDropDefault{newColumn.Name})
+		}
+	}
 }
 
 func (self *DiffTables) checkPartition(oldTable, newTable *model.Table) {

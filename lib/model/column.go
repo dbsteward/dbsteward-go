@@ -16,6 +16,7 @@ type Column struct {
 	Check            string           `xml:"check,attr,omitempty"`
 	SerialStart      *int             `xml:"serialStart,attr,omitempty"`
 	OldColumnName    string           `xml:"oldColumnName,attr,omitempty"`
+	ConvertUsing     string           `xml:"convertUsing,attr,omitempty"`
 	ForeignSchema    string           `xml:"foreignSchema,attr,omitempty"`
 	ForeignTable     string           `xml:"foreignTable,attr,omitempty"`
 	ForeignColumn    string           `xml:"foreignColumn,attr,omitempty"`

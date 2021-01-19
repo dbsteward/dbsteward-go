@@ -127,8 +127,7 @@ func (self *Column) GetDefaultValue(coltype string) sql.ToSqlValue {
 }
 
 func (self *Column) IsSerialType(column *model.Column) bool {
-	// TODO(go,pgsql) consolidate with GlobalDataType.IsLinkedType?
-	return util.IIndexOfStr(column.Type, []string{DataTypeSerial, DataTypeBigSerial}) >= 0
+	return GlobalDataType.IsSerialType(column.Type)
 }
 
 func (self *Column) HasDefaultNextval(column *model.Column) bool {
@@ -143,7 +142,14 @@ func (self *Column) HasDefaultNow(table *model.Table, column *model.Column) bool
 	return strings.EqualFold(column.Default, "now()") || strings.EqualFold(column.Default, "current_timestamp")
 }
 
+// TODO(go,3) it would be super if types had dedicated types/values
 func (self *Column) GetColumnType(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) string {
+	if column == nil {
+		// shortcut to make caller code slightly nicer
+		// TODO(go,nth) should we make this an assert instead?
+		return ""
+	}
+
 	// if it is a foreign keyed column, solve for the foreign key type
 	if column.ForeignTable != "" {
 		// TODO(feat) what about compound FKs?

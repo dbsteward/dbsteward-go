@@ -26,13 +26,13 @@ func (self *SequenceCreate) ToSql(q output.Quoter) string {
 		ddl += fmt.Sprintf("\n  MINVALUE %d", *self.Min)
 	} else {
 		// NOTE: this is technically not needed, NO MINVALUE is the default
-		ddl += fmt.Sprintf("\n  NO MINVALUE")
+		ddl += "\n  NO MINVALUE"
 	}
 	if self.Max != nil {
 		ddl += fmt.Sprintf("\n  MAXVALUE %d", *self.Max)
 	} else {
 		// NOTE: this is technically not needed, NO MINVALUE is the default
-		ddl += fmt.Sprintf("\n  NO MAXVALUE")
+		ddl += "\n  NO MAXVALUE"
 	}
 	if self.Start != nil {
 		ddl += fmt.Sprintf("\n  START WITH %d", *self.Start)
@@ -47,6 +47,15 @@ func (self *SequenceCreate) ToSql(q output.Quoter) string {
 		ddl += "\n  OWNED BY " + self.OwnedBy
 	}
 	return ddl + ";"
+}
+
+type SequenceDrop struct {
+	Sequence SequenceRef
+}
+
+func (self *SequenceDrop) ToSql(q output.Quoter) string {
+	// TODO(feat) if exists?
+	return fmt.Sprintf("DROP SEQUENCE IF EXISTS %s;", self.Sequence.Qualified(q))
 }
 
 type SequenceGrant struct {

@@ -91,6 +91,13 @@ func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataT
 }
 
 func (self *DataType) IsLinkedTableType(spec string) bool {
-	// TODO(go,pgsql) see pgsql8::PATTERN_TABLE_LINKED_TYPES
-	return false
+	return self.IsSerialType(spec)
+}
+
+func (self *DataType) IsSerialType(spec string) bool {
+	return strings.EqualFold(spec, DataTypeSerial) || strings.EqualFold(spec, DataTypeBigSerial)
+}
+
+func (self *DataType) IsIntType(spec string) bool {
+	return util.IIndex(spec, "int") >= 0
 }

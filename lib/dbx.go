@@ -176,6 +176,9 @@ func (self *DBX) EnumRegex(doc *model.Definition) string {
 }
 
 func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
+	// TODO(go,nth) make this output in a deterministic order. due to the map iteration
+	// it causes us to output sql in a different order every build
+
 	// first, build forward and reverse adjacency lists
 	// forwards: a mapping of local table => foreign tables that it references
 	// reverse: a mapping of foreign table => local tables that reference it

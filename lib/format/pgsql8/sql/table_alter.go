@@ -27,12 +27,26 @@ func (self *TableAlterParts) ToSql(q output.Quoter) string {
 		if partSql == "" {
 			continue
 		}
+		if parts != "" {
+			parts += ","
+		}
 		parts += "\n  " + partSql
 	}
 	if parts == "" {
 		return ""
 	}
 	return fmt.Sprintf("ALTER TABLE %s%s;", self.Table.Qualified(q), parts)
+}
+
+type TableAlterPartAnnotation struct {
+	Annotation string
+	Wrapped    TableAlterPart
+}
+
+func (self *TableAlterPartAnnotation) GetAlterPartSql(q output.Quoter) string {
+	// we use /* */ here instead of -- to avoid any issues with formatting subsequent
+	// parts on the same line. indent the second line to match with TableAlterParts.ToSql
+	return fmt.Sprintf("/* %s */\n  %s", strings.TrimSpace(self.Annotation), self.Wrapped.GetAlterPartSql(q))
 }
 
 type TableAlterPartOwner struct {
@@ -149,11 +163,11 @@ type TableAlterPartColumnSetNull struct {
 }
 
 func (self *TableAlterPartColumnSetNull) GetAlterPartSql(q output.Quoter) string {
-	null := "NOT NULL"
+	op := "SET"
 	if self.Nullable {
-		null = "NULL"
+		op = "DROP"
 	}
-	return fmt.Sprintf("ALTER COLUMN %s SET %s", self.Column, null)
+	return fmt.Sprintf("ALTER COLUMN %s %s NOT NULL", self.Column, op)
 }
 
 type TableAlterPartColumnSetStatistics struct {
@@ -163,4 +177,18 @@ type TableAlterPartColumnSetStatistics struct {
 
 func (self *TableAlterPartColumnSetStatistics) GetAlterPartSql(q output.Quoter) string {
 	return fmt.Sprintf("ALTER COLUMN %s SET STATISTICS %d", self.Column, self.Statistics)
+}
+
+type TableAlterPartColumnChangeType struct {
+	Column string
+	Type   string
+	Using  *ExpressionValue
+}
+
+func (self *TableAlterPartColumnChangeType) GetAlterPartSql(q output.Quoter) string {
+	sql := fmt.Sprintf("ALTER COLUMN %s TYPE %s", q.QuoteColumn(self.Column), self.Type)
+	if self.Using != nil {
+		sql += " USING " + self.Using.GetValueSql(q)
+	}
+	return sql
 }

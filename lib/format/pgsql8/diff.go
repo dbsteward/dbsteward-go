@@ -256,7 +256,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			newTable := newEntry.Table
 			var oldTable *model.Table
 			if oldSchema != nil {
-				oldSchema.TryGetTableNamed(newTable.Name)
+				oldTable = oldSchema.TryGetTableNamed(newTable.Name)
 			}
 
 			// if they are defined in the old definition,

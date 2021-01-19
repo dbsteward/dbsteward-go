@@ -68,7 +68,7 @@ func (self *DataUpdate) ToSql(q output.Quoter) string {
 	)
 
 	if len(keys) > 0 {
-		sql += "\n" + strings.Join(keys, "  AND ")
+		sql += "\nWHERE " + strings.Join(keys, "  AND\n  ")
 	}
 
 	return sql + ";"
