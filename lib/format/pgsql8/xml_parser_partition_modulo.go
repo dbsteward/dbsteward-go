@@ -180,6 +180,17 @@ func (self *XmlParser) createModuloPartitionTrigger(schema *model.Schema, table 
 	})
 }
 
+func (self *XmlParser) checkModuloPartitionChange(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+	oldOpts := newModuloPartition(oldSchema, oldTable)
+	newOpts := newModuloPartition(newSchema, newTable)
+	if oldOpts.parts != newOpts.parts {
+		lib.GlobalDBSteward.Fatal("Changing the number of partitions in a table will lead to data loss: %s.%s", newSchema.Name, newTable.Name)
+	}
+	if oldOpts.column != newOpts.column {
+		lib.GlobalDBSteward.Fatal("Changing the paritioning column in a table will lead to data loss: %s.%s", newSchema.Name, newTable.Name)
+	}
+}
+
 func simpleBuildIdentifier(prefix, name, suffix string) string {
 	remaining := MAX_IDENT_LENGTH - len(prefix) - len(suffix)
 	return prefix + name[0:util.IntMin(remaining, len(name))] + suffix

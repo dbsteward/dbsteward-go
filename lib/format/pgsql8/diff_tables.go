@@ -43,7 +43,7 @@ func (self *DiffTables) DiffTable(stage1, stage3 output.OutputFileSegmenter, old
 
 	self.updateTableOptions(stage1, oldSchema, oldTable, newSchema, newTable)
 	self.updateTableColumns(stage1, stage3, oldTable, newSchema, newTable)
-	self.checkPartition(oldTable, newTable)
+	self.checkPartition(oldSchema, oldTable, newSchema, newTable)
 	self.checkInherits(stage1, oldTable, newSchema, newTable)
 	self.addAlterStatistics(stage1, oldTable, newSchema, newTable)
 }
@@ -453,16 +453,51 @@ func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTab
 	}
 }
 
-func (self *DiffTables) checkPartition(oldTable, newTable *model.Table) {
-
+func (self *DiffTables) checkPartition(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+	if oldTable.Partitioning == nil && newTable.Partitioning == nil {
+		return
+	}
+	if oldTable.Partitioning == nil || newTable.Partitioning == nil {
+		// TODO(go,3) can we make this happen?
+		lib.GlobalDBSteward.Fatal("Changing partition status of a table may lead to data loss: %s", oldTable.Name)
+	}
+	if newTable.OldTableName != "" {
+		// TODO(go,3) can it be?
+		lib.GlobalDBSteward.Fatal("Changing a parititioned table's name is not supported")
+	}
+	// XmlParser has the rest of this knowledge
+	GlobalXmlParser.CheckPartitionChange(oldSchema, oldTable, newSchema, newTable)
 }
 
 func (self *DiffTables) checkInherits(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+	if oldTable.InheritsSchema == "" && oldTable.InheritsTable == "" && newTable.InheritsSchema == "" && newTable.InheritsTable == "" {
+		return
+	}
 
+	if (oldTable.InheritsSchema == "" && oldTable.InheritsTable == "") != (newTable.InheritsSchema == "" && newTable.InheritsTable == "") {
+		lib.GlobalDBSteward.Fatal("Changing table inheritance is not supported in %s.%s", newSchema.Name, newTable.Name)
+	}
 }
 
 func (self *DiffTables) addAlterStatistics(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+	for _, newColumn := range newTable.Columns {
+		oldColumn := oldTable.TryGetColumnNamed(newColumn.Name)
+		if oldColumn == nil {
+			continue
+		}
 
+		if newColumn.Statistics != nil && (oldColumn.Statistics == nil || *oldColumn.Statistics != *newColumn.Statistics) {
+			stage1.WriteSql(&sql.ColumnAlterStatistics{
+				Column:     sql.ColumnRef{newSchema.Name, newTable.Name, newColumn.Name},
+				Statistics: *newColumn.Statistics,
+			})
+		} else if oldColumn.Statistics != nil && newColumn.Statistics == nil {
+			stage1.WriteSql(&sql.ColumnAlterStatistics{
+				Column:     sql.ColumnRef{newSchema.Name, newTable.Name, newColumn.Name},
+				Statistics: -1,
+			})
+		}
+	}
 }
 
 func (self *DiffTables) IsRenamedTable(schema *model.Schema, table *model.Table) bool {
