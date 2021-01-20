@@ -16,3 +16,13 @@ func (self *Language) Merge(overlay *Language) {
 	self.Handler = overlay.Handler
 	self.Validator = overlay.Validator
 }
+
+func (self *Language) Equals(other *Language) bool {
+	if self == nil || other == nil {
+		return false
+	}
+	return self.Trusted == other.Trusted &&
+		self.Procedural == other.Procedural &&
+		self.Handler == other.Handler &&
+		self.Validator == other.Validator
+}
