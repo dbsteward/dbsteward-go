@@ -283,6 +283,8 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			GlobalDiffTables.DropTable(stage3, oldSchema, oldTable, newSchema)
 		}
 	}
+
+	GlobalDiffViews.CreateViewsOrdered(stage3, dbsteward.OldDatabase, dbsteward.NewDatabase)
 }
 
 func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {

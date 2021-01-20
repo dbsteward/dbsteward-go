@@ -1,5 +1,5 @@
 -- example/someapp_v2_upgrade_stage3_schema1.sql
--- DBSteward stage 3 structure changes, constraints, and removals - generated Wed, 20 Jan 2021 11:04:23 -0500
+-- DBSteward stage 3 structure changes, constraints, and removals - generated Wed, 20 Jan 2021 11:08:00 -0500
 -- Old definition: example/someapp_v1_composite.xml
 -- New definition example/someapp_v2_composite.xml
 
@@ -12,6 +12,11 @@ ALTER TABLE public.sql_user
   ALTER COLUMN user_access_level_id SET NOT NULL;
 
 -- sql_user DROP COLUMN somecol omitted: new column somecol1 indicates it is the replacement for somecol;
+
+CREATE OR REPLACE VIEW public.group_list_view AS
+  SELECT * FROM public.group_list WHERE group_deleted = FALSE AND group_visible = TRUE;
+
+ALTER VIEW public.group_list_view OWNER TO pgsql;
 
 GRANT SELECT ON TABLE public.group_list_view TO someapp;
 
