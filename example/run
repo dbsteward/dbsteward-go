@@ -6,7 +6,7 @@ cd ..
 
 function clean() {
   echo "Cleaning dir"
-  rm example/{someapp_v{1,2}_composite.xml,*.sql}
+  rm -f example/{someapp_v{1,2}_composite.xml,*.sql}
 }
 
 function build() {

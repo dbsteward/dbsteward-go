@@ -276,5 +276,13 @@ type TableRef struct {
 }
 
 func (self TableRef) String() string {
-	return fmt.Sprintf("%s.%s", self.Schema.Name, self.Table.Name)
+	schema := "<nil>"
+	if self.Schema != nil {
+		schema = self.Schema.Name
+	}
+	table := "<nil>"
+	if self.Table != nil {
+		table = self.Table.Name
+	}
+	return fmt.Sprintf("%s.%s", schema, table)
 }

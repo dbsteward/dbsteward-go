@@ -1,5 +1,5 @@
 -- example/someapp_v1_build.sql
--- full database definition file generated Tue, 19 Jan 2021 20:20:49 -0500
+-- full database definition file generated Tue, 19 Jan 2021 21:20:57 -0500
 BEGIN;
 
 
@@ -260,6 +260,12 @@ ALTER TABLE _p_public_sql_user.partition_2
 ALTER TABLE _p_public_sql_user.partition_3
   ADD CONSTRAINT partition_3_pkey PRIMARY KEY (user_id);
 
+ALTER TABLE public.sql_user
+  ADD CONSTRAINT user_name_unq UNIQUE (user_name);
+
+ALTER TABLE public.sql_user
+  ADD CONSTRAINT sql_user_user_status_list_id_fkey FOREIGN KEY (user_status_list_id) REFERENCES public.user_status_list (user_status_list_id);
+
 ALTER TABLE _p_public_sql_user.partition_0
   ADD CONSTRAINT sql_user_p_0_chk CHECK ((user_id % 4) = 0);
 
@@ -295,12 +301,6 @@ ALTER TABLE _p_public_sql_user.partition_3
 
 ALTER TABLE _p_public_sql_user.partition_3
   ADD CONSTRAINT p3_user_status_list_id_fk FOREIGN KEY (user_status_list_id) REFERENCES public.user_status_list (user_status_list_id);
-
-ALTER TABLE public.sql_user
-  ADD CONSTRAINT user_name_unq UNIQUE (user_name);
-
-ALTER TABLE public.sql_user
-  ADD CONSTRAINT sql_user_user_status_list_id_fkey FOREIGN KEY (user_status_list_id) REFERENCES public.user_status_list (user_status_list_id);
 
 ALTER TABLE public.session_information
   ADD CONSTRAINT session_information_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.sql_user (user_id);

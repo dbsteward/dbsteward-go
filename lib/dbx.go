@@ -182,21 +182,76 @@ func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
 	// first, build forward and reverse adjacency lists
 	// forwards: a mapping of local table => foreign tables that it references
 	// reverse: a mapping of foreign table => local tables that reference it
-	forward := map[model.TableRef][]model.TableRef{}
 	reverse := map[model.TableRef][]model.TableRef{}
+
+	// forward is not actually a `map`, because map iteration is random, and we need it to be
+	// deterministic so our output stops changing all the time. we'll have to give up a little
+	// performance until someone gets brave/bored enough to implement an actual ordered map
+	type forwardEntry struct {
+		local   model.TableRef
+		foreign *[]model.TableRef
+	}
+	forward := []forwardEntry{}
+
+	// a helper to "index" the forward "map". returns a pointer to slice so callers can
+	// manipulate the value as if it was a map
+	forwardGet := func(local model.TableRef) *[]model.TableRef {
+		for _, entry := range forward {
+			if entry.local == local {
+				return entry.foreign
+			}
+		}
+		// did not find, emulate map behavior and insert a key with zero value and return that
+		// except in our case we're initializing the slice so we can take a pointer to it
+		entry := forwardEntry{local, &[]model.TableRef{}}
+		forward = append(forward, entry)
+		return entry.foreign
+	}
+
+	// just like builtin delete(), removes the key from the "map"
+	forwardDelete := func(local model.TableRef) {
+		sub := forward[:0]
+		for _, x := range forward {
+			if x.local != local {
+				sub = append(sub, x)
+			}
+		}
+		for i := len(sub); i < len(forward); i++ {
+			forward[i] = forwardEntry{}
+		}
+		forward = sub
+	}
+
+	// a quick helper to cut down on complexity below, see https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
+	// HACK: this is, IMHO, a really bullshit and footgunny method to do this efficiently
+	remove := func(slice []model.TableRef, target model.TableRef) []model.TableRef {
+		b := slice[:0]
+		for _, x := range slice {
+			if x != target {
+				b = append(b, x)
+			}
+		}
+		// garbage collect
+		for i := len(b); i < len(slice); i++ {
+			slice[i] = model.TableRef{}
+		}
+		return b
+	}
+
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
 			curr := model.TableRef{schema, table}
 			// initialize them so we know the node is there, even if it has no dependencies
-			if len(forward[curr]) == 0 {
-				forward[curr] = []model.TableRef{}
+			foreigns := forwardGet(curr)
+			if len(*foreigns) == 0 {
+				*foreigns = []model.TableRef{}
 			}
 			if len(reverse[curr]) == 0 {
 				reverse[curr] = []model.TableRef{}
 			}
 
 			for _, dep := range self.getTableDependencies(doc, schema, table) {
-				forward[curr] = append(forward[curr], dep)
+				*foreigns = append(*foreigns, dep)
 				reverse[dep] = append(reverse[dep], curr)
 			}
 		}
@@ -251,54 +306,43 @@ func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
 		if at any point there are no entries in `forward` with len = 0, there is a cycle
 	*/
 
-	// a quick helper to cut down on complexity below, see https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
-	// HACK: this is, IMHO, a really bullshit and footgunny method to do this efficiently
-	remove := func(target model.TableRef, slice []model.TableRef) []model.TableRef {
-		b := slice[:0]
-		for _, x := range slice {
-			if x != target {
-				b = append(b, x)
-			}
-		}
-		// garbage collect
-		for i := len(b); i < len(slice); i++ {
-			slice[i] = model.TableRef{}
-		}
-		return b
-	}
-
 	out := []*model.TableRef{}
 	i := 0
 	for len(forward) > 0 {
 		// fmt.Printf("%d ----\n", i)
-		// fmt.Printf("forward:\n", name)
-		// for key, vals := range forward {
-		// 	fmt.Printf("  %s => %v\n", key, vals)
+		// fmt.Printf("forward:\n")
+		// for _, entry := range forward {
+		// 	fmt.Printf("  %s => %v\n", entry.local, entry.foreign)
 		// }
-		// fmt.Printf("reverse:\n", name)
+		// fmt.Printf("reverse:\n")
 		// for key, vals := range reverse {
 		// 	fmt.Printf("  %s => %v\n", key, vals)
 		// }
 		i += 1
-		atLeastOne := false
-		for local, foreigns := range forward {
-			if len(foreigns) == 0 {
-				// fmt.Printf("%s has no foreigns\n", local)
+		toRemove := []model.TableRef{}
+		for _, entry := range forward {
+			local := entry.local
+			foreigns := entry.foreign
+			if len(*foreigns) == 0 {
+				// fmt.Printf("%s has no foreigns, popping it\n", local)
 				// GOTCHA: go reuses the same memory for loop iteration variables,
 				// so we need to copy it before we make a pointer to it
 				clone := local
 				out = append(out, &clone)
-				atLeastOne = true
 
-				// remove it from the graph now
-				delete(forward, local)
-				for _, dependent := range reverse[local] {
-					forward[dependent] = remove(local, forward[dependent])
-				}
-				delete(reverse, local)
+				// mark it for removal. We need to do it in a separate pass so we don't mutate this loop slice
+				toRemove = append(toRemove, local)
 			}
 		}
-		if !atLeastOne {
+		for _, local := range toRemove {
+			forwardDelete(local)
+			for _, dependent := range reverse[local] {
+				deps := forwardGet(dependent)
+				*deps = remove(*deps, local)
+			}
+			delete(reverse, local)
+		}
+		if len(toRemove) == 0 {
 			// TODO(go,core) add diagnostics about what the cycle is
 			GlobalDBSteward.Fatal("Dependency cycle detected!")
 		}
