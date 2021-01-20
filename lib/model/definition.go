@@ -83,6 +83,9 @@ func (self *Definition) AddSchema(schema *Schema) {
 }
 
 func (self *Definition) TryGetLanguageNamed(name string) *Language {
+	if self == nil {
+		return nil
+	}
 	for _, lang := range self.Languages {
 		// TODO(feat) case insensitivity
 		if lang.Name == name {
@@ -115,6 +118,9 @@ func (self *Definition) AddCustomRole(role string) {
 }
 
 func (self *Definition) TryGetSqlMatching(target *Sql) *Sql {
+	if self == nil {
+		return nil
+	}
 	for _, sql := range self.Sql {
 		if sql.IdentityMatches(target) {
 			return sql
