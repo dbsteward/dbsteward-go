@@ -83,7 +83,7 @@ func (self *Index) Equals(other *Index, sqlFormat SqlFormat) bool {
 	if self.Concurrently != other.Concurrently {
 		return false
 	}
-	if self.Using.Equals(other.Using) {
+	if !self.Using.Equals(other.Using) {
 		return false
 	}
 	if len(self.Dimensions) != len(other.Dimensions) {
