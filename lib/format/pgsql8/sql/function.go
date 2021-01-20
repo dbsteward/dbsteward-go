@@ -30,6 +30,15 @@ func (self *FunctionCreate) ToSql(q output.Quoter) string {
 	return ddl + ";"
 }
 
+type FunctionDrop struct {
+	Function FunctionRef
+}
+
+func (self *FunctionDrop) ToSql(q output.Quoter) string {
+	// TODO(feat) if exists?
+	return fmt.Sprintf("DROP FUNCTION IF EXISTS %s;", self.Function.Qualified(q))
+}
+
 type FunctionGrant struct {
 	Function FunctionRef
 	Perms    []string

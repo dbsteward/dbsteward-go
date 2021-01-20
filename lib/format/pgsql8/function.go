@@ -72,6 +72,27 @@ func (self *Function) GetCreationSql(schema *model.Schema, function *model.Funct
 	return out
 }
 
+func (self *Function) GetDropSql(schema *model.Schema, function *model.Function) []output.ToSql {
+	GlobalOperations.SetContextReplicaSetId(function.SlonySetId)
+	types := function.ParamTypes()
+	for i, paramType := range types {
+		// TODO(feat) there's evidence in get_drop_sql that postgres only recognizes the normalized typenames here.
+		// we should look for other cases and validate behavior
+		types[i] = self.normalizeParameterType(paramType)
+	}
+
+	return []output.ToSql{
+		&sql.FunctionDrop{sql.FunctionRef{schema.Name, function.Name, types}},
+	}
+}
+
+func (self *Function) normalizeParameterType(paramType string) string {
+	if strings.EqualFold(paramType, "character varying") || strings.EqualFold(paramType, "varying") {
+		return "varchar"
+	}
+	return paramType
+}
+
 func (self *Function) GetGrantSql(doc *model.Definition, schema *model.Schema, fn *model.Function, grant *model.Grant) []output.ToSql {
 	GlobalOperations.SetContextReplicaSetId(fn.SlonySetId)
 
@@ -101,4 +122,21 @@ func (self *Function) GetGrantSql(doc *model.Definition, schema *model.Schema, f
 	// TODO(feat) should there be an implicit read-only grant?
 
 	return ddl
+}
+
+// TODO(go,3) move this to model
+func (self *Function) FunctionDependsOnType(fn *model.Function, typeSchema *model.Schema, datatype *model.DataType) bool {
+	// TODO(feat) what about composite/domain types that are also dependent on the type? further refinement needed
+	qualifiedName := typeSchema.Name + "." + datatype.Name
+	returns := strings.TrimRight(fn.Returns, "[] ") // allow for arrays
+	if strings.EqualFold(returns, datatype.Name) || strings.EqualFold(returns, qualifiedName) {
+		return true
+	}
+	for _, param := range fn.Parameters {
+		paramType := strings.TrimRight(param.Type, "[] ")
+		if strings.EqualFold(paramType, datatype.Name) || strings.EqualFold(paramType, qualifiedName) {
+			return true
+		}
+	}
+	return false
 }

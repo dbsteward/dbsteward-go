@@ -24,10 +24,14 @@ func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataT
 		if len(datatype.EnumValues) == 0 {
 			lib.GlobalDBSteward.Fatal("Enum type %s.%s contains no enum children", schema.Name, datatype.Name)
 		}
+		vals := make([]string, len(datatype.EnumValues))
+		for i, val := range datatype.EnumValues {
+			vals[i] = val.Value
+		}
 		return []output.ToSql{
 			&sql.TypeEnumCreate{
 				Type:   sql.TypeRef{schema.Name, datatype.Name},
-				Values: datatype.EnumValues,
+				Values: vals,
 			},
 		}
 	case model.DataTypeKindComposite:
@@ -90,6 +94,21 @@ func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataT
 	return nil
 }
 
+func (self *DataType) GetDropSql(schema *model.Schema, datatype *model.DataType) []output.ToSql {
+	if datatype.Kind.Equals(model.DataTypeKindDomain) {
+		return []output.ToSql{
+			&sql.TypeDomainDrop{
+				Type: sql.TypeRef{schema.Name, datatype.Name},
+			},
+		}
+	}
+	return []output.ToSql{
+		&sql.TypeDrop{
+			Type: sql.TypeRef{schema.Name, datatype.Name},
+		},
+	}
+}
+
 func (self *DataType) IsLinkedTableType(spec string) bool {
 	return self.IsSerialType(spec)
 }
@@ -100,4 +119,49 @@ func (self *DataType) IsSerialType(spec string) bool {
 
 func (self *DataType) IsIntType(spec string) bool {
 	return util.IIndex(spec, "int") >= 0
+}
+
+// Change all table columns that are the given datatype to a placeholder type
+func (self *DataType) AlterColumnTypePlaceholder(schema *model.Schema, datatype *model.DataType) ([]*model.ColumnRef, []output.ToSql) {
+	ddl := []output.ToSql{}
+	cols := []*model.ColumnRef{}
+	for _, newTableRef := range GlobalDiff.NewTableDependency {
+		for _, newColumn := range newTableRef.Table.Columns {
+			columnType := GlobalColumn.GetColumnType(lib.GlobalDBSteward.NewDatabase, newTableRef.Schema, newTableRef.Table, newColumn)
+			if strings.EqualFold(columnType, datatype.Name) || strings.EqualFold(columnType, newTableRef.Schema.Name+"."+datatype.Name) {
+				sqlRef := sql.TableRef{newTableRef.Schema.Name, newTableRef.Table.Name}
+				ddl = append(ddl, sql.NewTableAlter(sqlRef, &sql.TableAlterPartColumnChangeType{
+					Column: newColumn.Name,
+					Type:   self.alterColumnTypePlaceholderType(datatype),
+				}))
+				cols = append(cols, newTableRef.ToColumnRef(newColumn))
+			}
+		}
+	}
+	return cols, ddl
+}
+
+func (self *DataType) alterColumnTypePlaceholderType(datatype *model.DataType) sql.TypeRef {
+	if datatype.Kind.Equals(model.DataTypeKindEnum) {
+		return sql.BuiltinTypeRef("text")
+	}
+	if datatype.Kind.Equals(model.DataTypeKindDomain) {
+		return sql.ParseTypeRef(datatype.DomainType.BaseType)
+	}
+	util.Assert(false, "Unexpected data type kind %s", string(datatype.Kind))
+	return sql.TypeRef{} // unreachable
+}
+
+// restores types changed by AlterColumnTypePlaceholder
+func (self *DataType) AlterColumnTypeRestore(columns []*model.ColumnRef, schema *model.Schema, datatype *model.DataType) []output.ToSql {
+	ddl := []output.ToSql{}
+	// do the columns backwards to maintain dependency ordering
+	for i := len(columns) - 1; i >= 0; i-- {
+		sqlRef := sql.TableRef{columns[i].Schema.Name, columns[i].Table.Name}
+		ddl = append(ddl, sql.NewTableAlter(sqlRef, &sql.TableAlterPartColumnChangeTypeUsingCast{
+			Column: columns[i].Column.Name,
+			Type:   sql.TypeRef{schema.Name, datatype.Name},
+		}))
+	}
+	return ddl
 }

@@ -53,6 +53,9 @@ func (self *Schema) AddTable(table *Table) {
 }
 
 func (self *Schema) TryGetTypeNamed(name string) *DataType {
+	if self == nil {
+		return nil
+	}
 	for _, t := range self.Types {
 		// TODO(feat) case insensitivity?
 		if t.Name == name {
@@ -86,6 +89,9 @@ func (self *Schema) AddSequence(sequence *Sequence) {
 }
 
 func (self *Schema) TryGetViewNamed(name string) *View {
+	if self == nil {
+		return nil
+	}
 	for _, view := range self.Views {
 		// TODO(feat) case insensitivity?
 		if view.Name == name {
@@ -96,6 +102,9 @@ func (self *Schema) TryGetViewNamed(name string) *View {
 }
 
 func (self *Schema) TryGetRelationNamed(name string) Relation {
+	if self == nil {
+		return nil
+	}
 	table := self.TryGetTableNamed(name)
 	if table != nil {
 		return table
@@ -109,6 +118,9 @@ func (self *Schema) AddView(view *View) {
 }
 
 func (self *Schema) TryGetFunctionMatching(target *Function) *Function {
+	if self == nil {
+		return nil
+	}
 	for _, function := range self.Functions {
 		if function.IdentityMatches(target) {
 			return function
@@ -123,6 +135,9 @@ func (self *Schema) AddFunction(function *Function) {
 }
 
 func (self *Schema) TryGetTriggerNamedForTable(name, table string) *Trigger {
+	if self == nil {
+		return nil
+	}
 	for _, trigger := range self.Triggers {
 		if trigger.Name == name && trigger.Table == table {
 			return trigger
@@ -132,6 +147,9 @@ func (self *Schema) TryGetTriggerNamedForTable(name, table string) *Trigger {
 }
 
 func (self *Schema) TryGetTriggerMatching(target *Trigger) *Trigger {
+	if self == nil {
+		return nil
+	}
 	for _, trigger := range self.Triggers {
 		if trigger.IdentityMatches(target) {
 			return trigger

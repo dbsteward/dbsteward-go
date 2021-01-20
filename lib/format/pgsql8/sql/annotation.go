@@ -7,6 +7,9 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
+// TODO(go,nth) it would be nice to have something like an AnnotatedGroup,
+// which wraps a []output.ToSql and demarcates the beginning and end of the group
+
 type Annotated struct {
 	Wrapped    output.ToSql
 	Annotation string

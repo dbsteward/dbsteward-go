@@ -37,6 +37,14 @@ func (self *TypeCompositeCreate) ToSql(q output.Quoter) string {
 	return fmt.Sprintf("CREATE TYPE %s AS (\n  %s\n);", self.Type.Qualified(q), strings.Join(fields, ",\n  "))
 }
 
+type TypeDrop struct {
+	Type TypeRef
+}
+
+func (self *TypeDrop) ToSql(q output.Quoter) string {
+	return fmt.Sprintf("DROP TYPE %s;", self.Type.Qualified(q))
+}
+
 type TypeDomainCreate struct {
 	Type        TypeRef
 	BaseType    string
@@ -62,4 +70,61 @@ func (self *TypeDomainCreate) ToSql(q output.Quoter) string {
 		ddl += fmt.Sprintf("\n  CONSTRAINT %s CHECK(%s)", q.QuoteObject(constraint.Name), constraint.Check)
 	}
 	return ddl + ";"
+}
+
+type TypeDomainDrop struct {
+	Type TypeRef
+}
+
+func (self *TypeDomainDrop) ToSql(q output.Quoter) string {
+	return fmt.Sprintf("DROP DOMAIN %s;", self.Type.Qualified(q))
+}
+
+type TypeDomainAlterDropDefault struct {
+	Type TypeRef
+}
+
+func (self *TypeDomainAlterDropDefault) ToSql(q output.Quoter) string {
+	return fmt.Sprintf("ALTER DOMAIN %s DROP DEFAULT;", self.Type.Qualified(q))
+}
+
+type TypeDomainAlterSetDefault struct {
+	Type  TypeRef
+	Value ToSqlValue
+}
+
+func (self *TypeDomainAlterSetDefault) ToSql(q output.Quoter) string {
+	return fmt.Sprintf("ALTER DOMAIN %s SET DEFAULT %s;", self.Type.Qualified(q), self.Value.GetValueSql(q))
+}
+
+type TypeDomainAlterSetNullable struct {
+	Type     TypeRef
+	Nullable bool
+}
+
+func (self *TypeDomainAlterSetNullable) ToSql(q output.Quoter) string {
+	op := "SET"
+	if self.Nullable {
+		op = "DROP"
+	}
+	return fmt.Sprintf("ALTER DOMAIN %s %s NOT NULL;", self.Type.Qualified(q), op)
+}
+
+type TypeDomainAlterDropConstraint struct {
+	Type       TypeRef
+	Constraint string
+}
+
+func (self *TypeDomainAlterDropConstraint) ToSql(q output.Quoter) string {
+	return fmt.Sprintf("ALTER DOMAIN %s DROP CONSTRAINT %s;", self.Type.Qualified(q), q.QuoteObject(self.Constraint))
+}
+
+type TypeDomainAlterAddConstraint struct {
+	Type       TypeRef
+	Constraint string
+	Check      ToSqlValue
+}
+
+func (self *TypeDomainAlterAddConstraint) ToSql(q output.Quoter) string {
+	return fmt.Sprintf("ALTER DOMAIN %s ADD CONSTRAINT %s CHECK(%s);", self.Type.Qualified(q), q.QuoteObject(self.Constraint), self.Check.GetValueSql(q))
 }

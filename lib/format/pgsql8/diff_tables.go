@@ -183,7 +183,7 @@ func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegme
 					useReplicationOwner = true
 				}
 			case *sql.TableAlterPartColumnChangeType:
-				if GlobalDataType.IsSerialType(pt.Type) {
+				if GlobalDataType.IsSerialType(pt.Type.Type) {
 					useReplicationOwner = true
 				}
 			}
@@ -389,7 +389,7 @@ func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTab
 			// ALTER TYPE ... USING support by looking up the new type in the xml definition
 			alterType := &sql.TableAlterPartColumnChangeType{
 				Column: newColumn.Name,
-				Type:   newType,
+				Type:   sql.ParseTypeRef(newType),
 			}
 			if newColumn.ConvertUsing != "" {
 				expr := sql.ExpressionValue(newColumn.ConvertUsing)

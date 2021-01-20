@@ -96,11 +96,31 @@ type TypeRef struct {
 	Type   string
 }
 
+func ParseTypeRef(spec string) TypeRef {
+	parts := strings.Split(spec, ".")
+	if len(parts) == 1 {
+		return BuiltinTypeRef(parts[0])
+	}
+	return TypeRef{parts[0], parts[1]}
+}
+
+func BuiltinTypeRef(spec string) TypeRef {
+	return TypeRef{"", spec}
+}
+
 func (self *TypeRef) Qualified(q output.Quoter) string {
+	if self.Schema == "" {
+		// in the case of builtin names like `text`, there is no schema and we should not quote it
+		return self.Type
+	}
 	return q.QualifyObject(self.Schema, self.Type)
 }
 
 func (self *TypeRef) Quoted(q output.Quoter) string {
+	if self.Schema == "" {
+		// in the case of builtin names like `text`, there is no schema and we should not quote it
+		return self.Type
+	}
 	return q.QuoteObject(self.Type)
 }
 

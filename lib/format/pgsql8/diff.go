@@ -181,7 +181,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 			// TODO(feat) this does not honor oldName attributes, does it matter?
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
-			GlobalDiffTypes.ApplyChanges(stage1, oldSchema, newSchema)
+			GlobalDiffTypes.DiffTypes(stage1, oldSchema, newSchema)
 			GlobalDiffFunctions.DiffFunctions(stage1, stage3, oldSchema, newSchema)
 			GlobalDiffSequences.DiffSequences(stage1, oldSchema, newSchema)
 			// remove old constraints before table constraints, so the sql statements succeed
@@ -213,7 +213,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 
 			if !processedSchemas[newSchema.Name] {
 				GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
-				GlobalDiffTypes.ApplyChanges(stage1, oldSchema, newSchema)
+				GlobalDiffTypes.DiffTypes(stage1, oldSchema, newSchema)
 				GlobalDiffFunctions.DiffFunctions(stage1, stage3, oldSchema, newSchema)
 				processedSchemas[newSchema.Name] = true
 			}

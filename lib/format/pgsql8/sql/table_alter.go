@@ -181,14 +181,28 @@ func (self *TableAlterPartColumnSetStatistics) GetAlterPartSql(q output.Quoter) 
 
 type TableAlterPartColumnChangeType struct {
 	Column string
-	Type   string
+	Type   TypeRef
 	Using  *ExpressionValue
 }
 
 func (self *TableAlterPartColumnChangeType) GetAlterPartSql(q output.Quoter) string {
-	sql := fmt.Sprintf("ALTER COLUMN %s TYPE %s", q.QuoteColumn(self.Column), self.Type)
+	sql := fmt.Sprintf("ALTER COLUMN %s TYPE %s", q.QuoteColumn(self.Column), self.Type.Qualified(q))
 	if self.Using != nil {
 		sql += " USING " + self.Using.GetValueSql(q)
 	}
 	return sql
+}
+
+type TableAlterPartColumnChangeTypeUsingCast struct {
+	Column string
+	Type   TypeRef
+}
+
+func (self *TableAlterPartColumnChangeTypeUsingCast) GetAlterPartSql(q output.Quoter) string {
+	expr := ExpressionValue(fmt.Sprintf("%s::%s", q.QuoteColumn(self.Column), self.Type.Qualified(q)))
+	return (&TableAlterPartColumnChangeType{
+		Column: self.Column,
+		Type:   self.Type,
+		Using:  &expr,
+	}).GetAlterPartSql(q)
 }

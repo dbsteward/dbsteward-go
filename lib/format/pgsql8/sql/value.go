@@ -54,3 +54,13 @@ type ExpressionValue string
 func (self ExpressionValue) GetValueSql(q output.Quoter) string {
 	return fmt.Sprintf("(%s)", string(self))
 }
+
+// TypedValues are string-encoded literal values of a dynamic SQL type that might need to be formatted/escaped
+type TypedValue struct {
+	Type  string
+	Value string
+}
+
+func (self *TypedValue) GetValueSql(q output.Quoter) string {
+	return q.LiteralValue(self.Type, self.Value)
+}

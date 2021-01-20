@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/xml"
+	"fmt"
 
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -107,4 +108,26 @@ func (self *Column) Merge(overlay *Column) {
 	self.ForeignOnUpdate = overlay.ForeignOnUpdate
 	self.ForeignOnDelete = overlay.ForeignOnDelete
 	self.Statistics = overlay.Statistics
+}
+
+type ColumnRef struct {
+	Schema *Schema
+	Table  *Table
+	Column *Column
+}
+
+func (self ColumnRef) String() string {
+	schema := "<nil>"
+	if self.Schema != nil {
+		schema = self.Schema.Name
+	}
+	table := "<nil>"
+	if self.Table != nil {
+		table = self.Table.Name
+	}
+	column := "<nil>"
+	if self.Column != nil {
+		column = self.Column.Name
+	}
+	return fmt.Sprintf("%s.%s.%s", schema, table, column)
 }

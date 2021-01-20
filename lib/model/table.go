@@ -286,3 +286,7 @@ func (self TableRef) String() string {
 	}
 	return fmt.Sprintf("%s.%s", schema, table)
 }
+
+func (self *TableRef) ToColumnRef(column *Column) *ColumnRef {
+	return &ColumnRef{self.Schema, self.Table, column}
+}

@@ -83,3 +83,13 @@ func (self *Schema) GetGrantSql(doc *model.Definition, schema *model.Schema, gra
 
 	return ddl
 }
+
+func (self *Schema) GetFunctionsDependingOnType(schema *model.Schema, datatype *model.DataType) []*model.Function {
+	out := []*model.Function{}
+	for _, fn := range schema.Functions {
+		if GlobalFunction.FunctionDependsOnType(fn, schema, datatype) {
+			out = append(out, fn)
+		}
+	}
+	return out
+}
