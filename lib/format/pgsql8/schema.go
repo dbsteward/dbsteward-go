@@ -41,8 +41,12 @@ func (self *Schema) GetCreationSql(schema *model.Schema) []output.ToSql {
 }
 
 func (self *Schema) GetDropSql(schema *model.Schema) []output.ToSql {
-	// TODO(go,pgsql)
-	return nil
+	return []output.ToSql{
+		&sql.SchemaDrop{
+			Schema:  schema.Name,
+			Cascade: true,
+		},
+	}
 }
 
 func (self *Schema) GetGrantSql(doc *model.Definition, schema *model.Schema, grant *model.Grant) []output.ToSql {

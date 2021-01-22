@@ -14,6 +14,19 @@ func (self *SchemaCreate) ToSql(q output.Quoter) string {
 	return fmt.Sprintf("CREATE SCHEMA %s;", q.QuoteSchema(self.Schema))
 }
 
+type SchemaDrop struct {
+	Schema  string
+	Cascade bool
+}
+
+func (self *SchemaDrop) ToSql(q output.Quoter) string {
+	sql := fmt.Sprintf("DROP SCHEMA %s", q.QuoteSchema(self.Schema))
+	if self.Cascade {
+		sql += " CASCADE"
+	}
+	return sql + ";"
+}
+
 type SchemaAlterOwner struct {
 	Schema string
 	Owner  string
