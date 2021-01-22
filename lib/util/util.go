@@ -270,6 +270,13 @@ func UnionStrMapFunc(left, right map[string]string, equals func(string, string) 
 	return out
 }
 
+// returns true if the two slices contain the same case-insensitive strings (in any order)
+func StrsIEq(a, b []string) bool {
+	// this is true if a and b contain the same number of strings,
+	// and if the intersection of the two sets contains all the strings from either side
+	return len(a) == len(b) && len(IIntersectStrs(a, b)) == len(a)
+}
+
 func StrMapKeys(m map[string]string) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {

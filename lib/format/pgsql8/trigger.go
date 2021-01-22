@@ -38,3 +38,12 @@ func (self *Trigger) GetCreationSql(schema *model.Schema, trigger *model.Trigger
 		},
 	}
 }
+
+func (self *Trigger) GetDropSql(schema *model.Schema, trigger *model.Trigger) []output.ToSql {
+	return []output.ToSql{
+		&sql.TriggerDrop{
+			Trigger: sql.TriggerRef{schema.Name, trigger.Name},
+			Table:   sql.TableRef{schema.Name, trigger.Table},
+		},
+	}
+}

@@ -29,3 +29,12 @@ func (self *TriggerCreate) ToSql(q output.Quoter) string {
 		self.Function, // TODO(feat) should be a full FunctionRef
 	)
 }
+
+type TriggerDrop struct {
+	Trigger TriggerRef
+	Table   TableRef
+}
+
+func (self *TriggerDrop) ToSql(q output.Quoter) string {
+	return fmt.Sprintf("DROP TRIGGER %s ON %s;", self.Trigger.Qualified(q), self.Table.Qualified(q))
+}

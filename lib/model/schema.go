@@ -1,6 +1,10 @@
 package model
 
-import "github.com/pkg/errors"
+import (
+	"strings"
+
+	"github.com/pkg/errors"
+)
 
 type Schema struct {
 	Name        string      `xml:"name,attr"`
@@ -132,6 +136,19 @@ func (self *Schema) TryGetFunctionMatching(target *Function) *Function {
 func (self *Schema) AddFunction(function *Function) {
 	// TODO(feat) sanity check
 	self.Functions = append(self.Functions, function)
+}
+
+func (self *Schema) GetTriggersForTableNamed(table string) []*Trigger {
+	if self == nil {
+		return nil
+	}
+	out := []*Trigger{}
+	for _, trigger := range self.Triggers {
+		if strings.EqualFold(trigger.Table, table) {
+			out = append(out, trigger)
+		}
+	}
+	return out
 }
 
 func (self *Schema) TryGetTriggerNamedForTable(name, table string) *Trigger {

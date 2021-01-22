@@ -181,7 +181,6 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 	if len(self.NewTableDependency) == 0 {
 		for _, newSchema := range dbsteward.NewDatabase.Schemas {
 			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
-			// TODO(feat) this does not honor oldName attributes, does it matter?
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 			GlobalDiffTypes.DiffTypes(stage1, oldSchema, newSchema)
 			GlobalDiffFunctions.DiffFunctions(stage1, stage3, oldSchema, newSchema)
