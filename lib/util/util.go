@@ -335,6 +335,18 @@ func Intp(val int) *int {
 	return &val
 }
 
+// IntpEq checks value equality of two int pointers
+// nil == nil, &x == &x, everything else !=
+func IntpEq(a, b *int) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a != nil && b != nil {
+		return *a == *b
+	}
+	return false
+}
+
 func NumDigits(x int) int {
 	return int(math.Log10(float64(x)) + 1)
 }

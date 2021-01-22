@@ -57,6 +57,15 @@ func (self *Sequence) GetCreationSql(schema *model.Schema, sequence *model.Seque
 	return ddl
 }
 
+func (self *Sequence) GetDropSql(schema *model.Schema, sequence *model.Sequence) []output.ToSql {
+	GlobalOperations.SetContextReplicaSetId(sequence.SlonySetId)
+	return []output.ToSql{
+		&sql.SequenceDrop{
+			Sequence: sql.SequenceRef{schema.Name, sequence.Name},
+		},
+	}
+}
+
 func (self *Sequence) GetGrantSql(doc *model.Definition, schema *model.Schema, seq *model.Sequence, grant *model.Grant) []output.ToSql {
 	GlobalOperations.SetContextReplicaSetId(seq.SlonySetId)
 
