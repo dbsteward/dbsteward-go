@@ -206,3 +206,17 @@ func (self *TableAlterPartColumnChangeTypeUsingCast) GetAlterPartSql(q output.Qu
 		Using:  &expr,
 	}).GetAlterPartSql(q)
 }
+
+type TableAlterPartSetWithoutCluster struct{}
+
+func (self *TableAlterPartSetWithoutCluster) GetAlterPartSql(q output.Quoter) string {
+	return "SET WITHOUT CLUSTER"
+}
+
+type TableAlterPartClusterOn struct {
+	Index string
+}
+
+func (self *TableAlterPartClusterOn) GetAlterPartSql(q output.Quoter) string {
+	return fmt.Sprintf("CLUSTER ON %s", q.QuoteObject(self.Index))
+}

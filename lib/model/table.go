@@ -15,6 +15,7 @@ type Table struct {
 	Owner          string          `xml:"owner,attr,omitempty"`
 	PrimaryKey     DelimitedList   `xml:"primaryKey,attr,omitempty"`
 	PrimaryKeyName string          `xml:"primaryKeyName,attr,omitempty"`
+	ClusterIndex   string          `xml:"clusterIndex,attr,omitempty"`
 	InheritsTable  string          `xml:"inheritsTable,attr,omitempty"`
 	InheritsSchema string          `xml:"inheritsSchema,attr,omitempty"`
 	OldTableName   string          `xml:"oldTableName,attr,omitempty"`

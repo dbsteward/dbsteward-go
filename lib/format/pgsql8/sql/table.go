@@ -168,3 +168,15 @@ SELECT __dbsteward_migrate_reset_tablespace(%s,%s);
 DROP FUNCTION __dbsteward_migrate_reset_tablespace(TEXT,TEXT);
 	`, q.LiteralString(self.Table.Schema), q.LiteralString(self.Table.Table))
 }
+
+type TableAlterClusterOn struct {
+	Table TableRef
+	Index string
+}
+
+func (self *TableAlterClusterOn) ToSql(q output.Quoter) string {
+	if self.Index == "" {
+		return NewTableAlter(self.Table, &TableAlterPartSetWithoutCluster{}).ToSql(q)
+	}
+	return NewTableAlter(self.Table, &TableAlterPartClusterOn{self.Index}).ToSql(q)
+}

@@ -645,11 +645,19 @@ func (self *DiffTables) DropTable(ofs output.OutputFileSegmenter, oldSchema *mod
 }
 
 func (self *DiffTables) DiffClusters(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
-	// TODO(go,pgsql)
+	for _, newTable := range newSchema.Tables {
+		oldTable := oldSchema.TryGetTableNamed(newTable.Name)
+		self.DiffClustersTable(ofs, oldSchema, oldTable, newSchema, newTable)
+	}
 }
 
 func (self *DiffTables) DiffClustersTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
-	// TODO(go,pgsql)
+	if (oldTable == nil && newTable.ClusterIndex != "") || (oldTable != nil && oldTable.ClusterIndex != newTable.ClusterIndex) {
+		ofs.WriteSql(&sql.TableAlterClusterOn{
+			Table: sql.TableRef{newSchema.Name, newTable.Name},
+			Index: newTable.ClusterIndex,
+		})
+	}
 }
 
 func (self *DiffTables) GetCreateDataSql(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) []output.ToSql {
