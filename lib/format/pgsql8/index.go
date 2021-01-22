@@ -45,8 +45,11 @@ func (self *Index) GetCreateSql(schema *model.Schema, table *model.Table, index 
 }
 
 func (self *Index) GetDropSql(schema *model.Schema, table *model.Table, index *model.Index) []output.ToSql {
-	// TODO(go,pgsql)
-	return nil
+	return []output.ToSql{
+		&sql.IndexDrop{
+			Index: sql.IndexRef{schema.Name, table.Name},
+		},
+	}
 }
 
 func (self *Index) GetTableIndexes(table *model.Table) []*model.Index {

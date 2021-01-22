@@ -40,3 +40,11 @@ func (self *IndexCreate) ToSql(q output.Quoter) string {
 	)
 	return util.CondJoin(" ", parts...)
 }
+
+type IndexDrop struct {
+	Index IndexRef
+}
+
+func (self *IndexDrop) ToSql(q output.Quoter) string {
+	return fmt.Sprintf("DROP INDEX %s;", self.Index.Qualified(q))
+}

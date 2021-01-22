@@ -150,6 +150,19 @@ func (self *ViewRef) Quoted(q output.Quoter) string {
 	return q.QuoteObject(self.View)
 }
 
+type IndexRef struct {
+	Schema string
+	Index  string
+}
+
+func (self *IndexRef) Qualified(q output.Quoter) string {
+	return q.QualifyObject(self.Schema, self.Index)
+}
+
+func (self *IndexRef) Quoted(q output.Quoter) string {
+	return q.QuoteObject(self.Index)
+}
+
 type FunctionRef struct {
 	Schema   string
 	Function string
