@@ -348,5 +348,39 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 	}
 }
 func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
-	// TODO(go,pgsql8)
+	if len(self.NewTableDependency) > 0 {
+		for i := 0; i < len(self.NewTableDependency); i += 1 {
+			item := self.NewTableDependency[i]
+			// go in reverse when in delete mode
+			if deleteMode {
+				item = self.NewTableDependency[len(self.NewTableDependency)-1-i]
+			}
+
+			newSchema := item.Schema
+			newTable := item.Table
+			oldSchema := lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
+			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
+			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
+
+			if GlobalDiffTables.IsRenamedTable(newSchema, newTable) {
+				lib.GlobalDBSteward.Info("%s.%s used to be called %s - will diff data against that definition", newSchema.Name, newTable.Name, newTable.OldTableName)
+				oldSchema = GlobalTable.GetOldTableSchema(newSchema, newTable)
+				oldTable = GlobalTable.GetOldTable(newSchema, newTable)
+			}
+
+			if deleteMode {
+				ofs.WriteSql(GlobalDiffTables.GetDeleteDataSql(oldSchema, oldTable, newSchema, newTable)...)
+			} else {
+				ofs.WriteSql(GlobalDiffTables.GetCreateDataSql(oldSchema, oldTable, newSchema, newTable)...)
+			}
+		}
+	} else {
+		// dependency order unknown, hit them in natural order
+		// TODO(feat) the above switches on deleteMode, this does not. we never delete data if table dep order is unknown?
+		for _, newSchema := range lib.GlobalDBSteward.NewDatabase.Schemas {
+			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
+			oldSchema := lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
+			GlobalDiffTables.DiffData(ofs, oldSchema, newSchema)
+		}
+	}
 }

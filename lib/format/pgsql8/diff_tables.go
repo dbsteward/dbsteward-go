@@ -660,6 +660,20 @@ func (self *DiffTables) DiffClustersTable(ofs output.OutputFileSegmenter, oldSch
 	}
 }
 
+func (self *DiffTables) DiffData(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
+	for _, newTable := range newSchema.Tables {
+		if self.IsRenamedTable(newSchema, newTable) {
+			// if the table was renamed, get old definition pointers, diff that
+			oldSchema := GlobalTable.GetOldTableSchema(newSchema, newTable)
+			oldTable := GlobalTable.GetOldTable(newSchema, newTable)
+			ofs.WriteSql(self.GetCreateDataSql(oldSchema, oldTable, newSchema, newTable)...)
+		} else {
+			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
+			ofs.WriteSql(self.GetCreateDataSql(oldSchema, oldTable, newSchema, newTable)...)
+		}
+	}
+}
+
 func (self *DiffTables) GetCreateDataSql(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) []output.ToSql {
 	newRows, updatedRows := self.getNewAndChangedRows(oldTable, newTable)
 	// cut back on allocations - we know that there's going to be _at least_ one statement for every new and updated row, and likely 1 for the serial start
