@@ -120,7 +120,7 @@ type TableMoveTablespaceIndexes struct {
 }
 
 func (self *TableMoveTablespaceIndexes) ToSql(q output.Quoter) string {
-	// TODO(go,pgsql) DO blocks are introduced in 9.0, that would be much nicer than the IIFE
+	// TODO(go,3) DO blocks are introduced in 9.0, that would be much nicer than the IIFE
 	return fmt.Sprintf(`
 CREATE FUNCTION __dbsteward_migrate_move_index_tablespace(TEXT,TEXT,TEXT) RETURNS void AS $$
   DECLARE idx RECORD;
