@@ -14,12 +14,17 @@ const (
 	FuncParamDirInOut FuncParamDir = "INOUT"
 )
 
+func (self FuncParamDir) Equals(other FuncParamDir) bool {
+	return strings.EqualFold(string(self), string(other))
+}
+
 type Function struct {
-	Name            string                `xml:"name,attr,omitempty"`
+	Name            string                `xml:"name,attr"`
 	Owner           string                `xml:"owner,attr,omitempty"`
 	Description     string                `xml:"description,attr,omitempty"`
-	Returns         string                `xml:"returns,attr,omitempty"`
+	Returns         string                `xml:"returns,attr"`
 	CachePolicy     string                `xml:"cachePolicy,attr,omitempty"`
+	ForceRedefine   bool                  `xml:"forceRedefine,attr,omitempty"`
 	SecurityDefiner bool                  `xml:"securityDefiner,attr,omitempty"`
 	SlonySetId      *int                  `xml:"slonySetId,attr,omitempty"`
 	Parameters      []*FunctionParameter  `xml:"functionParameter"`
@@ -111,6 +116,31 @@ func (self *Function) IdentityMatches(other *Function) bool {
 	return false
 }
 
+func (self *Function) Equals(other *Function, sqlFormat SqlFormat) bool {
+	if self == nil || other == nil {
+		return false
+	}
+
+	// TODO(go,core) should we consider identity part of equality?
+	if !self.IdentityMatches(other) {
+		return false
+	}
+
+	// NOTE: old dbsteward uses xml_parser::role_enum but as far as I can tell that's homomorphic?
+	if self.Owner != other.Owner {
+		return false
+	}
+
+	// TODO(feat) what about no-op changes like "character varying" => "varchar"
+	if self.Returns != other.Returns {
+		return false
+	}
+
+	selfDef := self.TryGetDefinition(sqlFormat)
+	otherDef := self.TryGetDefinition(sqlFormat)
+	return selfDef.Equals(otherDef)
+}
+
 func (self *Function) Merge(overlay *Function) {
 	self.Owner = overlay.Owner
 	self.Description = overlay.Description
@@ -126,7 +156,23 @@ func (self *Function) Merge(overlay *Function) {
 }
 
 func (self *FunctionParameter) IdentityMatches(other *FunctionParameter) bool {
+	if self == nil || other == nil {
+		return false
+	}
 	// TODO(feat) more robust type identity checking.
-	// e.g. does postgres consider text and varchar parameters to be equal?
-	return strings.EqualFold(self.Name, other.Name) && strings.EqualFold(self.Type, other.Type)
+	// e.g. does postgres consider text and varchar parameters to be equal? do parameter names matter?
+	return strings.EqualFold(self.Name, other.Name) &&
+		strings.EqualFold(self.Type, other.Type) &&
+		self.Direction.Equals(other.Direction)
+}
+
+func (self *FunctionDefinition) Equals(other *FunctionDefinition) bool {
+	if self == nil || other == nil {
+		return false
+	}
+
+	// TODO(go,core) old dbsteward conditionally ignores whitespace changes per sqlformat. is that necessary?
+	return self.SqlFormat.Equals(other.SqlFormat) &&
+		strings.EqualFold(self.Language, other.Language) &&
+		self.Text == other.Text
 }
