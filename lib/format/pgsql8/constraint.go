@@ -155,6 +155,11 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 	// look for explicit <foreignKey> constraints
 	if ct.Includes(ConstraintTypeForeign) {
 		for _, fk := range table.ForeignKeys {
+			if fk.ConstraintName == "" {
+				// TODO(go,3) remove this restriction, generate a name
+				lib.GlobalDBSteward.Fatal("foreignKey on %s.%s requires a constraintName", schema.Name, table.Name)
+			}
+
 			localCols, ok := lib.GlobalDBX.TryInheritanceGetColumns(doc, schema, table, fk.Columns)
 			if !ok {
 				lib.GlobalDBSteward.Fatal(
