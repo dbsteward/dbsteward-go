@@ -23,14 +23,15 @@ type Column struct {
 func (self *Column) GetReducedDefinition(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) sql.ColumnDefinition {
 	return sql.ColumnDefinition{
 		Name: column.Name,
-		Type: self.GetColumnType(doc, schema, table, column),
+		Type: sql.ParseTypeRef(self.GetColumnType(doc, schema, table, column)),
 	}
 }
 
 func (self *Column) GetFullDefinition(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column, addDefaults, includeNullDefinition, includeDefaultNextval bool) sql.ColumnDefinition {
+	colType := self.GetColumnType(doc, schema, table, column)
 	out := sql.ColumnDefinition{
 		Name:     column.Name,
-		Type:     self.GetColumnType(doc, schema, table, column),
+		Type:     sql.ParseTypeRef(colType),
 		Default:  nil,
 		Nullable: nil,
 	}
@@ -51,7 +52,7 @@ func (self *Column) GetFullDefinition(doc *model.Definition, schema *model.Schem
 			out.Default = &deftmp
 		}
 	} else if !column.Nullable && addDefaults {
-		out.Default = GlobalColumn.GetDefaultValue(out.Type)
+		out.Default = GlobalColumn.GetDefaultValue(colType)
 	}
 
 	if includeNullDefinition {
@@ -144,12 +145,6 @@ func (self *Column) HasDefaultNow(table *model.Table, column *model.Column) bool
 
 // TODO(go,3) it would be super if types had dedicated types/values
 func (self *Column) GetColumnType(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) string {
-	if column == nil {
-		// shortcut to make caller code slightly nicer
-		// TODO(go,nth) should we make this an assert instead?
-		return ""
-	}
-
 	// if it is a foreign keyed column, solve for the foreign key type
 	if column.ForeignTable != "" {
 		// TODO(feat) what about compound FKs?
@@ -158,17 +153,14 @@ func (self *Column) GetColumnType(doc *model.Definition, schema *model.Schema, t
 	}
 
 	if column.Type == "" {
-		// TODO(go,nth) is this already checked ahead of time? can it be?
-		lib.GlobalDBSteward.Fatal("column missing type -- %s.%s.%s", schema.Name, table.Name, column.Name)
+		lib.GlobalDBSteward.Fatal("column %s.%s.%s missing type", schema.Name, table.Name, column.Name)
 	}
 
-	// TODO(go,pgsql) need to indicate to the Quoter that we _must_ quote this value.
-	// I have no idea how to do that off the top of my head
-
-	// if lib.GlobalDBX.GetType(schema, column.Type) != nil {
-	// 	// this is a user defined type or enum, enforce quoting if set
-	// 	return GlobalOperations.GetQuotedObjectName(column.Type)
-	// }
+	if schema.TryGetTypeNamed(column.Type) != nil {
+		// this is a user defined type in the same schema, make sure to qualify it for later
+		// TODO(go,3) what if it's in a different schema?
+		return schema.Name + "." + column.Type
+	}
 
 	return column.Type
 }

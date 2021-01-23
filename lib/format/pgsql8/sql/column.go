@@ -69,13 +69,13 @@ func (self *ColumnRename) ToSql(q output.Quoter) string {
 
 type ColumnDefinition struct {
 	Name     string
-	Type     string
+	Type     TypeRef
 	Default  ToSqlValue
 	Nullable *bool
 }
 
 func (self *ColumnDefinition) GetSql(q output.Quoter) string {
-	sql := q.QuoteColumn(self.Name) + " " + self.Type
+	sql := q.QuoteColumn(self.Name) + " " + self.Type.Qualified(q)
 
 	if self.Default != nil {
 		sql += " DEFAULT " + self.Default.GetValueSql(q)

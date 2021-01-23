@@ -179,7 +179,7 @@ func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegme
 			// inspect the alter table parts for indications that we're creating a serial column
 			switch pt := part.(type) {
 			case *sql.TableAlterPartColumnCreate:
-				if GlobalDataType.IsSerialType(pt.ColumnDef.Type) {
+				if GlobalDataType.IsSerialType(pt.ColumnDef.Type.Type) {
 					useReplicationOwner = true
 				}
 			case *sql.TableAlterPartColumnChangeType:
