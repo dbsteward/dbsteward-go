@@ -78,7 +78,7 @@ func (self *ConstraintCreateForeignKey) ToSql(q output.Quoter) string {
 		localCols[i] = q.QuoteColumn(col)
 	}
 	foreignCols := make([]string, len(self.ForeignColumns))
-	for i, col := range self.LocalColumns {
+	for i, col := range self.ForeignColumns {
 		foreignCols[i] = q.QuoteColumn(col)
 	}
 
