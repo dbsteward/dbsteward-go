@@ -4,9 +4,11 @@ go 1.15
 
 require (
 	github.com/alexflint/go-arg v1.3.0
+	github.com/jackc/pgx v3.6.2+incompatible
+	github.com/jackc/pgx/v4 v4.10.1
 	github.com/pkg/errors v0.8.1
 	github.com/rs/zerolog v1.20.0
 	github.com/spf13/cobra v0.0.5
-	github.com/stretchr/testify v1.2.2
-	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
+	github.com/stretchr/testify v1.5.1
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 )

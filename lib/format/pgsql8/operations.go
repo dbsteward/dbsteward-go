@@ -153,6 +153,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as %s", host, port, name, user)
 	GlobalDb.Connect(host, port, name, user, pass)
+	defer GlobalDb.Disconnect()
 
 	doc := &model.Definition{
 		Database: &model.Database{
@@ -187,7 +188,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	sequenceCols := []string{}
 	tableSerials := []string{}
 	for res.Next() {
-		row := res.FetchRowStringMap()
+		row, err := res.FetchRowStringMap()
+		dbsteward.FatalIfError(err, "could not parse table query result")
 		schemaName := row["schemaname"]
 		tableName := row["tablename"]
 
@@ -269,7 +271,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				AND NOT attisdropped
 		`, schema.Name, table.Name)
 		for colRes.Next() {
-			colRow := colRes.FetchRowStringMap()
+			colRow, err := colRes.FetchRowStringMap()
+			dbsteward.FatalIfError(err, "could not parse column query result")
 			column := &model.Column{
 				Name:        colRow["column_name"],
 				Description: columnDescriptions[colRow["ordinal_position"]],
@@ -335,7 +338,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 						AND table_name = $2);
 		`, schema.Name, table.Name)
 		for indexRes.Next() {
-			indexRow := indexRes.FetchRowStringMap()
+			indexRow, err := indexRes.FetchRowStringMap()
+			dbsteward.FatalIfError(err, "could not parse index query result")
 			// only add a unique index if the column was unique
 			index := &model.Index{
 				Name:   indexRow["relname"],
@@ -372,14 +376,16 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		seqListRes := GlobalDb.Query(sql, params...)
 		for seqListRes.Next() {
-			seqListRow := seqListRes.FetchRowStringMap()
+			seqListRow, err := seqListRes.FetchRowStringMap()
+			dbsteward.FatalIfError(err, "could not parse sequence list query result")
 			// TODO(feat) can we do away with the N+1 here?
 			seqRes := GlobalDb.Query(fmt.Sprintf(`
 				SELECT cache_value, start_value, min_value, max_value, increment_by, is_cycled
 				FROM "%s"."%s"
 			`, schema.Name, seqListRow["relname"]))
 			for seqRes.Next() {
-				seqRow := seqRes.FetchRowStringMap()
+				seqRow, err := seqRes.FetchRowStringMap()
+				dbsteward.FatalIfError(err, "could not parse sequence query result")
 				seq := schema.TryGetSequenceNamed(seqListRow["relname"])
 				if seq != nil {
 					schema.AddSequence(&model.Sequence{
@@ -413,7 +419,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		GROUP BY results.constraint_name, results.constraint_type, results.table_schema, results.table_name;
 	`)
 	for viewRes.Next() {
-		viewRow := viewRes.FetchRowStringMap()
+		viewRow, err := viewRes.FetchRowStringMap()
+		dbsteward.FatalIfError(err, "could not parse view query result")
 		dbsteward.Info("Analyze view %s.%s", viewRow["schemaname"], viewRow["viewname"])
 
 		schema := doc.TryGetSchemaNamed(viewRow["schemaname"])
@@ -464,7 +471,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		GROUP BY results.constraint_name, results.constraint_type, results.table_schema, results.table_name
 	`)
 	for constraintRes.Next() {
-		constraintRow := constraintRes.FetchRowStringMap()
+		constraintRow, err := constraintRes.FetchRowStringMap()
+		dbsteward.FatalIfError(err, "could not parse constraint query result")
 		dbsteward.Info("Analyze table constraints %s.%s", constraintRow["table_schema"], constraintRow["table_name"])
 
 		schema := doc.TryGetSchemaNamed(constraintRow["table_schema"])
@@ -529,7 +537,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		GROUP BY con.constraint_name, lns.nspname, lt_cl.relname, fns.nspname, ft_cl.relname, con.update_rule, con.delete_rule;
 	`)
 	for fkRes.Next() {
-		fkRow := fkRes.FetchRowStringMap()
+		fkRow, err := fkRes.FetchRowStringMap()
+		dbsteward.FatalIfError(err, "could not parse foreign key query result")
 		localCols := strings.Split(fkRow["local_columns"], " ")
 		foreignCols := strings.Split(fkRow["foreign_columns"], " ")
 
@@ -606,7 +615,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			AND pg_catalog.pg_get_function_result(p.oid) NOT IN ( 'trigger' );
 	`)
 	for fnRes.Next() {
-		fnRow := fnRes.FetchRowStringMap()
+		fnRow, err := fnRes.FetchRowStringMap()
+		dbsteward.FatalIfError(err, "could not parse function query result")
 		dbsteward.Info("Analyze function %s.%s", fnRow["schema"], fnRow["name"])
 
 		schema := doc.TryGetSchemaNamed(fnRow["schema"])
@@ -662,7 +672,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			WHERE oid = $1
 		`, fnRow["oid"])
 		for argsRes.Next() {
-			argsRow := argsRes.FetchRowStringMap()
+			argsRow, err := argsRes.FetchRowStringMap()
+			dbsteward.FatalIfError(err, "could not parse function args query result")
 			// TODO(feat) out params?
 			function.AddParameter(argsRow["parameter_name"], argsRow["data_type"])
 		}
@@ -677,7 +688,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		WHERE trigger_schema NOT IN ('pg_catalog', 'information_schema')
 	`)
 	for triggerRes.Next() {
-		triggerRow := triggerRes.FetchRowStringMap()
+		triggerRow, err := triggerRes.FetchRowStringMap()
+		dbsteward.FatalIfError(err, "could not parse trigger query result")
 		dbsteward.Info("Analyze trigger %s.%s", triggerRow["event_object_schema"], triggerRow["trigger_name"])
 
 		schema := doc.TryGetSchemaNamed(triggerRow["event_object_schema"])
@@ -716,7 +728,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
 	`)
 	for grantRes.Next() {
-		grantRow := grantRes.FetchRowStringMap()
+		grantRow, err := grantRes.FetchRowStringMap()
+		dbsteward.FatalIfError(err, "could not parse table grant query result")
 
 		schema := doc.TryGetSchemaNamed(grantRow["table_schema"])
 		util.Assert(schema != nil, "failed to find schema %s for trigger on table %s", grantRow["table_schema"], grantRow["table_name"])
@@ -750,7 +763,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		for _, sequence := range schema.Sequences {
 			grantRes := GlobalDb.Query(`SELECT relacl FROM pg_class WHERE relname = $1`, sequence.Name)
 			for grantRes.Next() {
-				grantRow := grantRes.FetchRowStringMap()
+				grantRow, err := grantRes.FetchRowStringMap()
+				dbsteward.FatalIfError(err, "could not parse sequence grant query result")
 				// privileges for unassociated sequences are not listed in
 				// information_schema.sequences; i think this is probably the most
 				// accurate way to get sequence-level grants
@@ -779,8 +793,6 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			dbsteward.FatalIfError(grantRes.Err(), "Error while querying database")
 		}
 	}
-
-	GlobalDb.Disconnect()
 
 	// scan all now defined tables
 	// TODO(feat) what about other grant checks?
@@ -886,13 +898,15 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 					} else if res.RowCount() > 1 {
 						dbsteward.Notice("%s contains more than one row WHERE %s", tableName, pkExpr)
 						for res.Next() {
-							dbRow := res.FetchRowStringMap()
+							dbRow, err := res.FetchRowStringMap()
+							dbsteward.FatalIfError(err, "could not parse data query result")
 							dbsteward.Notice("\t%v", dbRow)
 						}
 						// TODO(go,nth) error handling
 					} else {
 						res.Next()
-						dbRow := res.FetchRowStringMap()
+						dbRow, err := res.FetchRowStringMap()
+						dbsteward.FatalIfError(err, "could not parse data query result")
 						for i, col := range cols {
 							// TODO(feat) what about row.Columns[i].Null?
 							valuesMatch, xmlValue, dbValue := self.compareDbDataRow(colTypes[col], row.Columns[i].Text, dbRow[col])
