@@ -52,6 +52,110 @@ Once most things have solidified (I'm still changing idioms and whatnot frequent
 I've been trying to keep this README up-to-date as I change things and think about where I want things to go, but at the moment it's not guaranteed to be an accurate depiction of the current state of affairs. At the time of writing, I mostly have pgsql builds at parity with the legacy code, and am working my way through pgsql diffing.
 
 At the moment, I (@austinhyde) am the only one actively working on this, and as such, am just pushing to master, working my way through pgsql codepaths, comparing outputs to original DBSteward outputs. If you would like to contribute, please open an issue and let me know, and I can start breaking work up into tickets so we don't step on each other's toes and we can communicate any changes.
+
+<details id="status">
+  <summary>Here's the current status of the various aspects for v2: (click to open big list)</summary>
+
+- [ ] core, utilities
+  - [ ] data addendum aggregation
+    - [ ] implement
+    - [ ] test
+  - [ ] DTD validation
+    - thought: can we do this without involving xmllint? I'd prefer to avoid any runtime deps if we can help it
+    - thought: can we autogenerate the DTD from model structs?
+    - [ ] implement
+    - [ ] test
+  - [ ] XML Data Insert
+    - [x] implement
+    - [ ] test
+  - [ ] XML Sort
+    - [ ] implement
+    - [ ] test
+  - [ ] XML Convert
+    - [x] implement
+    - [ ] test
+- [ ] pgsql
+  - [ ] fresh builds (@austinhyde)
+    - [x] implement
+    - [ ] clean up, refinement
+    - [ ] testing
+  - [ ] xml diffing (@austinhyde)
+    - [x] implement
+    - [ ] clean up, refinement
+    - [ ] testing
+  - [ ] extraction (@austinhyde)
+    - [x] implement
+    - [ ] clean up, refinement
+    - [ ] testing
+  - [ ] db data diffing
+    - [x] implement
+    - [ ] test
+  - [ ] sql diffing
+    - [ ] implement
+    - [ ] testing
+  - [ ] pgdataxml compositing
+    - [ ] implement
+    - [ ] test
+- [ ] slony support
+  - [ ] slonik generation (build, diff)
+    - [ ] implement
+    - [ ] test
+  - [ ] slonik convert
+    - [ ] implement
+    - [ ] test
+  - [ ] slony compare
+    - [ ] implement
+    - [ ] test
+  - [ ] slony diff
+    - [ ] implement
+    - [ ] test
+- [ ] mysql
+  - [ ] fresh builds
+    - [ ] implement
+    - [ ] clean up, refinement
+    - [ ] testing
+  - [ ] diffing
+    - [ ] implement
+    - [ ] clean up, refinement
+    - [ ] testing
+  - [ ] extraction
+    - [ ] implement
+    - [ ] clean up, refinement
+    - [ ] testing
+- [ ] mssql
+  - [ ] fresh builds
+    - [ ] implement
+    - [ ] clean up, refinement
+    - [ ] testing
+  - [ ] diffing
+    - [ ] implement
+    - [ ] clean up, refinement
+    - [ ] testing
+  - [ ] extraction
+    - [ ] implement
+    - [ ] clean up, refinement
+    - [ ] testing
+- [ ] Polish for Release
+  - [ ] triage and/or fix remaining `TODO(go,nth|core|xmlutil|pgsql|mssql|mysql)` items
+  - [ ] triage and/or fix remaining lint warnings
+  - [ ] code/api documentation
+  - [ ] docker image
+  - [ ] user documentation
+  - [ ] flip github repos?
+  - [ ] update websites?
+  - [ ] CI builds: testing, coverage. Look into GH actions
+  - [ ] github issue templates, labels, etc
+  - [ ] license, contribution considerations (should we have contributors assign IP?)
+  - [ ] create github release 2.0
+
+</details>
+
+There's a few big cross cutting things that need to be sorted out yet:
+
+- [ ] Lift general code up to `sql99` - The general framework is there, but most code so far is only implemented inside `pgsql8`
+- [ ] Refactor the various `GlobalDBSteward.Fatal` calls, because we can't unit test those code paths. Will probably need to return actual `error` values
+- [ ] Standardize and normalize various names and algorithms (e.g. unify `TryGetXNamed` and `TryGetXMatching`, implement `IdentityMatches` on everything)
+- [ ] Change `sql` generation to rely more on specific types instead of just strings, see if we can't pull some of the common stuff to a common package between different dialects
   
 ## Differences from PHP codebase
 
@@ -213,24 +317,53 @@ func DoSomethingWithTable() []output.ToSql {
 Everything is just a diff; build is just diff of empty -> new
 
 1. Build an in-memory definition of old & new
-  - Do includes and compositing here
-  - Read XML (or SQL, HCL, ...?)
-  - Read DB structure
-2. Transform those defs based on source
-  - Add inferred schema objects like read-only grants, foreign key indexes, etc
-  - Convert/normalize data types
-  - Expand macros, tabrows, etc
-3. Validate those defs
-4. Diff old and new, generating a set of changes, NOT SQL. (but close to sql)
-5. Transform the changes based on target
-  - Generate polyfills (e.g. mysql sequences)
-  - Translate to dialect-specific types
-6. Validate changes
-7. Serialize changes to DML/DDL
-8. Output to desired location
-  - live db
-  - 4-stage migration
-  - 1-stage migration
+     - Do includes and compositing here
+     - Read XML (or SQL, HCL, ...?)
+     - Read DB structure
+1. Transform those defs based on source
+     - Add inferred schema objects like read-only grants, foreign key indexes, etc
+     - Convert/normalize data types
+     - Expand macros, tabrows, etc
+2. Validate those defs
+3. Diff old and new, generating a set of changes, NOT SQL. (but close to sql)
+4. Transform the changes based on target
+     - Generate polyfills (e.g. mysql sequences)
+     - Translate to dialect-specific types
+5. Validate changes
+6. Serialize changes to DML/DDL
+7. Output to desired location
+     - live db
+     - 4-stage migration
+     - 1-stage migration
+
+### Specific Features
+
+Keeping a running list of user-facing new features, QoL improvements, etc, I'd like to implement. The sections below detail how we might be able to accomplish some of these things, this is just a high level list, plainly stated.
+
+As noted at the top, any API changes (that is, a change to the DTD, interpretation of the DTD, or CLI invocations) will be in at least v4. (v2 should be a nearly straight port and v3 should be no-op refactors, both of which should consititute no more than a patch version)
+
+- Optionally issuing CREATE DATABASE on fresh builds
+  - Will need to name databases: `<database name="widgets">`
+- Multiple database management
+  - move non-`<database>` elements under `<database name="name">`
+- Role management
+  - Create/drop/alter users/roles, groups
+  - Pluggable secret stores for automated credential management?
+  - Pluggable strategies for different auth schemes - e.g. AWS IAM auth?
+- Extension management:
+  - `<extension name="some_ext" version="1.2.3" cascade="true" withSchema="_some_ext_data"/>`
+- Compact foreign key references:
+  - `<column name="foo_id" references="foo.id">` instead of `<column name="foo_id" foreignTable="foo" foreignColumn="id">`
+  - `<foreignKey columns="a,b" references="otherschema.widget(c, d)"/>` instead of `<foreignKey columns="a,b" foreignSchema="otherschema" foreignTable="widget" foreignColumns="c,d"/>`
+- Better dialect support
+  - Pluggable dialects
+  - More recent versions. Postgres 8 and MySQL 5 were released SIXTEEN years ago, MSSQL 10 was thirteen years ago!
+  - Specific versions as first-class citizens, take advantage of new features when possible
+- More schema definition formats
+  - Pluggable definitions
+  - SQL, HCL, Frameworks (e.g. SQLAlchemy)
+  - Live database diffing
+- Better strategy for point-in-time changes, like renames and custom transforms
 
 ### Strategy Architecture
 
