@@ -342,6 +342,8 @@ Keeping a running list of user-facing new features, QoL improvements, etc, I'd l
 
 As noted at the top, any API changes (that is, a change to the DTD, interpretation of the DTD, or CLI invocations) will be in at least v4. (v2 should be a nearly straight port and v3 should be no-op refactors, both of which should consititute no more than a patch version)
 
+- Passing db connection strings
+  - `--db postgres://localhost/somedb` (URI style) or `--db 'host=localhost name=somdb'` (DSN style) instead of `--dbhost localhost --dbname somedb`
 - Optionally issuing CREATE DATABASE on fresh builds
   - Will need to name databases: `<database name="widgets">`
 - Multiple database management

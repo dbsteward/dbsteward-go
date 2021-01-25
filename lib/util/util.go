@@ -132,9 +132,10 @@ func IIndexOfStr(target string, list []string) int {
 }
 
 // prompts user for input on the console, hiding input
-func PromptPassword(prompt string) (string, error) {
-	fmt.Printf("Password: ")
+func PromptPassword(prompt string, args ...interface{}) (string, error) {
+	fmt.Printf(prompt, args...)
 	d, err := terminal.ReadPassword(0)
+	fmt.Println() // ReadPassword does not print a new line after
 	return string(d), err
 }
 

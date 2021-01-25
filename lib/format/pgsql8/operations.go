@@ -153,7 +153,11 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as %s", host, port, name, user)
 	GlobalDb.Connect(host, port, name, user, pass)
+	// TODO(!) this is deadlocking during a panic
 	defer GlobalDb.Disconnect()
+
+	serverVersion, err := GlobalDb.Version()
+	dbsteward.FatalIfError(err, "while querying server version")
 
 	doc := &model.Definition{
 		Database: &model.Database{
@@ -213,7 +217,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		// create the table in the schema space
 		table := schema.TryGetTableNamed(tableName)
-		util.Assert(table == nil, "table %s.%s already defined in xml object - unexpected", schema.Name, table.Name)
+		util.Assert(table == nil, "table %s.%s already defined in xml object - unexpected", schema.Name, tableName)
 		table = &model.Table{
 			Name:        tableName,
 			Owner:       self.translateRoleName(row["tableowner"]),
@@ -228,23 +232,41 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		// extract storage parameters as a tableOption
 		// TODO(feat) can we just add this to the main query?
-		paramsRow, err := GlobalDb.QueryStringMap(`
-			SELECT reloptions, relhasoids
-			FROM pg_catalog.pg_class
-			WHERE relname = $1
-				AND relnamespace = (
-					SELECT oid
-					FROM pg_catalog.pg_namespace
-					WHERE nspname = $2
-				)
-		`, table.Name, schema.Name)
-		dbsteward.FatalIfError(err, "Could not query database")
+		// NOTE: pg 11.0 dropped support for "with oids" or "oids=true"
+		relhasoids := "true"
+		reloptions := ""
+		if serverVersion < Version11_0 {
+			paramsRow, err := GlobalDb.QueryStringMap(`
+				SELECT reloptions, relhasoids
+				FROM pg_catalog.pg_class
+				WHERE relname = $1
+					AND relnamespace = (
+						SELECT oid
+						FROM pg_catalog.pg_namespace
+						WHERE nspname = $2
+					)
+			`, table.Name, schema.Name)
+			dbsteward.FatalIfError(err, "Could not query database")
+			reloptions = paramsRow["reloptions"]
+			relhasoids = paramsRow["relhasoids"]
+		} else {
+			paramsRow, err := GlobalDb.QueryStringMap(`
+				SELECT reloptions
+				FROM pg_catalog.pg_class
+				WHERE relname = $1
+					AND relnamespace = (
+						SELECT oid
+						FROM pg_catalog.pg_namespace
+						WHERE nspname = $2
+					)
+			`, table.Name, schema.Name)
+			dbsteward.FatalIfError(err, "Could not query database")
+			reloptions = paramsRow["reloptions"]
+		}
 
 		// reloptions is formatted as {name=value,name=value}
-		reloptions := paramsRow["reloptions"]
 		params := util.ParseKV(reloptions[1:len(reloptions)-1], ",", "=")
-		// TODO(feat) pg 11.0 dropped support for "with oids" or "oids=true"
-		params["oids"] = util.NormalizeTruthyBoolStr(paramsRow["relhasoids"])
+		params["oids"] = util.NormalizeTruthyBoolStr(relhasoids)
 		table.SetTableOption(model.SqlFormatPgsql8, "with", "("+util.EncodeKV(params, ",", "=")+")")
 
 		dbsteward.Info("Analyze table columns %s.%s", schema.Name, table.Name)

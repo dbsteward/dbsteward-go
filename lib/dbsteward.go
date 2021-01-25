@@ -223,7 +223,7 @@ func (self *DBSteward) ArgParse() {
 			self.Fatal("dbuser not specified")
 		}
 		if args.DbPassword == nil {
-			p, err := util.PromptPassword("Connection password: ")
+			p, err := util.PromptPassword("[DBSteward] Enter password for postgres://%s@%s:%d/%s: ", args.DbUser, args.DbHost, args.DbPort, args.DbName)
 			self.FatalIfError(err, "Could not read password input")
 			args.DbPassword = &p
 		}

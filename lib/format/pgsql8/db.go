@@ -2,7 +2,9 @@ package pgsql8
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strconv"
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/jackc/pgx/v4"
@@ -34,7 +36,7 @@ func (self *DbResult) Err() error {
 func (self *DbResult) FetchRowStringMap() (map[string]string, error) {
 	fields := self.rows.FieldDescriptions()
 	cols := make([]string, len(fields))
-	vals := make([]string, len(fields))
+	vals := make([]sql.NullString, len(fields))
 	dests := make([]interface{}, len(fields))
 	for i, field := range fields {
 		cols[i] = string(field.Name)
@@ -47,7 +49,7 @@ func (self *DbResult) FetchRowStringMap() (map[string]string, error) {
 
 	out := map[string]string{}
 	for i, col := range cols {
-		out[col] = vals[i]
+		out[col] = vals[i].String
 	}
 	return out, nil
 }
@@ -65,6 +67,15 @@ func (self *Db) Connect(host string, port uint, name, user, pass string) {
 	conn, err := pgxpool.Connect(context.Background(), dsn)
 	lib.GlobalDBSteward.FatalIfError(err, "Could not connect to database %s", dsnNoPass)
 	self.conn = conn
+}
+
+func (self *Db) Version() (int, error) {
+	var v string
+	err := self.QueryVal(&v, "SHOW server_version_num;")
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(v)
 }
 
 func (self *Db) Disconnect() {
