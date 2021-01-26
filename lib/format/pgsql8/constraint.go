@@ -10,31 +10,20 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-type ConstraintType string
+type ConstraintType uint
 
 const (
-	ConstraintTypeAll        ConstraintType = "all"
-	ConstraintTypePrimaryKey ConstraintType = "primaryKey"
-	ConstraintTypeConstraint ConstraintType = "constraint"
-	ConstraintTypeForeign    ConstraintType = "foreignKey"
+	ConstraintTypePrimaryKey ConstraintType = 1 << iota
+	ConstraintTypeForeign
+	ConstraintTypeOther
+
+	ConstraintTypeConstraint ConstraintType = ConstraintTypeOther | ConstraintTypeForeign
+	ConstraintTypeAll        ConstraintType = ConstraintTypeConstraint | ConstraintTypePrimaryKey
 )
 
 // Returns true if this constraint type is or includes the given type
 func (self ConstraintType) Includes(sub ConstraintType) bool {
-	if self == ConstraintTypeAll || sub == ConstraintTypeAll {
-		// all includes everything else, all is included by everything else
-		return true
-	}
-	switch self {
-	case ConstraintTypeConstraint:
-		return sub != ConstraintTypePrimaryKey
-	case ConstraintTypePrimaryKey:
-		return sub == ConstraintTypePrimaryKey
-	case ConstraintTypeForeign:
-		return sub == ConstraintTypeForeign
-	}
-	util.Assert(false, "Unknown constraint type %s", self)
-	return false
+	return self&sub != 0
 }
 
 type TableConstraint struct {

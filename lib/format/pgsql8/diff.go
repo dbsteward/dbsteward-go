@@ -271,7 +271,10 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			GlobalDiffTables.DiffClustersTable(stage1, oldSchema, oldTable, newSchema, newTable)
 			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypePrimaryKey)
 			GlobalDiffTriggers.DiffTriggersTable(stage1, oldSchema, oldTable, newSchema, newTable)
-			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypeConstraint)
+
+			// HACK: For now, we'll generate foreign key constraints in stage 4 in updateData below
+			// https://github.com/dbsteward/dbsteward/issues/142
+			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypeConstraint&^ConstraintTypeForeign)
 		}
 
 		// drop old tables in reverse dependency order
@@ -369,9 +372,14 @@ func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 			}
 
 			if deleteMode {
+				// TODO(feat) aren't deletes supposed to go in stage 2?
 				ofs.WriteSql(GlobalDiffTables.GetDeleteDataSql(oldSchema, oldTable, newSchema, newTable)...)
 			} else {
 				ofs.WriteSql(GlobalDiffTables.GetCreateDataSql(oldSchema, oldTable, newSchema, newTable)...)
+
+				// HACK: For now, we'll generate foreign key constraints in stage 4 after inserting data
+				// https://github.com/dbsteward/dbsteward/issues/142
+				GlobalDiffConstraints.CreateConstraintsTable(ofs, oldSchema, oldTable, newSchema, newTable, ConstraintTypeForeign)
 			}
 		}
 	} else {
