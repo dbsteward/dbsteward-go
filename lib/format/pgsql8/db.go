@@ -14,21 +14,27 @@ import (
 var GlobalDb *Db = NewDB()
 
 type Db struct {
-	conn *pgxpool.Pool
+	conn       *pgxpool.Pool
+	activeRows []pgx.Rows
 }
 
 // TODO(go,nth) should this be in lib?
 type DbResult struct {
 	rows pgx.Rows
+	db   *Db
 }
 
 // NOTE: This closes the result, cannot call Next() or FetchRowStringMap() after it's called
 func (self *DbResult) RowCount() int {
-	self.rows.Close()
+	self.close()
 	return int(self.rows.CommandTag().RowsAffected())
 }
 func (self *DbResult) Next() bool {
-	return self.rows.Next()
+	v := self.rows.Next()
+	if !v {
+		self.close()
+	}
+	return v
 }
 func (self *DbResult) Err() error {
 	return self.rows.Err()
@@ -52,6 +58,11 @@ func (self *DbResult) FetchRowStringMap() (map[string]string, error) {
 		out[col] = vals[i].String
 	}
 	return out, nil
+}
+
+func (self *DbResult) close() {
+	self.rows.Close()
+	self.db.releaseRows(self.rows)
 }
 
 func NewDB() *Db {
@@ -79,6 +90,10 @@ func (self *Db) Version() (int, error) {
 }
 
 func (self *Db) Disconnect() {
+	// conn.Close will deadlock if there are any open rows, so close those first
+	for _, rows := range self.activeRows {
+		rows.Close()
+	}
 	self.conn.Close()
 }
 
@@ -86,7 +101,8 @@ func (self *Db) Query(sql string, params ...interface{}) *DbResult {
 	// "If there is an error the returned Rows will be returned in an error state.
 	// So it is allowed to ignore the error returned from Query and handle it in Rows."
 	rows, _ := self.conn.Query(context.TODO(), sql, params...)
-	return &DbResult{rows}
+	self.activeRows = append(self.activeRows, rows)
+	return &DbResult{rows, self}
 }
 
 func (self *Db) QueryVal(val interface{}, sql string, params ...interface{}) error {
@@ -99,4 +115,17 @@ func (self *Db) QueryStringMap(sql string, params ...interface{}) (map[string]st
 		return res.FetchRowStringMap()
 	}
 	return nil, res.Err()
+}
+
+func (self *Db) releaseRows(rows pgx.Rows) {
+	b := self.activeRows[:0]
+	for _, r := range self.activeRows {
+		if r != rows {
+			b = append(b)
+		}
+	}
+	for i := len(b); i < len(self.activeRows); i += 1 {
+		self.activeRows[i] = nil
+	}
+	self.activeRows = b
 }
