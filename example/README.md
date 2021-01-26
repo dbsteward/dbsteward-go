@@ -4,9 +4,17 @@ This folder contains example applications of DBSteward.
 
 At the moment, this will be evolving as we implement more functionality. The diffs between two commits will show what's changed about sql generation in that commit.
 
-Can run everything with `example/run`
+Can run everything with `example/run`, which:
 
-## Clean Build
+1. Wipes out all generated files in the example directory
+2. Builds a schema definition from v1 of our database: `someapp_v1.xml` -> `someapp_v1_build.sql`
+3. Builds an upgrade ("diff") from v1 to v2 `someapp_v1.xml` + `someapp_v2.xml` -> `someapp_v2_upgrade*.sql`
+4. Loads v1 into a real database using docker
+5. Loads the v2 upgrade into the database
+6. Extracts the v2 schema into `someapp_v2_extract.xml`
+7. Diffs `someapp_v2.xml` and `someapp_v2_extract.xml`. If everything is working well, this will contain no changes since they both represent the same state of the database.
+
+## Build
 
 This generates the whole schema:
 

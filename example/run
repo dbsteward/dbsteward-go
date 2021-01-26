@@ -91,7 +91,7 @@ function load_diff {
 
 function extract {
   echo "Extracting v2 schema..."
-  cmd go run . --dbschemadump --sqlformat pgsql8 "${dbsargs[@]}" --outputfile example/someapp_v2_extracted.xml "$@"
+  cmd go run . --dbschemadump --sqlformat pgsql8 "${dbsargs[@]}" --outputfile example/someapp_extracted.xml "$@"
 }
 
 clean

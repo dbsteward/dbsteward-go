@@ -15,7 +15,7 @@
         "followPointers": true,
         "maxVariableRecurse": 1,
         "maxStringLen": 300,
-        "maxArrayValues": 64,
+        "maxArrayValues": -1,
         "maxStructFields": -1
       }
     },
@@ -30,7 +30,30 @@
         "followPointers": true,
         "maxVariableRecurse": 1,
         "maxStringLen": 300,
-        "maxArrayValues": 64,
+        "maxArrayValues": -1,
+        "maxStructFields": -1
+      }
+    },
+    {
+      "name": "someapp extract",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}",
+      "args": [
+        "--dbschemadump", "--debug",
+        "--sqlformat", "pgsql8",
+        "--dbhost", "localhost",
+        "--dbname", "someapp",
+        "--dbpassword", "secret",
+        "--dbuser", "postgres",
+        "--outputfile", "example/someapp_extracted.xml",
+      ],
+      "dlvLoadConfig": {
+        "followPointers": true,
+        "maxVariableRecurse": 1,
+        "maxStringLen": 300,
+        "maxArrayValues": -1,
         "maxStructFields": -1
       }
     }

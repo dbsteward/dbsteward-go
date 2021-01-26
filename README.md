@@ -14,6 +14,8 @@ This repo contains a rewrite of https://github.com/dbsteward/dbsteward. If you'r
 
 Before too long I'll put something up here about the general operating theory, but for now, the TL;DR is, DBSteward diffs two XML files that represent a database schema, producing the SQL needed to get from the old version to the new version. It's intended as a replacement for the traditional migration workflow.
 
+To see what this looks like in practice, check out the `examples/` folder
+
 For more info, check out https://github.com/dbsteward/dbsteward
 
 ## Why are we doing this?

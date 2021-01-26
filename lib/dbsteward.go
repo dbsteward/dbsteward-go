@@ -57,12 +57,6 @@ type DBSteward struct {
 	allowFunctionRedefinition      bool
 	AlwaysRecreateViews            bool
 
-	dbHost string
-	dbPort uint
-	dbName string
-	dbUser string
-	dbPass string
-
 	// TODO(go,3) just pass these explicitly!
 	OldDatabase *model.Definition
 	NewDatabase *model.Definition
@@ -102,12 +96,6 @@ func NewDBSteward(lookupMap format.LookupMap) *DBSteward {
 		IgnoreOldNames:                 false,
 		allowFunctionRedefinition:      false,
 		AlwaysRecreateViews:            true,
-
-		dbHost: "",
-		dbPort: 0,
-		dbName: "",
-		dbUser: "",
-		dbPass: "",
 
 		OldDatabase: nil,
 		NewDatabase: nil,
@@ -281,11 +269,7 @@ func (self *DBSteward) ArgParse() {
 	// set the global sql format
 	self.SqlFormat = self.reconcileSqlFormat(targetSqlFormat, args.SqlFormat)
 	self.Notice("Using sqlformat=%s", self.SqlFormat)
-
-	if self.dbPort == 0 {
-		// TODO(go,nth) this is just super jank
-		self.dbPort = self.defineSqlFormatDefaultValues(self.SqlFormat, args)
-	}
+	self.defineSqlFormatDefaultValues(self.SqlFormat, args)
 
 	self.QuoteSchemaNames = args.QuoteSchemaNames
 	self.QuoteTableNames = args.QuoteTableNames
@@ -419,26 +403,31 @@ func (self *DBSteward) reconcileSqlFormat(target, requested model.SqlFormat) mod
 	return DefaultSqlFormat
 }
 
-func (self *DBSteward) defineSqlFormatDefaultValues(SqlFormat model.SqlFormat, args *Args) uint {
-	var dbPort uint
+func (self *DBSteward) defineSqlFormatDefaultValues(SqlFormat model.SqlFormat, args *Args) {
 	switch SqlFormat {
 	case model.SqlFormatPgsql8:
 		self.CreateLanguages = true
 		self.QuoteSchemaNames = false
 		self.QuoteTableNames = false
 		self.QuoteColumnNames = false
-		dbPort = 5432
+		if args.DbPort == 0 {
+			args.DbPort = 5432
+		}
 
 	case model.SqlFormatMssql10:
 		self.QuoteTableNames = true
 		self.QuoteColumnNames = true
-		dbPort = 1433
+		if args.DbPort == 0 {
+			args.DbPort = 1433
+		}
 
 	case model.SqlFormatMysql5:
 		self.QuoteSchemaNames = true
 		self.QuoteTableNames = true
 		self.QuoteColumnNames = true
-		dbPort = 3306
+		if args.DbPort == 0 {
+			args.DbPort = 3306
+		}
 		// TODO(go,mysql)
 		// 	mysql5.GlobalMysql5.UseAutoIncrementTableOptions = args.UseAutoIncrementOptions
 		// 	mysql5.GlobalMysql5.UseSchemaNamePrefix = args.UseSchemaPrefix
@@ -449,8 +438,6 @@ func (self *DBSteward) defineSqlFormatDefaultValues(SqlFormat model.SqlFormat, a
 			self.Fatal("pgdataxml parameter is not supported by %s driver", SqlFormat)
 		}
 	}
-
-	return dbPort
 }
 
 func (self *DBSteward) calculateFileOutputPrefix(files []string) string {
