@@ -100,6 +100,11 @@ function extract {
   cmd go run . --dbschemadump --sqlformat pgsql8 "${dbsargs[@]}" --outputfile example/someapp_extracted.xml "$@"
 }
 
+function diff_extract {
+  echo "Running diff of v2->extract..."
+  cmd go run . --oldxml example/someapp_v2.xml --newxml example/someapp_extracted.xml "$@"
+}
+
 clean
 build "$@"
 echo "------"
@@ -114,3 +119,5 @@ echo "------"
 load_diff
 echo "------"
 extract "$@"
+echo "------"
+diff_extract "$@"

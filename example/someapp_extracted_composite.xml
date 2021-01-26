@@ -1,0 +1,191 @@
+<dbsteward>
+  <database>
+    <sqlFormat>pgsql8</sqlFormat>
+    <role>
+      <application>postgres</application>
+      <owner>postgres</owner>
+      <replication>postgres</replication>
+      <readonly>postgres</readonly>
+      <customRole>someapp_readonly</customRole>
+      <customRole>someapp</customRole>
+    </role>
+  </database>
+  <schema name="_p_public_sql_user" owner="postgres">
+    <table name="partition_0" owner="pgsql" primaryKey="user_id" primaryKeyName="partition_0_pkey">
+      <tableOption sqlFormat="pgsql8">
+        <name>with</name>
+        <value>(oids=false)</value>
+      </tableOption>
+      <column name="user_id" type="serial" null="false"></column>
+      <column name="user_name" type="character varying(40)" null="true"></column>
+      <column name="password" type="text" null="true"></column>
+      <column name="somecol1" type="text" null="true"></column>
+      <column name="import_id" type="character varying(32)" null="true"></column>
+      <column name="register_date" type="timestamp with time zone" null="true"></column>
+      <column name="user_status_list_id" null="true" foreignSchema="public" foreignTable="user_status_list" foreignColumn="user_status_list_id" foreignKeyName="p0_user_status_list_id_fk" foreignOnUpdate="NO_ACTION" foreignOnDelete="NO_ACTION"></column>
+      <column name="email" type="text" null="true"></column>
+      <column name="user_access_level_id" null="false" default="1" foreignSchema="public" foreignTable="user_access_level" foreignColumn="user_access_level_id" foreignKeyName="p0_user_access_level_id_fk" foreignOnUpdate="NO_ACTION" foreignOnDelete="NO_ACTION"></column>
+      <index name="user_name_p0" using="btree">
+        <indexDimension name="user_name_p0_1">user_name</indexDimension>
+      </index>
+      <grant role="pgsql" operation="SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER" with="GRANT"></grant>
+      <grant role="someapp_readonly" operation="SELECT"></grant>
+      <grant role="someapp" operation="SELECT, INSERT, UPDATE, DELETE"></grant>
+    </table>
+    <table name="partition_1" owner="pgsql" primaryKey="user_id" primaryKeyName="partition_1_pkey">
+      <tableOption sqlFormat="pgsql8">
+        <name>with</name>
+        <value>(oids=false)</value>
+      </tableOption>
+      <column name="user_id" type="serial" null="false"></column>
+      <column name="user_name" type="character varying(40)" null="true"></column>
+      <column name="password" type="text" null="true"></column>
+      <column name="somecol1" type="text" null="true"></column>
+      <column name="import_id" type="character varying(32)" null="true"></column>
+      <column name="register_date" type="timestamp with time zone" null="true"></column>
+      <column name="user_status_list_id" null="true" foreignSchema="public" foreignTable="user_status_list" foreignColumn="user_status_list_id" foreignKeyName="p1_user_status_list_id_fk" foreignOnUpdate="NO_ACTION" foreignOnDelete="NO_ACTION"></column>
+      <column name="email" type="text" null="true"></column>
+      <column name="user_access_level_id" null="false" default="1" foreignSchema="public" foreignTable="user_access_level" foreignColumn="user_access_level_id" foreignKeyName="p1_user_access_level_id_fk" foreignOnUpdate="NO_ACTION" foreignOnDelete="NO_ACTION"></column>
+      <index name="user_name_p1" using="btree">
+        <indexDimension name="user_name_p1_1">user_name</indexDimension>
+      </index>
+      <grant role="pgsql" operation="SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER" with="GRANT"></grant>
+      <grant role="someapp_readonly" operation="SELECT"></grant>
+      <grant role="someapp" operation="SELECT, INSERT, UPDATE, DELETE"></grant>
+    </table>
+    <table name="partition_2" owner="pgsql" primaryKey="user_id" primaryKeyName="partition_2_pkey">
+      <tableOption sqlFormat="pgsql8">
+        <name>with</name>
+        <value>(oids=false)</value>
+      </tableOption>
+      <column name="user_id" type="serial" null="false"></column>
+      <column name="user_name" type="character varying(40)" null="true"></column>
+      <column name="password" type="text" null="true"></column>
+      <column name="somecol1" type="text" null="true"></column>
+      <column name="import_id" type="character varying(32)" null="true"></column>
+      <column name="register_date" type="timestamp with time zone" null="true"></column>
+      <column name="user_status_list_id" null="true" foreignSchema="public" foreignTable="user_status_list" foreignColumn="user_status_list_id" foreignKeyName="p2_user_status_list_id_fk" foreignOnUpdate="NO_ACTION" foreignOnDelete="NO_ACTION"></column>
+      <column name="email" type="text" null="true"></column>
+      <column name="user_access_level_id" null="false" default="1" foreignSchema="public" foreignTable="user_access_level" foreignColumn="user_access_level_id" foreignKeyName="p2_user_access_level_id_fk" foreignOnUpdate="NO_ACTION" foreignOnDelete="NO_ACTION"></column>
+      <index name="user_name_p2" using="btree">
+        <indexDimension name="user_name_p2_1">user_name</indexDimension>
+      </index>
+      <grant role="pgsql" operation="SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER" with="GRANT"></grant>
+      <grant role="someapp_readonly" operation="SELECT"></grant>
+      <grant role="someapp" operation="SELECT, INSERT, UPDATE, DELETE"></grant>
+    </table>
+    <table name="partition_3" owner="pgsql" primaryKey="user_id" primaryKeyName="partition_3_pkey">
+      <tableOption sqlFormat="pgsql8">
+        <name>with</name>
+        <value>(oids=false)</value>
+      </tableOption>
+      <column name="user_id" type="serial" null="false"></column>
+      <column name="user_name" type="character varying(40)" null="true"></column>
+      <column name="password" type="text" null="true"></column>
+      <column name="somecol1" type="text" null="true"></column>
+      <column name="import_id" type="character varying(32)" null="true"></column>
+      <column name="register_date" type="timestamp with time zone" null="true"></column>
+      <column name="user_status_list_id" null="true" foreignSchema="public" foreignTable="user_status_list" foreignColumn="user_status_list_id" foreignKeyName="p3_user_status_list_id_fk" foreignOnUpdate="NO_ACTION" foreignOnDelete="NO_ACTION"></column>
+      <column name="email" type="text" null="true"></column>
+      <column name="user_access_level_id" null="false" default="1" foreignSchema="public" foreignTable="user_access_level" foreignColumn="user_access_level_id" foreignKeyName="p3_user_access_level_id_fk" foreignOnUpdate="NO_ACTION" foreignOnDelete="NO_ACTION"></column>
+      <index name="user_name_p3" using="btree">
+        <indexDimension name="user_name_p3_1">user_name</indexDimension>
+      </index>
+      <grant role="pgsql" operation="SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER" with="GRANT"></grant>
+      <grant role="someapp_readonly" operation="SELECT"></grant>
+      <grant role="someapp" operation="SELECT, INSERT, UPDATE, DELETE"></grant>
+    </table>
+  </schema>
+  <schema name="public" description="standard public schema" owner="postgres">
+    <table name="group_list" owner="pgsql" primaryKey="group_list_id" primaryKeyName="group_list_pkey">
+      <tableOption sqlFormat="pgsql8">
+        <name>with</name>
+        <value>(oids=false)</value>
+      </tableOption>
+      <column name="group_list_id" type="serial" null="false"></column>
+      <column name="group_create_time" type="timestamp with time zone" null="false"></column>
+      <column name="group_description" type="text" null="false"></column>
+      <column name="group_name" type="character varying(50)" null="true"></column>
+      <column name="group_permission" type="boolean" null="true" default="true"></column>
+      <column name="group_deleted" type="boolean" null="true" default="false"></column>
+      <column name="group_visible" type="boolean" null="true" default="true"></column>
+      <grant role="pgsql" operation="SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER" with="GRANT"></grant>
+      <grant role="someapp_readonly" operation="SELECT"></grant>
+      <grant role="someapp" operation="SELECT, INSERT, UPDATE"></grant>
+    </table>
+    <table name="session_information" description="Information regarding a user&#39;s current session" owner="pgsql" primaryKey="session_id" primaryKeyName="session_information_pkey">
+      <tableOption sqlFormat="pgsql8">
+        <name>with</name>
+        <value>(oids=false)</value>
+      </tableOption>
+      <column name="session_id" type="character varying(255)" null="false"></column>
+      <column name="user_id" null="true" foreignSchema="public" foreignTable="sql_user" foreignColumn="user_id" foreignKeyName="session_information_user_id_fkey" foreignOnUpdate="NO_ACTION" foreignOnDelete="NO_ACTION"></column>
+      <column name="login_time" type="timestamp with time zone" null="true"></column>
+      <column name="logout_time" type="timestamp with time zone" null="true"></column>
+      <column name="last_active_time" type="timestamp with time zone" null="true"></column>
+      <column name="ip" type="inet" null="true"></column>
+      <column name="page" type="character varying(40)" null="true"></column>
+      <column name="start_time" type="timestamp with time zone" null="true"></column>
+      <column name="last_time" type="timestamp with time zone" null="true"></column>
+      <column name="data" type="text" null="true"></column>
+      <grant role="pgsql" operation="SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER" with="GRANT"></grant>
+      <grant role="someapp_readonly" operation="SELECT"></grant>
+      <grant role="someapp" operation="SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER"></grant>
+    </table>
+    <table name="sql_user" description="user table comment" owner="pgsql" primaryKey="user_id" primaryKeyName="sql_user_pkey">
+      <tableOption sqlFormat="pgsql8">
+        <name>with</name>
+        <value>(oids=false)</value>
+      </tableOption>
+      <column name="user_id" type="serial" null="false"></column>
+      <column name="user_name" type="character varying(40)" null="true"></column>
+      <column name="password" type="text" null="true"></column>
+      <column name="somecol1" type="text" null="true"></column>
+      <column name="import_id" type="character varying(32)" null="true"></column>
+      <column name="register_date" type="timestamp with time zone" null="true"></column>
+      <column name="user_status_list_id" null="true" foreignSchema="public" foreignTable="user_status_list" foreignColumn="user_status_list_id" foreignKeyName="sql_user_user_status_list_id_fkey" foreignOnUpdate="NO_ACTION" foreignOnDelete="NO_ACTION"></column>
+      <column name="email" type="text" null="true"></column>
+      <column name="user_access_level_id" null="false" default="1" foreignSchema="public" foreignTable="user_access_level" foreignColumn="user_access_level_id" foreignKeyName="sql_user_user_access_level_id_fkey" foreignOnUpdate="NO_ACTION" foreignOnDelete="NO_ACTION"></column>
+      <grant role="pgsql" operation="SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER" with="GRANT"></grant>
+      <grant role="someapp_readonly" operation="SELECT"></grant>
+      <grant role="someapp" operation="SELECT, INSERT, UPDATE, DELETE"></grant>
+    </table>
+    <table name="user_access_level" owner="pgsql" primaryKey="user_access_level_id" primaryKeyName="user_access_level_pkey">
+      <tableOption sqlFormat="pgsql8">
+        <name>with</name>
+        <value>(oids=false)</value>
+      </tableOption>
+      <column name="user_access_level_id" type="integer" null="false"></column>
+      <column name="user_access_level" type="character varying(10)" null="false" default="true"></column>
+      <column name="can_see_invisible_users" type="boolean" null="false" default="false"></column>
+      <grant role="pgsql" operation="SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER" with="GRANT"></grant>
+      <grant role="someapp_readonly" operation="SELECT"></grant>
+      <grant role="someapp" operation="SELECT"></grant>
+    </table>
+    <table name="user_status_list" owner="pgsql" primaryKey="user_status_list_id" primaryKeyName="user_status_list_pkey">
+      <tableOption sqlFormat="pgsql8">
+        <name>with</name>
+        <value>(oids=false)</value>
+      </tableOption>
+      <column name="user_status_list_id" type="integer" null="false"></column>
+      <column name="is_visible" type="boolean" null="false" default="true"></column>
+      <column name="can_login" type="boolean" null="false" default="true"></column>
+      <column name="user_status" type="character varying(40)" null="false"></column>
+      <grant role="pgsql" operation="SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER" with="GRANT"></grant>
+      <grant role="someapp_readonly" operation="SELECT"></grant>
+      <grant role="someapp" operation="SELECT"></grant>
+    </table>
+    <function name="destroy_session" owner="pgsql" description="Deletes session data from the database" returns="void" cachePolicy="VOLATILE">
+      <functionParameter type="character varying"></functionParameter>
+      <functionDefinition sqlFormat="pgsql8" language="sql"><![CDATA[
+  DELETE FROM session_information WHERE session_id=$1;
+]]></functionDefinition>
+    </function>
+    <trigger name="sql_user_part_trg" table="sql_user" event="INSERT" when="BEFORE" forEach="ROW" function="EXECUTE PROCEDURE _p_public_sql_user.insert_trigger()" sqlFormat="pgsql8"></trigger>
+    <view name="group_list_view" owner="pgsql">
+      <grant role="pgsql" operation="SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER" with="GRANT"></grant>
+      <grant role="someapp" operation="SELECT"></grant>
+      <viewQuery sqlFormat="pgsql8"><![CDATA[SELECT group_list.group_list_id, group_list.group_create_time, group_list.group_description, group_list.group_name, group_list.group_permission, group_list.group_deleted, group_list.group_visible FROM group_list WHERE ((group_list.group_deleted = false) AND (group_list.group_visible = true));]]></viewQuery>
+    </view>
+  </schema>
+</dbsteward>
