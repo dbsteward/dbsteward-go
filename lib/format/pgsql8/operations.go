@@ -173,7 +173,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 	// find all tables in the schema that aren't in the built-in schemas
 	// TODO(go,nth) move this into a dedicated function returning structs
-	res := GlobalDb.Query(`
+	tableRows, err := GlobalDb.Query(`
 		SELECT
 			t.schemaname, t.tablename, t.tableowner, t.tablespace,
 			sd.description as schema_description, td.description as table_description,
@@ -188,12 +188,11 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		WHERE schemaname NOT IN ('information_schema', 'pg_catalog')
 		ORDER BY schemaname, tablename;
 	`)
+	dbsteward.FatalIfError(err, "Error with table query")
 	// serials that are implicitly created as part of a table, no need to explicitly create these
 	sequenceCols := []string{}
 	tableSerials := []string{}
-	for res.Next() {
-		row, err := res.FetchRowStringMap()
-		dbsteward.FatalIfError(err, "could not parse table query result")
+	for _, row := range tableRows {
 		schemaName := row["schemaname"]
 		tableName := row["tablename"]
 
@@ -232,8 +231,9 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		// extract storage parameters as a tableOption
 		// TODO(feat) can we just add this to the main query?
+		// see also https://github.com/dbsteward/dbsteward/issues/97 -
 		// NOTE: pg 11.0 dropped support for "with oids" or "oids=true"
-		relhasoids := "true"
+		relhasoids := "false"
 		reloptions := ""
 		if serverVersion < Version11_0 {
 			paramsRow, err := GlobalDb.QueryStringMap(`
@@ -265,7 +265,10 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		}
 
 		// reloptions is formatted as {name=value,name=value}
-		params := util.ParseKV(reloptions[1:len(reloptions)-1], ",", "=")
+		params := map[string]string{}
+		if len(reloptions) > 2 {
+			params = util.ParseKV(reloptions[1:len(reloptions)-1], ",", "=")
+		}
 		params["oids"] = util.NormalizeTruthyBoolStr(relhasoids)
 		table.SetTableOption(model.SqlFormatPgsql8, "with", "("+util.EncodeKV(params, ",", "=")+")")
 
@@ -278,7 +281,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		// hasindexes | hasrules | hastriggers handled later
 		// get columns for the table
-		colRes := GlobalDb.Query(`
+		colRows, err := GlobalDb.Query(`
 			SELECT
 				column_name, data_type,
 				column_default, is_nullable,
@@ -292,9 +295,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				AND attnum > 0
 				AND NOT attisdropped
 		`, schema.Name, table.Name)
-		for colRes.Next() {
-			colRow, err := colRes.FetchRowStringMap()
-			dbsteward.FatalIfError(err, "could not parse column query result")
+		dbsteward.FatalIfError(err, "Error with column query")
+		for _, colRow := range colRows {
 			column := &model.Column{
 				Name:        colRow["column_name"],
 				Description: columnDescriptions[colRow["ordinal_position"]],
@@ -335,10 +337,9 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				column.Default = ""
 			}
 		}
-		dbsteward.FatalIfError(colRes.Err(), "Error while querying database")
 
 		dbsteward.Info("Analyze table indexes %s.%s", schema.Name, table.Name)
-		indexRes := GlobalDb.Query(`
+		indexRows, err := GlobalDb.Query(`
 			SELECT
 				ic.relname, i.indisunique,
 				(
@@ -359,9 +360,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 					WHERE table_schema = $1
 						AND table_name = $2);
 		`, schema.Name, table.Name)
-		for indexRes.Next() {
-			indexRow, err := indexRes.FetchRowStringMap()
-			dbsteward.FatalIfError(err, "could not parse index query result")
+		dbsteward.FatalIfError(err, "Error with index query")
+		for _, indexRow := range indexRows {
 			// only add a unique index if the column was unique
 			index := &model.Index{
 				Name:   indexRow["relname"],
@@ -374,9 +374,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				index.AddDimension(dim)
 			}
 		}
-		dbsteward.FatalIfError(indexRes.Err(), "Error while querying database")
 	}
-	dbsteward.FatalIfError(res.Err(), "Error while querying database")
 
 	for _, schema := range doc.Schemas {
 		dbsteward.Info("Analyze isolated sequences in schema %s", schema.Name)
@@ -391,23 +389,21 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		`
 		params := []interface{}{schema.Name}
 		if len(sequenceCols) > 0 {
-			sql += `AND s.relname NOT IN $2`
+			sql += `AND s.relname != ANY($2)`
 			params = append(params, sequenceCols)
 		}
 		sql += `GROUP BY s.relname, r.rolname`
 
-		seqListRes := GlobalDb.Query(sql, params...)
-		for seqListRes.Next() {
-			seqListRow, err := seqListRes.FetchRowStringMap()
-			dbsteward.FatalIfError(err, "could not parse sequence list query result")
+		seqListRows, err := GlobalDb.Query(sql, params...)
+		dbsteward.FatalIfError(err, "Error with sequence list query")
+		for _, seqListRow := range seqListRows {
 			// TODO(feat) can we do away with the N+1 here?
-			seqRes := GlobalDb.Query(fmt.Sprintf(`
+			seqRows, err := GlobalDb.Query(fmt.Sprintf(`
 				SELECT cache_value, start_value, min_value, max_value, increment_by, is_cycled
 				FROM "%s"."%s"
 			`, schema.Name, seqListRow["relname"]))
-			for seqRes.Next() {
-				seqRow, err := seqRes.FetchRowStringMap()
-				dbsteward.FatalIfError(err, "could not parse sequence query result")
+			dbsteward.FatalIfError(err, "Error with sequence query")
+			for _, seqRow := range seqRows {
 				seq := schema.TryGetSequenceNamed(seqListRow["relname"])
 				if seq != nil {
 					schema.AddSequence(&model.Sequence{
@@ -422,27 +418,17 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 					})
 				}
 			}
-			dbsteward.FatalIfError(seqRes.Err(), "Error while querying database")
 		}
-		dbsteward.FatalIfError(seqListRes.Err(), "Error while querying database")
 	}
 
-	viewRes := GlobalDb.Query(`
-		SELECT constraint_name, constraint_type, table_schema, table_name, array_agg(columns) AS columns
-		FROM (
-			SELECT tc.constraint_name, tc.constraint_type, tc.table_schema, tc.table_name, kcu.column_name::text AS columns
-			FROM information_schema.table_constraints tc
-			LEFT JOIN information_schema.key_column_usage kcu ON tc.constraint_catalog = kcu.constraint_catalog AND tc.constraint_schema = kcu.constraint_schema AND tc.constraint_name = kcu.constraint_name
-			WHERE tc.table_schema NOT IN ('information_schema', 'pg_catalog')
-				AND tc.constraint_type != 'FOREIGN KEY'
-			GROUP BY tc.constraint_name, tc.constraint_type, tc.table_schema, tc.table_name, kcu.column_name
-			ORDER BY kcu.column_name, tc.table_schema, tc.table_name
-		) AS results
-		GROUP BY results.constraint_name, results.constraint_type, results.table_schema, results.table_name;
+	viewRows, err := GlobalDb.Query(`
+		SELECT *
+      FROM pg_catalog.pg_views
+      WHERE schemaname NOT IN ('information_schema', 'pg_catalog')
+      ORDER BY schemaname, viewname;
 	`)
-	for viewRes.Next() {
-		viewRow, err := viewRes.FetchRowStringMap()
-		dbsteward.FatalIfError(err, "could not parse view query result")
+	dbsteward.FatalIfError(err, "Error with view query")
+	for _, viewRow := range viewRows {
 		dbsteward.Info("Analyze view %s.%s", viewRow["schemaname"], viewRow["viewname"])
 
 		schema := doc.TryGetSchemaNamed(viewRow["schemaname"])
@@ -455,7 +441,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			// TODO(feat) can we just add this to the main query?
 			var owner string
 			err := GlobalDb.QueryVal(&owner, `SELECT schema_owner FROM information_schema.schemata WHERE schema_name = $1`, schema.Name)
-			dbsteward.FatalIfError(err, "Could not query database")
+			dbsteward.FatalIfError(err, "Error with schema owner lookup query for view")
 			schema.Owner = self.translateRoleName(owner)
 		}
 
@@ -473,10 +459,9 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			},
 		})
 	}
-	dbsteward.FatalIfError(viewRes.Err(), "Error while querying database")
 
 	// for all schemas, all tables - get table constraints that are not type 'FOREIGN KEY'
-	constraintRes := GlobalDb.Query(`
+	constraintRows, err := GlobalDb.Query(`
 		SELECT constraint_name, constraint_type, table_schema, table_name, array_agg(columns) AS columns
     FROM (
       SELECT tc.constraint_name, tc.constraint_type, tc.table_schema, tc.table_name, kcu.column_name::text AS columns
@@ -492,9 +477,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		) AS results
 		GROUP BY results.constraint_name, results.constraint_type, results.table_schema, results.table_name
 	`)
-	for constraintRes.Next() {
-		constraintRow, err := constraintRes.FetchRowStringMap()
-		dbsteward.FatalIfError(err, "could not parse constraint query result")
+	dbsteward.FatalIfError(err, "Error with constraint query")
+	for _, constraintRow := range constraintRows {
 		dbsteward.Info("Analyze table constraints %s.%s", constraintRow["table_schema"], constraintRow["table_name"])
 
 		schema := doc.TryGetSchemaNamed(constraintRow["table_schema"])
@@ -521,7 +505,6 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			dbsteward.Fatal("Unknown constraint_type %s", constraintRow["constraint_type"])
 		}
 	}
-	dbsteward.FatalIfError(constraintRes.Err(), "Error while querying database")
 
 	// We cannot accurately retrieve FOREIGN KEYs via information_schema
 	// We must rely on getting them from pg_catalog instead
@@ -533,7 +516,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		"n": model.ForeignKeyActionSetNull,
 		"d": model.ForeignKeyActionSetDefault,
 	}
-	fkRes := GlobalDb.Query(`
+	fkRows, err := GlobalDb.Query(`
 		SELECT
 			con.constraint_name, con.update_rule, con.delete_rule,
 			lns.nspname AS local_schema, lt_cl.relname AS local_table, array_to_string(array_agg(lc_att.attname), ' ') AS local_columns,
@@ -558,9 +541,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			INNER JOIN pg_attribute fc_att ON fc_att.attrelid = con.foreign_table AND fc_att.attnum = con.foreign_col
 		GROUP BY con.constraint_name, lns.nspname, lt_cl.relname, fns.nspname, ft_cl.relname, con.update_rule, con.delete_rule;
 	`)
-	for fkRes.Next() {
-		fkRow, err := fkRes.FetchRowStringMap()
-		dbsteward.FatalIfError(err, "could not parse foreign key query result")
+	dbsteward.FatalIfError(err, "Error with foreign key query")
+	for _, fkRow := range fkRows {
 		localCols := strings.Split(fkRow["local_columns"], " ")
 		foreignCols := strings.Split(fkRow["foreign_columns"], " ")
 
@@ -604,13 +586,12 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			})
 		}
 	}
-	dbsteward.FatalIfError(fkRes.Err(), "Error while querying database")
 
 	// get function info for all functions
 	// this is based on psql 8.4's \df+ query
 	// that are not language c
 	// that are not triggers
-	fnRes := GlobalDb.Query(`
+	fnRows, err := GlobalDb.Query(`
 		SELECT
 			p.oid, n.nspname as schema, p.proname as name,
       pg_catalog.pg_get_function_result(p.oid) as return_type,
@@ -636,9 +617,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			AND l.lanname NOT IN ( 'c' )
 			AND pg_catalog.pg_get_function_result(p.oid) NOT IN ( 'trigger' );
 	`)
-	for fnRes.Next() {
-		fnRow, err := fnRes.FetchRowStringMap()
-		dbsteward.FatalIfError(err, "could not parse function query result")
+	dbsteward.FatalIfError(err, "Error with function query")
+	for _, fnRow := range fnRows {
 		dbsteward.Info("Analyze function %s.%s", fnRow["schema"], fnRow["name"])
 
 		schema := doc.TryGetSchemaNamed(fnRow["schema"])
@@ -680,7 +660,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		//                       parameters, e.g. {"", parameter_name}
 		//         * proargtypes is an oidvector, enjoy the hackery to deal with NULL proargnames
 		//         * proallargtypes is NULL when all arguments are IN.
-		argsRes := GlobalDb.Query(`
+		argsRows, err := GlobalDb.Query(`
 			SELECT
 				unnest(coalesce(
 					proargnames,
@@ -693,25 +673,21 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			FROM pg_proc pr
 			WHERE oid = $1
 		`, fnRow["oid"])
-		for argsRes.Next() {
-			argsRow, err := argsRes.FetchRowStringMap()
-			dbsteward.FatalIfError(err, "could not parse function args query result")
-			// TODO(feat) out params?
+		dbsteward.FatalIfError(err, "Error with function args query")
+		for _, argsRow := range argsRows {
+			// TODO(feat) param direction?
 			function.AddParameter(argsRow["parameter_name"], argsRow["data_type"])
 		}
-		dbsteward.FatalIfError(argsRes.Err(), "Error while querying database")
 	}
-	dbsteward.FatalIfError(fnRes.Err(), "Error while querying database")
 
 	// TODO(go,nth) don't use *, name columns explicitly
-	triggerRes := GlobalDb.Query(`
+	triggerRows, err := GlobalDb.Query(`
 		SELECT *
 		FROM information_schema.triggers
 		WHERE trigger_schema NOT IN ('pg_catalog', 'information_schema')
 	`)
-	for triggerRes.Next() {
-		triggerRow, err := triggerRes.FetchRowStringMap()
-		dbsteward.FatalIfError(err, "could not parse trigger query result")
+	dbsteward.FatalIfError(err, "Error with trigger query")
+	for _, triggerRow := range triggerRows {
 		dbsteward.Info("Analyze trigger %s.%s", triggerRow["event_object_schema"], triggerRow["trigger_name"])
 
 		schema := doc.TryGetSchemaNamed(triggerRow["event_object_schema"])
@@ -739,20 +715,17 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		trigger.ForEach = model.TriggerForEach(triggerRow["action_orientation"])
 		trigger.Function = strings.TrimSpace(util.IReplaceAll(triggerRow["action_statement"], "EXECUTE PROCEDURE", ""))
 	}
-	dbsteward.FatalIfError(triggerRes.Err(), "Error while querying database")
 
 	// Find table grants and save them in the xml document
 	dbsteward.Info("Analyze table permissions")
 	// TODO(feat) use concrete column list
-	grantRes := GlobalDb.Query(`
+	grantRows, err := GlobalDb.Query(`
 		SELECT *
 		FROM information_schema.table_privileges
 		WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
 	`)
-	for grantRes.Next() {
-		grantRow, err := grantRes.FetchRowStringMap()
-		dbsteward.FatalIfError(err, "could not parse table grant query result")
-
+	dbsteward.FatalIfError(err, "Error with grant query")
+	for _, grantRow := range grantRows {
 		schema := doc.TryGetSchemaNamed(grantRow["table_schema"])
 		util.Assert(schema != nil, "failed to find schema %s for trigger on table %s", grantRow["table_schema"], grantRow["table_name"])
 
@@ -777,16 +750,14 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		// TODO(feat) what about other WITH flags?
 		grant.SetCanGrant(util.IsTruthy(grantRow["is_grantable"]))
 	}
-	dbsteward.FatalIfError(grantRes.Err(), "Error while querying database")
 
 	// analyze sequence grants and assign those to the xml document as well
 	dbsteward.Info("Analyze isolated sequence permissions")
 	for _, schema := range doc.Schemas {
 		for _, sequence := range schema.Sequences {
-			grantRes := GlobalDb.Query(`SELECT relacl FROM pg_class WHERE relname = $1`, sequence.Name)
-			for grantRes.Next() {
-				grantRow, err := grantRes.FetchRowStringMap()
-				dbsteward.FatalIfError(err, "could not parse sequence grant query result")
+			grantRows, err := GlobalDb.Query(`SELECT relacl FROM pg_class WHERE relname = $1`, sequence.Name)
+			dbsteward.FatalIfError(err, "Error with sequence grant query")
+			for _, grantRow := range grantRows {
 				// privileges for unassociated sequences are not listed in
 				// information_schema.sequences; i think this is probably the most
 				// accurate way to get sequence-level grants
@@ -812,7 +783,6 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 					}
 				}
 			}
-			dbsteward.FatalIfError(grantRes.Err(), "Error while querying database")
 		}
 	}
 
@@ -909,26 +879,22 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 
 					// TODO(go,nth) use parameterized queries
 					sql := fmt.Sprintf(`SELECT * FROM %s WHERE %s`, tableName, pkExpr)
-					res := GlobalDb.Query(sql)
+					rows, err := GlobalDb.Query(sql)
+					dbsteward.FatalIfError(err, "Error with data query")
 
 					if row.Delete {
-						if res.RowCount() > 0 {
+						if len(rows) > 0 {
 							dbsteward.Notice("%s row marked for DELETE found WHERE %s", tableName, pkExpr)
 						}
-					} else if res.RowCount() == 0 {
+					} else if len(rows) == 0 {
 						dbsteward.Notice("%s does not contain row WHERE %s", tableName, pkExpr)
-					} else if res.RowCount() > 1 {
+					} else if len(rows) > 1 {
 						dbsteward.Notice("%s contains more than one row WHERE %s", tableName, pkExpr)
-						for res.Next() {
-							dbRow, err := res.FetchRowStringMap()
-							dbsteward.FatalIfError(err, "could not parse data query result")
+						for _, dbRow := range rows {
 							dbsteward.Notice("\t%v", dbRow)
 						}
-						// TODO(go,nth) error handling
 					} else {
-						res.Next()
-						dbRow, err := res.FetchRowStringMap()
-						dbsteward.FatalIfError(err, "could not parse data query result")
+						dbRow := rows[0]
 						for i, col := range cols {
 							// TODO(feat) what about row.Columns[i].Null?
 							valuesMatch, xmlValue, dbValue := self.compareDbDataRow(colTypes[col], row.Columns[i].Text, dbRow[col])

@@ -15,7 +15,7 @@
         "followPointers": true,
         "maxVariableRecurse": 1,
         "maxStringLen": 300,
-        "maxArrayValues": -1,
+        "maxArrayValues": 100,
         "maxStructFields": -1
       }
     },
@@ -30,7 +30,7 @@
         "followPointers": true,
         "maxVariableRecurse": 1,
         "maxStringLen": 300,
-        "maxArrayValues": -1,
+        "maxArrayValues": 100,
         "maxStructFields": -1
       }
     },
@@ -53,7 +53,7 @@
         "followPointers": true,
         "maxVariableRecurse": 1,
         "maxStringLen": 300,
-        "maxArrayValues": -1,
+        "maxArrayValues": 100,
         "maxStructFields": -1
       }
     }

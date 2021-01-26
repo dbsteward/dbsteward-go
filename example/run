@@ -4,7 +4,8 @@ cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1
 
 cd ..
 
-container="dbsteward_example_someapp"
+container="someapp"
+postgres_version="8"
 dbname="someapp"
 dbpass="secret"
 
@@ -49,7 +50,7 @@ function start_pgsql {
     if [[ $status == Exited* ]]; then
       cmd docker start $container
     else
-      cmd docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=$dbpass -e POSTGRES_DB=$dbname --name $container postgres:12
+      cmd docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=$dbpass -e POSTGRES_DB=$dbname --name $container postgres:"$postgres_version"
     fi
 
     set +e
@@ -71,6 +72,11 @@ function start_pgsql {
 function reset_pgsql {
   psql -d postgres -c "DROP DATABASE IF EXISTS $dbname;"
   psql -d postgres -c "CREATE DATABASE $dbname;"
+  if [[ $postgres_version -lt 11 ]]; then
+    psql -c '
+      CREATE TRUSTED PROCEDURAL LANGUAGE plpgsql;
+    '
+  fi
 }
 
 function load_build {
