@@ -1,5 +1,5 @@
 -- example/someapp_v1_build.sql
--- full database definition file generated Fri, 22 Jan 2021 18:35:34 -0500
+-- full database definition file generated Mon, 25 Jan 2021 19:45:43 -0500
 BEGIN;
 
 
@@ -305,7 +305,7 @@ ALTER TABLE _p_public_sql_user.partition_3
 ALTER TABLE public.session_information
   ADD CONSTRAINT session_information_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.sql_user (user_id);
 
-CREATE TRIGGER public.sql_user_part_trg
+CREATE TRIGGER sql_user_part_trg
   BEFORE INSERT
   ON public.sql_user
   FOR EACH ROW

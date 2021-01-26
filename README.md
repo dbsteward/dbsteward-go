@@ -366,6 +366,8 @@ As noted at the top, any API changes (that is, a change to the DTD, interpretati
   - SQL, HCL, Frameworks (e.g. SQLAlchemy)
   - Live database diffing
 - Better strategy for point-in-time changes, like renames and custom transforms
+- Collations, events, rules, opclasses and other uncommon database features
+- Materialized views
 
 ### Strategy Architecture
 

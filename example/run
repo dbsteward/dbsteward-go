@@ -4,22 +4,107 @@ cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1
 
 cd ..
 
-function clean() {
+container="dbsteward_example_someapp"
+dbname="someapp"
+dbpass="secret"
+
+dbsargs=(--dbhost localhost --dbname "$dbname" --dbuser postgres --dbpassword "$dbpass")
+psqlargs=(--echo-all -v ON_ERROR_STOP=1 -h localhost -d "$dbname" -U postgres)
+
+function cmd {
+  echo 
+  echo "> $*"
+  command "$@"
+}
+
+function psql {
+  PGPASSWORD=$dbpass cmd psql "${psqlargs[@]}" "$@"
+}
+
+function _psql {
+  PGPASSWORD=$dbpass command psql "${psqlargs[@]}" "$@"
+}
+
+function clean {
   echo "Cleaning dir"
-  rm -f example/{someapp_v{1,2}_composite.xml,*.sql}
+  cmd rm -f example/{someapp_v{1,2}_composite.xml,*.sql}
 }
 
-function build() {
+function build {
   echo "Running build..."
-  go run . --xml example/someapp_v1.xml "$@"
+  cmd go run . --xml example/someapp_v1.xml "$@"
 }
 
-function diff() {
+function diff {
   echo "Running diff..."
-  go run . --oldxml example/someapp_v1.xml --newxml example/someapp_v2.xml "$@"
+  cmd go run . --oldxml example/someapp_v1.xml --newxml example/someapp_v2.xml "$@"
+}
+
+function start_pgsql {
+  status="$(docker ps -a --format '{{.Status}}' -f "name=$container")"
+  if [[ $status == Up* ]]; then
+    echo "Example postgres db already running: ${dbsargs[*]}"
+  else
+    echo "Starting example postgres db: ${dbsargs[*]}"
+    if [[ $status == Exited* ]]; then
+      cmd docker start $container
+    else
+      cmd docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=$dbpass -e POSTGRES_DB=$dbname --name $container postgres:12
+    fi
+
+    set +e
+    while ! _psql -c "SELECT 1" 2>/dev/null ; do
+      sleep 1
+    done
+    set -e
+
+    if [[ $status != Exited* ]]; then
+      psql -c '
+        CREATE ROLE someapp;
+        CREATE ROLE someapp_readonly;
+        CREATE ROLE pgsql;
+      '
+    fi
+  fi
+}
+
+function reset_pgsql {
+  psql -d postgres -c "DROP DATABASE IF EXISTS $dbname;"
+  psql -d postgres -c "CREATE DATABASE $dbname;"
+}
+
+function load_build {
+  echo "Loading v1 build..."
+  psql -f example/someapp_v1_build.sql
+}
+
+function load_diff {
+  echo "Loading v2 stage 1..."
+  psql -f example/someapp_v2_upgrade_stage1_schema1.sql
+  echo "Loading v2 stage 2..."
+  psql -f example/someapp_v2_upgrade_stage2_data1.sql
+  echo "Loading v2 stage 3..."
+  psql -f example/someapp_v2_upgrade_stage3_schema1.sql
+  echo "Loading v2 stage 4..."
+  psql -f example/someapp_v2_upgrade_stage4_data1.sql
+}
+
+function extract {
+  echo "Extracting v2 schema..."
+  cmd go run . --dbschemadump --sqlformat pgsql8 "${dbsargs[@]}" --outputfile example/someapp_v2_extracted.xml "$@"
 }
 
 clean
 build "$@"
 echo "------"
 diff "$@"
+echo "------"
+start_pgsql
+echo "------"
+reset_pgsql
+echo "------"
+load_build
+echo "------"
+load_diff
+echo "------"
+extract "$@"
