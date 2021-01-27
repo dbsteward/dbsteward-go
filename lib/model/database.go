@@ -19,7 +19,7 @@ type RoleAssignment struct {
 	Owner       string        `xml:"owner"`
 	Replication string        `xml:"replication"`
 	ReadOnly    string        `xml:"readonly"`
-	CustomRoles DelimitedList `xml:"customRole"`
+	CustomRoles DelimitedList `xml:"customRole,omitempty"`
 }
 
 type ConfigParam struct {

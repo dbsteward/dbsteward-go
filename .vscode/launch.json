@@ -20,12 +20,27 @@
       }
     },
     {
-      "name": "someapp diff",
+      "name": "someapp diff v2",
       "type": "go",
       "request": "launch",
       "mode": "debug",
       "program": "${workspaceFolder}",
       "args": ["--oldxml", "example/someapp_v1.xml", "--newxml", "example/someapp_v2.xml", "--debug"],
+      "dlvLoadConfig": {
+        "followPointers": true,
+        "maxVariableRecurse": 1,
+        "maxStringLen": 300,
+        "maxArrayValues": 100,
+        "maxStructFields": -1
+      }
+    },
+    {
+      "name": "someapp diff extracted",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}",
+      "args": ["--oldxml", "example/someapp_v2.xml", "--newxml", "example/someapp_extracted.xml", "--debug"],
       "dlvLoadConfig": {
         "followPointers": true,
         "maxVariableRecurse": 1,

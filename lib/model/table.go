@@ -38,6 +38,10 @@ type TableOption struct {
 	Value     string    `xml:"value"`
 }
 
+func (self *Table) GetOwner() string {
+	return self.Owner
+}
+
 func (self *Table) HasDefaultNextVal() bool {
 	// TODO(go,core)
 	return false

@@ -22,6 +22,10 @@ type ViewQuery struct {
 	Text      string    `xml:",cdata"`
 }
 
+func (self *View) GetOwner() string {
+	return self.Owner
+}
+
 func (self *View) GetGrantsForRole(role string) []*Grant {
 	out := []*Grant{}
 	for _, grant := range self.Grants {

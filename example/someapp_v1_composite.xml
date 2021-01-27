@@ -6,6 +6,7 @@
       <owner>pgsql</owner>
       <replication>someapp_slony</replication>
       <readonly>someapp_readonly</readonly>
+      <customRole></customRole>
     </role>
   </database>
   <schema name="public" owner="ROLE_OWNER">
@@ -24,7 +25,7 @@
       <column name="register_date" type="timestamp with time zone" null="true"></column>
       <column name="user_status_list_id" null="true" foreignSchema="public" foreignTable="user_status_list" foreignColumn="user_status_list_id"></column>
       <constraint name="user_name_unq" type="UNIQUE" definition="(user_name)"></constraint>
-      <grant role="ROLE_APPLICATION" operation="SELECT, UPDATE, DELETE, INSERT"></grant>
+      <grant role="ROLE_APPLICATION" operation="SELECT,UPDATE,DELETE,INSERT"></grant>
       <rows columns="user_id, user_name, password, user_status_list_id, import_id, register_date">
         <row>
           <col>1</col>
@@ -83,7 +84,7 @@
       <column name="group_name" type="character varying(50)" null="true"></column>
       <column name="group_permission" type="boolean" null="true" default="true"></column>
       <column name="group_deleted" type="boolean" null="true" default="false"></column>
-      <grant role="ROLE_APPLICATION" operation="SELECT, INSERT, UPDATE"></grant>
+      <grant role="ROLE_APPLICATION" operation="SELECT,INSERT,UPDATE"></grant>
     </table>
     <grant role="ROLE_APPLICATION" operation="USAGE"></grant>
     <function name="destroy_session" owner="ROLE_OWNER" description="Deletes session data from the database" returns="VOID">
@@ -102,9 +103,9 @@
     </view>
   </schema>
   <schema name="search_results" owner="ROLE_OWNER">
-    <grant role="ROLE_APPLICATION" operation="ALL, CREATE TABLE, ALTER"></grant>
+    <grant role="ROLE_APPLICATION" operation="ALL,CREATE TABLE,ALTER"></grant>
     <sequence name="result_tables_unique_id_seq" owner="ROLE_OWNER" cache="1" start="1" max="99999" inc="1" cycle="true" slonyId="346">
-      <grant role="ROLE_APPLICATION" operation="USAGE, SELECT, UPDATE"></grant>
+      <grant role="ROLE_APPLICATION" operation="USAGE,SELECT,UPDATE"></grant>
     </sequence>
   </schema>
   <schema name="_p_public_sql_user">
@@ -115,7 +116,7 @@
       </index>
       <constraint name="sql_user_p_0_chk" type="CHECK" definition="((user_id % 4) = 0)"></constraint>
       <constraint name="p0_user_name_unq" type="UNIQUE" definition="(user_name)"></constraint>
-      <grant role="ROLE_APPLICATION" operation="SELECT, UPDATE, DELETE, INSERT"></grant>
+      <grant role="ROLE_APPLICATION" operation="SELECT,UPDATE,DELETE,INSERT"></grant>
     </table>
     <table name="partition_1" owner="ROLE_OWNER" primaryKey="user_id" inheritsTable="sql_user" inheritsSchema="public" slonyId="348">
       <foreignKey columns="user_status_list_id" foreignSchema="public" foreignTable="user_status_list" foreignColumns="user_status_list_id" constraintName="p1_user_status_list_id_fk"></foreignKey>
@@ -124,7 +125,7 @@
       </index>
       <constraint name="sql_user_p_1_chk" type="CHECK" definition="((user_id % 4) = 1)"></constraint>
       <constraint name="p1_user_name_unq" type="UNIQUE" definition="(user_name)"></constraint>
-      <grant role="ROLE_APPLICATION" operation="SELECT, UPDATE, DELETE, INSERT"></grant>
+      <grant role="ROLE_APPLICATION" operation="SELECT,UPDATE,DELETE,INSERT"></grant>
     </table>
     <table name="partition_2" owner="ROLE_OWNER" primaryKey="user_id" inheritsTable="sql_user" inheritsSchema="public" slonyId="349">
       <foreignKey columns="user_status_list_id" foreignSchema="public" foreignTable="user_status_list" foreignColumns="user_status_list_id" constraintName="p2_user_status_list_id_fk"></foreignKey>
@@ -133,7 +134,7 @@
       </index>
       <constraint name="sql_user_p_2_chk" type="CHECK" definition="((user_id % 4) = 2)"></constraint>
       <constraint name="p2_user_name_unq" type="UNIQUE" definition="(user_name)"></constraint>
-      <grant role="ROLE_APPLICATION" operation="SELECT, UPDATE, DELETE, INSERT"></grant>
+      <grant role="ROLE_APPLICATION" operation="SELECT,UPDATE,DELETE,INSERT"></grant>
     </table>
     <table name="partition_3" owner="ROLE_OWNER" primaryKey="user_id" inheritsTable="sql_user" inheritsSchema="public" slonyId="350">
       <foreignKey columns="user_status_list_id" foreignSchema="public" foreignTable="user_status_list" foreignColumns="user_status_list_id" constraintName="p3_user_status_list_id_fk"></foreignKey>
@@ -142,7 +143,7 @@
       </index>
       <constraint name="sql_user_p_3_chk" type="CHECK" definition="((user_id % 4) = 3)"></constraint>
       <constraint name="p3_user_name_unq" type="UNIQUE" definition="(user_name)"></constraint>
-      <grant role="ROLE_APPLICATION" operation="SELECT, UPDATE, DELETE, INSERT"></grant>
+      <grant role="ROLE_APPLICATION" operation="SELECT,UPDATE,DELETE,INSERT"></grant>
     </table>
     <grant role="ROLE_APPLICATION" operation="USAGE"></grant>
     <function name="insert_trigger" owner="ROLE_OWNER" description="DBSteward auto-generated for table partition of public.sql_user" returns="TRIGGER">

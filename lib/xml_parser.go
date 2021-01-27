@@ -321,7 +321,13 @@ func (self *XmlParser) RoleEnum(doc *model.Definition, role string) string {
 		return roles.Replication
 	}
 
-	if util.IIndexOfStr(role, roles.CustomRoles) >= 0 {
+	// NEW: if role matches any of the specific role assignments, don't consider it to be an error
+	// this is basically the case where the user has manually resolved the role
+	if strings.EqualFold(roles.Application, role) ||
+		strings.EqualFold(roles.Owner, role) ||
+		strings.EqualFold(roles.ReadOnly, role) ||
+		strings.EqualFold(roles.Replication, role) ||
+		util.IIndexOfStr(role, roles.CustomRoles) >= 0 {
 		return role
 	}
 

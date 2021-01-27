@@ -171,6 +171,36 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		},
 	}
 
+	// NEW: Because I want to use the build -> diff -> extract -> diff workflow to help validate things
+	// in this rewrite, and I want to do it with as little human intervention as possible, we're adding
+	// a new feature that technically doesnn't break any programmatic interface and makes humans' lives
+	// easier: as we encounter role names through the extract process, use some heuristics to assign them
+	// to the current role assignment table.
+	//
+	// The role that shows up most frequently as an owner will be the owner. A role suffixed _ro or _readonly
+	// will be the readonly role. The role that shows up most in grants will be the application role. Any
+	// other role will be added to the list of customRoles at the end.
+
+	// TODO(go,3) can we clean this up? move it elsewhere?
+	// TODO(go,4) ultimately I'd like to rework the role assignment system, so that multiple roles can fill
+	// each, uh, role. I've worked on a few DBs now where multiple applications or RO users connect. Application
+	// in its current form does nothing that `customRole` does not
+	const roleContextOwner = "owner"
+	const roleContextGrant = "grant"
+	ownerHeap := util.NewCountHeap(util.StrLowerId)
+	appHeap := util.NewCountHeap(util.StrLowerId)
+	roHeap := util.NewCountHeap(util.StrLowerId)
+	registerRole := func(context string, role string) string {
+		if context == roleContextGrant && strings.HasSuffix(role, "_ro") || strings.HasSuffix(role, "_readonly") {
+			roHeap.Push(role)
+		} else if context == roleContextGrant {
+			appHeap.Push(role)
+		} else if context == roleContextOwner {
+			ownerHeap.Push(role)
+		}
+		return role
+	}
+
 	// find all tables in the schema that aren't in the built-in schemas
 	// TODO(go,nth) move this into a dedicated function returning structs
 	tableRows, err := GlobalDb.Query(`
@@ -211,7 +241,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			var owner string
 			err := GlobalDb.QueryVal(&owner, `SELECT schema_owner FROM information_schema.schemata WHERE schema_name = $1`, schemaName)
 			dbsteward.FatalIfError(err, "Could not query database")
-			schema.Owner = self.translateRoleName(owner)
+			schema.Owner = registerRole(roleContextOwner, owner)
 		}
 
 		// create the table in the schema space
@@ -219,7 +249,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		util.Assert(table == nil, "table %s.%s already defined in xml object - unexpected", schema.Name, tableName)
 		table = &model.Table{
 			Name:        tableName,
-			Owner:       self.translateRoleName(row["tableowner"]),
+			Owner:       registerRole(roleContextOwner, row["tableowner"]),
 			Description: row["table_description"],
 		}
 		schema.AddTable(table)
@@ -442,7 +472,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			var owner string
 			err := GlobalDb.QueryVal(&owner, `SELECT schema_owner FROM information_schema.schemata WHERE schema_name = $1`, schema.Name)
 			dbsteward.FatalIfError(err, "Error with schema owner lookup query for view")
-			schema.Owner = self.translateRoleName(owner)
+			schema.Owner = registerRole(roleContextOwner, owner)
 		}
 
 		view := schema.TryGetViewNamed(viewRow["viewname"])
@@ -450,7 +480,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		schema.AddView(&model.View{
 			Name:  viewRow["viewname"],
-			Owner: self.translateRoleName(viewRow["viewowner"]),
+			Owner: registerRole(roleContextOwner, viewRow["viewowner"]),
 			Queries: []*model.ViewQuery{
 				&model.ViewQuery{
 					SqlFormat: model.SqlFormatPgsql8,
@@ -632,7 +662,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			var owner string
 			err := GlobalDb.QueryVal(&owner, `SELECT schema_owner FROM information_schema.schemata WHERE schema_name = $1`, schema.Name)
 			dbsteward.FatalIfError(err, "Could not query database")
-			schema.Owner = self.translateRoleName(owner)
+			schema.Owner = registerRole(roleContextOwner, owner)
 		}
 
 		// TODO(feat) should we see if there's another function by this name already? that'd probably be unexpected, but would likely indicate a bug in our query
@@ -640,7 +670,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			Name:        fnRow["name"],
 			Returns:     fnRow["return_type"],
 			CachePolicy: fnRow["volatility"],
-			Owner:       self.translateRoleName(fnRow["owner"]),
+			Owner:       registerRole(roleContextOwner, fnRow["owner"]),
 			Description: fnRow["description"],
 			// TODO(feat): how is / figure out how to express securityDefiner attribute in the functions query
 			Definitions: []*model.FunctionDefinition{
@@ -716,11 +746,11 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		trigger.Function = strings.TrimSpace(util.IReplaceAll(triggerRow["action_statement"], "EXECUTE PROCEDURE", ""))
 	}
 
-	// Find table grants and save them in the xml document
+	// Find table/view grants and save them in the xml document
+	// TODO(go,3) can simplify this by array_agg(privilege_type)
 	dbsteward.Info("Analyze table permissions")
-	// TODO(feat) use concrete column list
 	grantRows, err := GlobalDb.Query(`
-		SELECT *
+		SELECT table_schema, table_name, grantee, privilege_type, is_grantable
 		FROM information_schema.table_privileges
 		WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
 	`)
@@ -732,9 +762,13 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		relation := schema.TryGetRelationNamed(grantRow["table_name"]) // relation = table|view
 		util.Assert(relation != nil, "failed to find relation %s.%s for trigger", grantRow["table_schema"], grantRow["table_name"])
 
+		// ignore owner roles; those permissions are implicitly assigned by ALTER ... OWNER
+		if strings.EqualFold(relation.GetOwner(), grantRow["grantee"]) {
+			continue
+		}
+
 		// aggregate privileges by role
-		// TODO(feat) what about revokes?
-		grantee := self.translateRoleName(grantRow["grantee"])
+		grantee := registerRole(roleContextGrant, grantRow["grantee"])
 		docGrants := relation.GetGrantsForRole(grantee)
 		var grant *model.Grant
 		if len(docGrants) == 0 {
@@ -766,7 +800,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				}
 				grantPerms := self.parseSequenceRelAcl(grantRow["relacl"])
 				for user, perms := range grantPerms {
-					grantee := self.translateRoleName(user)
+					grantee := registerRole(roleContextGrant, user)
 					for _, perm := range perms {
 						// TODO(feat) what about revokes?
 						grants := sequence.GetGrantsForRole(grantee)
@@ -786,8 +820,34 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		}
 	}
 
+	// now that we've seen all possible roles, determine the results of the popularity contest
+	customRoles := util.NewSet(util.StrLowerId)
+	if appHeap.Len() > 0 {
+		doc.Database.Roles.Application = appHeap.Pop().(string)
+	}
+	customRoles.AddFrom(appHeap.PopAll())
+
+	if ownerHeap.Len() > 0 {
+		doc.Database.Roles.Owner = ownerHeap.Pop().(string)
+	}
+	customRoles.AddFrom(ownerHeap.PopAll())
+
+	if roHeap.Len() > 0 {
+		doc.Database.Roles.ReadOnly = roHeap.Pop().(string)
+	}
+	customRoles.AddFrom(roHeap.PopAll())
+	customRoles.Remove(
+		doc.Database.Roles.Application,
+		doc.Database.Roles.Owner,
+		doc.Database.Roles.Replication,
+		doc.Database.Roles.ReadOnly,
+	)
+	for _, item := range customRoles.Items() {
+		doc.Database.Roles.CustomRoles.Append(item.(string))
+	}
+
 	// scan all now defined tables
-	// TODO(feat) what about other grant checks?
+	// TODO(go,4) replace all role fields with macro equivalents if possible
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
 			// if table does not have a primary key defined, add placeholder
@@ -799,18 +859,6 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 					table.Description = tableNoticeDesc
 				} else {
 					table.Description += "; " + tableNoticeDesc
-				}
-			}
-
-			// check owner and grant role definitions
-			if !doc.IsRoleDefined(table.Owner) {
-				doc.AddCustomRole(table.Owner)
-			}
-			for _, grant := range table.Grants {
-				for _, role := range grant.Roles {
-					if !doc.IsRoleDefined(role) {
-						doc.AddCustomRole(role)
-					}
 				}
 			}
 		}
@@ -1230,17 +1278,6 @@ func (self *Operations) LiteralStringEscaped(str string) string {
 func (self *Operations) SetContextReplicaSetId(setId *int) {
 	if setId != nil {
 		self.contextReplicaSetId = *setId
-	}
-}
-
-func (self *Operations) translateRoleName(role string) string {
-	switch strings.ToLower(role) {
-	/* TODO(feat) allow for special translations
-	case "pgsql": return "ROLE_OWNER"
-	case "dbsteward", "application1": return "ROLE_APPLICATION"
-	*/
-	default:
-		return role
 	}
 }
 
