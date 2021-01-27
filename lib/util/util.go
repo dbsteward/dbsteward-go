@@ -308,14 +308,6 @@ func IsFalsey(s string) bool {
 	}
 }
 
-// returns "true" if string explicitly represents a true value
-func NormalizeTruthyBoolStr(s string) string {
-	if IsTruthy(s) {
-		return "true"
-	}
-	return "false"
-}
-
 func IntMin(a, b int) int {
 	if a < b {
 		return a

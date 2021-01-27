@@ -270,7 +270,6 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		// extract storage parameters as a tableOption
 		// TODO(feat) can we just add this to the main query?
-		// see also https://github.com/dbsteward/dbsteward/issues/97 -
 		// NOTE: pg 11.0 dropped support for "with oids" or "oids=true"
 		relhasoids := "false"
 		reloptions := ""
@@ -308,8 +307,13 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		if len(reloptions) > 2 {
 			params = util.ParseKV(reloptions[1:len(reloptions)-1], ",", "=")
 		}
-		params["oids"] = util.NormalizeTruthyBoolStr(relhasoids)
-		table.SetTableOption(model.SqlFormatPgsql8, "with", "("+util.EncodeKV(params, ",", "=")+")")
+		// dbsteward/dbsteward#97: with oids=false is the defalt
+		if hasoids := util.IsTruthy(relhasoids); hasoids {
+			params["oids"] = "true"
+		}
+		if len(params) > 0 {
+			table.SetTableOption(model.SqlFormatPgsql8, "with", "("+util.EncodeKV(params, ",", "=")+")")
+		}
 
 		// NEW(2): extract table inheritance. need this to complete example diffing validation
 		parents := self.parseSqlArray(row["parent_tables"])
