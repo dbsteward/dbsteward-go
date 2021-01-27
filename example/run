@@ -2,15 +2,14 @@
 set -e -o pipefail
 cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1
 
-cd ..
-
 container="someapp"
 postgres_version="8"
 dbname="someapp"
 dbpass="secret"
 
 dbsargs=(--dbhost localhost --dbname "$dbname" --dbuser postgres --dbpassword "$dbpass")
-psqlargs=(--echo-all -v ON_ERROR_STOP=1 -h localhost -d "$dbname" -U postgres)
+psqlargs=(-h localhost -d "$dbname" -U postgres)
+psqlscriptargs=(--echo-all -v ON_ERROR_STOP=1)
 
 function cmd {
   echo 
@@ -18,30 +17,30 @@ function cmd {
   command "$@"
 }
 
-function psql {
-  PGPASSWORD=$dbpass cmd psql "${psqlargs[@]}" "$@"
+function cmd_psql {
+  PGPASSWORD=$dbpass cmd psql "${psqlargs[@]}" "${psqlscriptargs[@]}" "$@"
 }
 
 function _psql {
-  PGPASSWORD=$dbpass command psql "${psqlargs[@]}" "$@"
+  PGPASSWORD=$dbpass command psql "${psqlargs[@]}" "${psqlscriptargs[@]}" "$@"
 }
 
-function clean {
-  echo "Cleaning dir"
-  cmd rm -f example/{someapp_v{1,2}_composite.xml,*.sql}
+function build { # <file>: Generates a build of the given file
+  echo "Building $1..."
+  cmd go run .. --xml "$1" "${@:2}"
 }
 
-function build {
-  echo "Running build..."
-  cmd go run . --xml example/someapp_v1.xml "$@"
+function diff { # <old> <new>: Generates a diff of <old> to <new>
+  echo "Running diff $1 -> $2..."
+  cmd go run .. --oldxml "$1" --newxml "$2" "${@:3}"
 }
 
-function diff {
-  echo "Running diff..."
-  cmd go run . --oldxml example/someapp_v1.xml --newxml example/someapp_v2.xml "$@"
+function extract { # <output> <conn args...>: Extracts the database at the given connection to the output file
+  echo "Extracting (${*:2}) to $1..."
+  cmd go run .. --dbschemadump --sqlformat pgsql8 --outputfile "$1" "${@:2}"
 }
 
-function start_pgsql {
+function pgsql-start { #: Starts and initializes a postgres db
   status="$(docker ps -a --format '{{.Status}}' -f "name=$container")"
   if [[ $status == Up* ]]; then
     echo "Example postgres db already running: ${dbsargs[*]}"
@@ -60,16 +59,22 @@ function start_pgsql {
     set -e
 
     if [[ $status != Exited* ]]; then
-      psql -c '
-        CREATE ROLE someapp;
-        CREATE ROLE someapp_readonly;
-        CREATE ROLE pgsql;
-      '
+      pgsql-init
     fi
   fi
 }
 
-function reset_pgsql {
+function pgsql-init { #: Initializes a postgres db
+  echo "Initializing db"
+  psql -c '
+    CREATE ROLE someapp;
+    CREATE ROLE someapp_readonly;
+    CREATE ROLE pgsql;
+  '
+}
+
+function pgsql-reset { #: Resets the postgres db to a fresh state
+  echo "Resetting db"
   psql -d postgres -c "DROP DATABASE IF EXISTS $dbname;"
   psql -d postgres -c "CREATE DATABASE $dbname;"
   if [[ $postgres_version -lt 11 ]]; then
@@ -79,45 +84,84 @@ function reset_pgsql {
   fi
 }
 
-function load_build {
-  echo "Loading v1 build..."
-  psql -f example/someapp_v1_build.sql
+function pgsql-load { # <file>: Loads the given sql file into the postgres database
+  echo "Loading $1..."
+  cmd_psql -f "$1"
 }
 
-function load_diff {
-  echo "Loading v2 stage 1..."
-  psql -f example/someapp_v2_upgrade_stage1_schema1.sql
-  echo "Loading v2 stage 2..."
-  psql -f example/someapp_v2_upgrade_stage2_data1.sql
-  echo "Loading v2 stage 3..."
-  psql -f example/someapp_v2_upgrade_stage3_schema1.sql
-  echo "Loading v2 stage 4..."
-  psql -f example/someapp_v2_upgrade_stage4_data1.sql
+function pgsql-load-stages { # <prefix>: Loads <prefix>_upgrade_*.sql files into the postgres database in order
+  echo "Loading $1 stage 1..."
+  cmd_psql -f "$1_upgrade_stage1_schema1.sql"
+  echo "Loading $1 stage 2..."
+  cmd_psql -f "$1_upgrade_stage2_data1.sql"
+  echo "Loading $1 stage 3..."
+  cmd_psql -f "$1_upgrade_stage3_schema1.sql"
+  echo "Loading $1 stage 4..."
+  cmd_psql -f "$1_upgrade_stage4_data1.sql"
 }
 
-function extract {
-  echo "Extracting v2 schema..."
-  cmd go run . --dbschemadump --sqlformat pgsql8 "${dbsargs[@]}" --outputfile example/someapp_extracted.xml "$@"
+function psql { #: Opens a psql shell to the postgres database
+  PGPASSWORD="$dbpass" command psql "${psqlargs[@]}" "$@"
 }
 
-function diff_extract {
-  echo "Running diff of v2->extract..."
-  cmd go run . --oldxml example/someapp_v2.xml --newxml example/someapp_extracted.xml "$@"
+function someapp-clean { #: Remove generated files
+  echo "Cleaning dir"
+  cmd rm -f ./*_{composite,extracted}.xml ./*.sql
 }
 
-clean
-build "$@"
-echo "------"
-diff "$@"
-echo "------"
-start_pgsql
-echo "------"
-reset_pgsql
-echo "------"
-load_build
-echo "------"
-load_diff
-echo "------"
-extract "$@"
-echo "------"
-diff_extract "$@"
+function someapp-build { #: Generates a build of someapp v1
+  build someapp_v1.xml "$@"
+}
+
+function someapp-diff { #: Generates a diff of someapp v1 -> v2
+  diff someapp_v1.xml someapp_v2.xml "$@"
+}
+
+function someapp-load-v1 { #: Loads the v1 schema from someapp-build
+  pgsql-load someapp_v1_build.sql
+}
+
+function someapp-load-v2 { #: Loads the v2 upgrade from someapp-diff
+  pgsql-load-stages someapp_v2
+}
+
+function someapp-extract { #: Extracts the current someapp schema from the postgres db
+  extract someapp_extracted.xml "${dbsargs[@]}" "$@"
+}
+
+function someapp-diff-extract { #: Diffs the extracted someapp schema against v2
+  diff someapp_v2.xml someapp_extracted.xml "$@"
+}
+
+function all { #: Reruns the full example suite
+  clean
+  someapp-build "$@"
+  echo "------"
+  someapp-diff "$@"
+  echo "------"
+  pgsql-start
+  echo "------"
+  pgsql-reset
+  echo "------"
+  someapp-load-v1
+  echo "------"
+  someapp-load-v2
+  echo "------"
+  someapp-extract "$@"
+  echo "------"
+  someapp-diff-extract "$@"
+}
+
+if [[ $# -eq 0 || "$1" == "help" || "$1" == "--help" ]]; then
+  if [[ "$(type -t "$2")" ==  "function" ]]; then
+    type "$2"
+  else
+    echo "Commands:"
+    sed -En 's/^function (.*) \{ #/  \1/p' "$(basename "$0")"
+    echo
+    echo "Environment Variables:"
+    sed -En 's/^: "\$\{(.+):=(.+)\}"( #)?/  \1=\2\t/p' "$(basename "$0")"
+  fi
+else
+  "$@"
+fi
