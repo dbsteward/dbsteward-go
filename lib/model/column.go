@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/xml"
 	"fmt"
+	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -97,6 +98,7 @@ func (self *Column) GetReferencedKey() KeyNames {
 }
 
 func (self *Column) Merge(overlay *Column) {
+	// TODO(go,core) slony, migration sql
 	self.Type = overlay.Type
 	self.Nullable = overlay.Nullable
 	self.Default = overlay.Default
@@ -108,6 +110,25 @@ func (self *Column) Merge(overlay *Column) {
 	self.ForeignOnUpdate = overlay.ForeignOnUpdate
 	self.ForeignOnDelete = overlay.ForeignOnDelete
 	self.Statistics = overlay.Statistics
+}
+
+// Returns true if this column appears to match the other for inheritance
+// Very similar to normal Equals, but foreign key names are allowed to be different
+func (self *Column) EqualsInherited(other *Column) bool {
+	if self == nil || other == nil {
+		return false
+	}
+	return strings.EqualFold(self.Name, other.Name) &&
+		strings.EqualFold(self.Type, other.Type) &&
+		self.Nullable == other.Nullable &&
+		self.Default == other.Default &&
+		self.Description == other.Description &&
+		self.SerialStart == other.SerialStart &&
+		strings.EqualFold(self.ForeignSchema, other.ForeignSchema) &&
+		strings.EqualFold(self.ForeignTable, other.ForeignTable) &&
+		self.ForeignOnUpdate.Equals(other.ForeignOnUpdate) &&
+		self.ForeignOnDelete.Equals(other.ForeignOnDelete) &&
+		util.IntpEq(self.Statistics, other.Statistics)
 }
 
 type ColumnRef struct {

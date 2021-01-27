@@ -169,6 +169,17 @@ func (self *Table) AddColumn(col *Column) {
 	// TODO(feat) sanity check
 	self.Columns = append(self.Columns, col)
 }
+
+func (self *Table) RemoveColumn(target *Column) {
+	newCols := make([]*Column, 0, len(self.Columns)-1)
+	for _, col := range self.Columns {
+		if col != target {
+			newCols = append(newCols, col)
+		}
+	}
+	self.Columns = newCols
+}
+
 func (self *Table) TryGetIndexMatching(target *Index) *Index {
 	for _, index := range self.Indexes {
 		if index.IdentityMatches(target) {

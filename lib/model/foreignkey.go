@@ -1,5 +1,7 @@
 package model
 
+import "strings"
+
 type ForeignKeyAction string
 
 const (
@@ -9,6 +11,10 @@ const (
 	ForeignKeyActionSetNull    ForeignKeyAction = "SET_NULL"
 	ForeignKeyActionSetDefault ForeignKeyAction = "SET_DEFAULT"
 )
+
+func (self ForeignKeyAction) Equals(other ForeignKeyAction) bool {
+	return strings.EqualFold(string(self), string(other))
+}
 
 type ForeignKey struct {
 	Columns        DelimitedList    `xml:"columns,attr"`

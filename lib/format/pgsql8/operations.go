@@ -171,9 +171,12 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		},
 	}
 
-	// NEW: Because I want to use the build -> diff -> extract -> diff workflow to help validate things
+	// TODO(go,pgsql) constraints aren't being extracted
+	// TODO(go,pgsql) functions in nonpublic schemas aren't being extracted
+
+	// NEW(2): Because I want to use the build -> diff -> extract -> diff workflow to help validate things
 	// in this rewrite, and I want to do it with as little human intervention as possible, we're adding
-	// a new feature that technically doesnn't break any programmatic interface and makes humans' lives
+	// a new feature that technically doesn't break any programmatic interface and makes humans' lives
 	// easier: as we encounter role names through the extract process, use some heuristics to assign them
 	// to the current role assignment table.
 	//
@@ -203,13 +206,19 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 	// find all tables in the schema that aren't in the built-in schemas
 	// TODO(go,nth) move this into a dedicated function returning structs
+	// TODO(go,3) move column description to column query
 	tableRows, err := GlobalDb.Query(`
 		SELECT
 			t.schemaname, t.tablename, t.tableowner, t.tablespace,
 			sd.description as schema_description, td.description as table_description,
 			( SELECT array_agg(cd.objsubid::text || ';' ||cd.description)
 				FROM pg_catalog.pg_description cd
-				WHERE cd.objoid = c.oid AND cd.classoid = c.tableoid AND cd.objsubid > 0 ) AS column_descriptions
+				WHERE cd.objoid = c.oid AND cd.classoid = c.tableoid AND cd.objsubid > 0 ) AS column_descriptions,
+			( SELECT array_agg(pn.nspname || '.' || pc.relname)
+				FROM pg_catalog.pg_inherits i
+				LEFT JOIN pg_catalog.pg_class pc ON (i.inhparent = pc.oid)
+				LEFT JOIN pg_catalog.pg_namespace pn ON (pc.relnamespace = pn.oid)
+				WHERE i.inhrelid = c.oid) AS parent_tables
 		FROM pg_catalog.pg_tables t
 		LEFT JOIN pg_catalog.pg_namespace n ON (n.nspname = t.schemaname)
 		LEFT JOIN pg_catalog.pg_class c ON (c.relname = t.tablename AND c.relnamespace = n.oid)
@@ -301,6 +310,18 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		}
 		params["oids"] = util.NormalizeTruthyBoolStr(relhasoids)
 		table.SetTableOption(model.SqlFormatPgsql8, "with", "("+util.EncodeKV(params, ",", "=")+")")
+
+		// NEW(2): extract table inheritance. need this to complete example diffing validation
+		parents := self.parseSqlArray(row["parent_tables"])
+		if len(parents) > 1 {
+			// TODO(go,3) remove this restriction
+			dbsteward.Fatal("Unsupported: Table %s.%s inherits from more than one table: %v", schema.Name, table.Name, parents)
+		}
+		if len(parents) == 1 {
+			parts := strings.Split(parents[0], ".")
+			table.InheritsSchema = parts[0]
+			table.InheritsTable = parts[1]
+		}
 
 		dbsteward.Info("Analyze table columns %s.%s", schema.Name, table.Name)
 		columnDescriptions := map[string]string{}
@@ -820,7 +841,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		}
 	}
 
-	// now that we've seen all possible roles, determine the results of the popularity contest
+	// NEW(2) now that we've seen all possible roles, determine the results of the popularity contest
 	customRoles := util.NewSet(util.StrLowerId)
 	if appHeap.Len() > 0 {
 		doc.Database.Roles.Application = appHeap.Pop().(string)
@@ -859,6 +880,18 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 					table.Description = tableNoticeDesc
 				} else {
 					table.Description += "; " + tableNoticeDesc
+				}
+			}
+
+			// NEW(2) if the table inherits from the parent, remove any inherited objects
+			if table.InheritsTable != "" || table.InheritsSchema != "" {
+				parentRef := lib.GlobalDBX.ResolveSchemaTable(doc, schema, table.InheritsSchema, table.InheritsTable, "inheritance")
+				for _, parentColumn := range parentRef.Table.Columns {
+					column := table.TryGetColumnNamed(parentColumn.Name)
+					if column != nil && column.EqualsInherited(parentColumn) {
+						dbsteward.Debug("Dropping column %s.%s.%s inherited from parent %s.%s", schema.Name, table.Name, column.Name, parentRef.Schema.Name, parentRef.Table.Name)
+						table.RemoveColumn(column)
+					}
 				}
 			}
 		}
