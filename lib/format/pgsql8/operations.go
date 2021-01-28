@@ -171,7 +171,6 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		},
 	}
 
-	// TODO(go,pgsql) constraints aren't being extracted
 	// TODO(go,pgsql) functions in nonpublic schemas aren't being extracted
 
 	// NEW(2): Because I want to use the build -> diff -> extract -> diff workflow to help validate things
@@ -516,21 +515,25 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	}
 
 	// for all schemas, all tables - get table constraints that are not type 'FOREIGN KEY'
+	// TODO(go,4) support constraint deferredness
 	constraintRows, err := GlobalDb.Query(`
-		SELECT constraint_name, constraint_type, table_schema, table_name, array_agg(columns) AS columns
-    FROM (
-      SELECT tc.constraint_name, tc.constraint_type, tc.table_schema, tc.table_name, kcu.column_name::text AS columns
-      FROM information_schema.table_constraints tc
-				LEFT JOIN information_schema.key_column_usage kcu ON
-					tc.constraint_catalog = kcu.constraint_catalog
-					AND tc.constraint_schema = kcu.constraint_schema
-					AND tc.constraint_name = kcu.constraint_name
-      WHERE tc.table_schema NOT IN ('information_schema', 'pg_catalog')
-        AND tc.constraint_type != 'FOREIGN KEY'
-      GROUP BY tc.constraint_name, tc.constraint_type, tc.table_schema, tc.table_name, kcu.column_name
-			ORDER BY kcu.column_name, tc.table_schema, tc.table_name
-		) AS results
-		GROUP BY results.constraint_name, results.constraint_type, results.table_schema, results.table_name
+		SELECT
+			nspname AS table_schema,
+			relname AS table_name,
+			conname AS constraint_name,
+			contype AS constraint_type,
+			consrc AS check_src,
+			ARRAY(
+				SELECT attname
+				FROM unnest(conkey) num
+				INNER JOIN pg_catalog.pg_attribute pga ON pga.attrelid = pgt.oid AND pga.attnum = num
+			) AS columns
+		FROM pg_catalog.pg_constraint pgc
+		LEFT JOIN pg_catalog.pg_class pgt ON pgc.conrelid = pgt.oid
+		LEFT JOIN pg_catalog.pg_namespace pgn ON pgc.connamespace = pgn.oid
+		WHERE pgn.nspname not in ('information_schema', 'pg_catalog')
+			AND contype != 'f' -- ignore foreign keys here
+		ORDER BY pgn.nspname, pgt.relname
 	`)
 	dbsteward.FatalIfError(err, "Error with constraint query")
 	for _, constraintRow := range constraintRows {
@@ -545,17 +548,23 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		columns := self.parseSqlArray(constraintRow["columns"])
 
 		switch strings.ToLower(constraintRow["constraint_type"]) {
-		case "primary key":
+		case "p": // primary key
 			table.PrimaryKey = columns
 			table.PrimaryKeyName = constraintRow["constraint_name"]
-		case "unique":
+		case "u": // unique
 			table.AddConstraint(&model.Constraint{
 				Name:       constraintRow["constraint_name"],
-				Type:       "unique",
+				Type:       model.ConstraintTypeUnique,
 				Definition: fmt.Sprintf(`("%s")`, strings.Join(columns, `", "`)),
 			})
-		case "check":
-			// TODO(feat) implement CHECK constraints
+		case "c": // check
+			// NEW(2) implementing CHECK constraint extraction
+			// TODO(go,4) we have access to the columns affected by the constraint... can we utilize that somehow?
+			table.AddConstraint(&model.Constraint{
+				Name:       constraintRow["constraint_name"],
+				Type:       model.ConstraintTypeCheck,
+				Definition: constraintRow["check_src"],
+			})
 		default:
 			dbsteward.Fatal("Unknown constraint_type %s", constraintRow["constraint_type"])
 		}

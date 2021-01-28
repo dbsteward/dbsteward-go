@@ -13,6 +13,7 @@
       <index name="user_name_p0" using="btree">
         <indexDimension name="user_name_p0_1">user_name</indexDimension>
       </index>
+      <constraint name="sql_user_p_0_chk" type="CHECK" definition="((user_id % (4)::bigint) = 0)"></constraint>
       <grant role="someapp_readonly" operation="SELECT"></grant>
       <grant role="someapp" operation="SELECT,INSERT,UPDATE,DELETE"></grant>
     </table>
@@ -20,6 +21,7 @@
       <index name="user_name_p1" using="btree">
         <indexDimension name="user_name_p1_1">user_name</indexDimension>
       </index>
+      <constraint name="sql_user_p_1_chk" type="CHECK" definition="((user_id % (4)::bigint) = 1)"></constraint>
       <grant role="someapp_readonly" operation="SELECT"></grant>
       <grant role="someapp" operation="SELECT,INSERT,UPDATE,DELETE"></grant>
     </table>
@@ -27,6 +29,7 @@
       <index name="user_name_p2" using="btree">
         <indexDimension name="user_name_p2_1">user_name</indexDimension>
       </index>
+      <constraint name="sql_user_p_2_chk" type="CHECK" definition="((user_id % (4)::bigint) = 2)"></constraint>
       <grant role="someapp_readonly" operation="SELECT"></grant>
       <grant role="someapp" operation="SELECT,INSERT,UPDATE,DELETE"></grant>
     </table>
@@ -34,6 +37,7 @@
       <index name="user_name_p3" using="btree">
         <indexDimension name="user_name_p3_1">user_name</indexDimension>
       </index>
+      <constraint name="sql_user_p_3_chk" type="CHECK" definition="((user_id % (4)::bigint) = 3)"></constraint>
       <grant role="someapp_readonly" operation="SELECT"></grant>
       <grant role="someapp" operation="SELECT,INSERT,UPDATE,DELETE"></grant>
     </table>
