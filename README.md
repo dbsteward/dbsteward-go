@@ -429,16 +429,31 @@ As noted at the top, any API changes (that is, a change to the DTD, interpretati
   - Pluggable definitions
   - SQL, HCL, Frameworks (e.g. SQLAlchemy)
   - Live database diffing
+  - Lazy schema definitions - diffing currently happens entirely in memory, but large enough schemas could make that a problem.
 - Better strategy for point-in-time changes, like renames and custom transforms
-- Collations, events, rules, opclasses, user-defined aggregates and other uncommon database features
-- Materialized views, deferred constraints
+- Uncommon database features
+  - Collations, events, rules, operators, opclasses
+  - user-defined aggregate/window functions
+  - Materialized views, deferred constraints
+  - foreign data wrappers
+- References to externally-managed objects
+  - e.g. foreign key reference to a table not managed by dbsteward
+- Externally-defined datasets
+  - Currently we sort of support this via pgdataxml, but a) that's the only format and b) we composite into the xml, which is stored entirely in memory
+  - CSV, json, other formats would be very cool
+  - Streaming straight from the source so we don't hold it in memory would be cooler
 
 ### Off the wall features
 
 - Act as a language server to provide language features to embedded SQL, DBXML, etc in supporting editors
 - Database packages
+  - Imagine simply running `dbsteward package install user-auth` which downloads a set of pre-baked tables and other objects
 - Codegen
+  - Imagine being able to generate either specific ORM code (like SQLAlchemy) or bespoke code in your chosen language to access the db
+  - Because dbsteward knows how it all fits together, and can theoretically have access to much more information than the raw db schema, we could generate connection code, data serialization code, common queries, ORM-like behavior, etc.
 - Runtime variables
+- ETL and smart cloning
+  - Cloning databases is super expensive, and doing it efficiently is very difficult. If only there was a tool that understood schemas and excelled in only making the necessary changes!
 
 ### Strategy Architecture
 
