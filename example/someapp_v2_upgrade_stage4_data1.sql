@@ -1,5 +1,5 @@
 -- someapp_v2_upgrade_stage4_data1.sql
--- DBSteward stage 4 data definition changes and additions - generated Wed, 27 Jan 2021 14:42:02 -0500
+-- DBSteward stage 4 data definition changes and additions - generated Fri, 29 Jan 2021 13:30:09 -0500
 -- Old definition: someapp_v1_composite.xml
 -- New definition someapp_v2_composite.xml
 

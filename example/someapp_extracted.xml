@@ -41,6 +41,25 @@
       <grant role="someapp_readonly" operation="SELECT"></grant>
       <grant role="someapp" operation="SELECT,INSERT,UPDATE,DELETE"></grant>
     </table>
+    <function name="insert_trigger" owner="pgsql" description="DBSteward auto-generated for table partition of public.sql_user" returns="trigger" cachePolicy="VOLATILE">
+      <functionDefinition sqlFormat="pgsql8" language="plpgsql"><![CDATA[
+  DECLARE
+  	mod_result INT;
+  BEGIN
+  	mod_result := NEW.user_id % 4;
+  	IF (mod_result = 0) THEN
+  		INSERT INTO _p_public_sql_user.partition_0 VALUES (NEW.*);
+  	ELSEIF (mod_result = 1) THEN
+  		INSERT INTO _p_public_sql_user.partition_1 VALUES (NEW.*);
+  	ELSEIF (mod_result = 2) THEN
+  		INSERT INTO _p_public_sql_user.partition_2 VALUES (NEW.*);
+  	ELSEIF (mod_result = 3) THEN
+  		INSERT INTO _p_public_sql_user.partition_3 VALUES (NEW.*);
+  	END IF;
+  	RETURN NULL;
+  END;
+]]></functionDefinition>
+    </function>
   </schema>
   <schema name="public" description="standard public schema" owner="postgres">
     <table name="group_list" owner="pgsql" primaryKey="group_list_id" primaryKeyName="group_list_pkey">

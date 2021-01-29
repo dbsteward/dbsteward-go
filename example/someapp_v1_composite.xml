@@ -6,7 +6,6 @@
       <owner>pgsql</owner>
       <replication>someapp_slony</replication>
       <readonly>someapp_readonly</readonly>
-      <customRole></customRole>
     </role>
   </database>
   <schema name="public" owner="ROLE_OWNER">

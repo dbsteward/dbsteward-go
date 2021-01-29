@@ -171,8 +171,6 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		},
 	}
 
-	// TODO(go,pgsql) functions in nonpublic schemas aren't being extracted
-
 	// NEW(2): Because I want to use the build -> diff -> extract -> diff workflow to help validate things
 	// in this rewrite, and I want to do it with as little human intervention as possible, we're adding
 	// a new feature that technically doesn't break any programmatic interface and makes humans' lives
@@ -269,10 +267,11 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		// extract storage parameters as a tableOption
 		// TODO(feat) can we just add this to the main query?
-		// NOTE: pg 11.0 dropped support for "with oids" or "oids=true"
+		// NOTE: pg 11.0 dropped support for "with oids" or "oids=true" in DDL
+		//       pg 12.0 drops the relhasoids column from pg_class
 		relhasoids := "false"
 		reloptions := ""
-		if serverVersion < Version11_0 {
+		if serverVersion < Version12_0 {
 			paramsRow, err := GlobalDb.QueryStringMap(`
 				SELECT reloptions, relhasoids
 				FROM pg_catalog.pg_class
@@ -306,7 +305,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		if len(reloptions) > 2 {
 			params = util.ParseKV(reloptions[1:len(reloptions)-1], ",", "=")
 		}
-		// dbsteward/dbsteward#97: with oids=false is the defalt
+		// dbsteward/dbsteward#97: with oids=false is the default
 		if hasoids := util.IsTruthy(relhasoids); hasoids {
 			params["oids"] = "true"
 		}
@@ -651,25 +650,24 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		}
 	}
 
-	// get function info for all functions
-	// this is based on psql 8.4's \df+ query
-	// that are not language c
-	// that are not triggers
+	// extract normal and trigger functions
+	// NEW(2) no longer excludes trigger functions, but now ignores/warns on aggregate/window functions. added warning for c-lang functions
+	// TODO(go,4) support aggregate/window, c functions
 	fnRows, err := GlobalDb.Query(`
 		SELECT
-			p.oid, n.nspname as schema, p.proname as name,
-      pg_catalog.pg_get_function_result(p.oid) as return_type,
-      CASE
-        WHEN p.proisagg THEN 'agg'
-        WHEN p.proiswindow THEN 'window'
-        WHEN p.prorettype = 'pg_catalog.trigger'::pg_catalog.regtype THEN 'trigger'
-        ELSE 'normal'
-      END as type,
-      CASE
-        WHEN p.provolatile = 'i' THEN 'IMMUTABLE'
-        WHEN p.provolatile = 's' THEN 'STABLE'
-        WHEN p.provolatile = 'v' THEN 'VOLATILE'
-      END as volatility,
+			p.oid as oid, n.nspname as schema, p.proname as name,
+			pg_catalog.pg_get_function_result(p.oid) as return_type,
+			CASE
+				WHEN p.proisagg THEN 'aggregate'
+				WHEN p.proiswindow THEN 'window'
+				WHEN p.prorettype = 'pg_catalog.trigger'::pg_catalog.regtype THEN 'trigger'
+				ELSE 'normal'
+		END as type,
+		CASE
+				WHEN p.provolatile = 'i' THEN 'IMMUTABLE'
+				WHEN p.provolatile = 's' THEN 'STABLE'
+				WHEN p.provolatile = 'v' THEN 'VOLATILE'
+		END as volatility,
 			pg_catalog.pg_get_userbyid(p.proowner) as owner,
 			l.lanname as language,
 			p.prosrc as source,
@@ -677,12 +675,18 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		FROM pg_catalog.pg_proc p
 			LEFT JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
 			LEFT JOIN pg_catalog.pg_language l ON l.oid = p.prolang
-		WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
-			AND l.lanname NOT IN ( 'c' )
-			AND pg_catalog.pg_get_function_result(p.oid) NOT IN ( 'trigger' );
+		WHERE n.nspname NOT IN ('pg_catalog', 'information_schema');
 	`)
 	dbsteward.FatalIfError(err, "Error with function query")
 	for _, fnRow := range fnRows {
+		if fnRow["type"] == "window" || fnRow["type"] == "aggregate" {
+			dbsteward.Warning("Ignoring %s function %s.%s, this is not currently supported by DBSteward", fnRow["type"], fnRow["schema"], fnRow["name"])
+			continue
+		}
+		if fnRow["language"] == "c" {
+			dbsteward.Warning("Ignoring native (c) function %s.%s, this is not currently supported by DBSteward", fnRow["schema"], fnRow["name"])
+			continue
+		}
 		dbsteward.Info("Analyze function %s.%s", fnRow["schema"], fnRow["name"])
 
 		schema := doc.TryGetSchemaNamed(fnRow["schema"])

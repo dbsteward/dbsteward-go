@@ -10,56 +10,59 @@
   </database>
   <schema name="_p_public_sql_user" owner="postgres">
     <table name="partition_0" owner="pgsql" primaryKey="user_id" primaryKeyName="partition_0_pkey" inheritsTable="sql_user" inheritsSchema="public">
-      <tableOption sqlFormat="pgsql8">
-        <name>with</name>
-        <value>(oids=false)</value>
-      </tableOption>
       <index name="user_name_p0" using="btree">
         <indexDimension name="user_name_p0_1">user_name</indexDimension>
       </index>
+      <constraint name="sql_user_p_0_chk" type="CHECK" definition="((user_id % (4)::bigint) = 0)"></constraint>
       <grant role="someapp_readonly" operation="SELECT"></grant>
       <grant role="someapp" operation="SELECT,INSERT,UPDATE,DELETE"></grant>
     </table>
     <table name="partition_1" owner="pgsql" primaryKey="user_id" primaryKeyName="partition_1_pkey" inheritsTable="sql_user" inheritsSchema="public">
-      <tableOption sqlFormat="pgsql8">
-        <name>with</name>
-        <value>(oids=false)</value>
-      </tableOption>
       <index name="user_name_p1" using="btree">
         <indexDimension name="user_name_p1_1">user_name</indexDimension>
       </index>
+      <constraint name="sql_user_p_1_chk" type="CHECK" definition="((user_id % (4)::bigint) = 1)"></constraint>
       <grant role="someapp_readonly" operation="SELECT"></grant>
       <grant role="someapp" operation="SELECT,INSERT,UPDATE,DELETE"></grant>
     </table>
     <table name="partition_2" owner="pgsql" primaryKey="user_id" primaryKeyName="partition_2_pkey" inheritsTable="sql_user" inheritsSchema="public">
-      <tableOption sqlFormat="pgsql8">
-        <name>with</name>
-        <value>(oids=false)</value>
-      </tableOption>
       <index name="user_name_p2" using="btree">
         <indexDimension name="user_name_p2_1">user_name</indexDimension>
       </index>
+      <constraint name="sql_user_p_2_chk" type="CHECK" definition="((user_id % (4)::bigint) = 2)"></constraint>
       <grant role="someapp_readonly" operation="SELECT"></grant>
       <grant role="someapp" operation="SELECT,INSERT,UPDATE,DELETE"></grant>
     </table>
     <table name="partition_3" owner="pgsql" primaryKey="user_id" primaryKeyName="partition_3_pkey" inheritsTable="sql_user" inheritsSchema="public">
-      <tableOption sqlFormat="pgsql8">
-        <name>with</name>
-        <value>(oids=false)</value>
-      </tableOption>
       <index name="user_name_p3" using="btree">
         <indexDimension name="user_name_p3_1">user_name</indexDimension>
       </index>
+      <constraint name="sql_user_p_3_chk" type="CHECK" definition="((user_id % (4)::bigint) = 3)"></constraint>
       <grant role="someapp_readonly" operation="SELECT"></grant>
       <grant role="someapp" operation="SELECT,INSERT,UPDATE,DELETE"></grant>
     </table>
+    <function name="insert_trigger" owner="pgsql" description="DBSteward auto-generated for table partition of public.sql_user" returns="trigger" cachePolicy="VOLATILE">
+      <functionDefinition sqlFormat="pgsql8" language="plpgsql"><![CDATA[
+  DECLARE
+  	mod_result INT;
+  BEGIN
+  	mod_result := NEW.user_id % 4;
+  	IF (mod_result = 0) THEN
+  		INSERT INTO _p_public_sql_user.partition_0 VALUES (NEW.*);
+  	ELSEIF (mod_result = 1) THEN
+  		INSERT INTO _p_public_sql_user.partition_1 VALUES (NEW.*);
+  	ELSEIF (mod_result = 2) THEN
+  		INSERT INTO _p_public_sql_user.partition_2 VALUES (NEW.*);
+  	ELSEIF (mod_result = 3) THEN
+  		INSERT INTO _p_public_sql_user.partition_3 VALUES (NEW.*);
+  	END IF;
+  	RETURN NULL;
+  END;
+]]></functionDefinition>
+    </function>
   </schema>
   <schema name="public" description="standard public schema" owner="postgres">
     <table name="group_list" owner="pgsql" primaryKey="group_list_id" primaryKeyName="group_list_pkey">
-      <tableOption sqlFormat="pgsql8">
-        <name>with</name>
-        <value>(oids=false)</value>
-      </tableOption>
       <column name="group_list_id" type="serial" null="false"></column>
       <column name="group_create_time" type="timestamp with time zone" null="false"></column>
       <column name="group_description" type="text" null="false"></column>
@@ -71,10 +74,6 @@
       <grant role="someapp" operation="SELECT,INSERT,UPDATE"></grant>
     </table>
     <table name="session_information" description="Information regarding a user&#39;s current session" owner="pgsql" primaryKey="session_id" primaryKeyName="session_information_pkey">
-      <tableOption sqlFormat="pgsql8">
-        <name>with</name>
-        <value>(oids=false)</value>
-      </tableOption>
       <column name="session_id" type="character varying(255)" null="false"></column>
       <column name="user_id" null="true" foreignSchema="public" foreignTable="sql_user" foreignColumn="user_id" foreignKeyName="session_information_user_id_fkey" foreignOnUpdate="NO_ACTION" foreignOnDelete="NO_ACTION"></column>
       <column name="login_time" type="timestamp with time zone" null="true"></column>
@@ -89,10 +88,6 @@
       <grant role="someapp" operation="SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER"></grant>
     </table>
     <table name="sql_user" description="user table comment" owner="pgsql" primaryKey="user_id" primaryKeyName="sql_user_pkey">
-      <tableOption sqlFormat="pgsql8">
-        <name>with</name>
-        <value>(oids=false)</value>
-      </tableOption>
       <column name="user_id" type="serial" null="false"></column>
       <column name="user_name" type="character varying(40)" null="true"></column>
       <column name="password" type="text" null="true"></column>
@@ -106,10 +101,6 @@
       <grant role="someapp" operation="SELECT,INSERT,UPDATE,DELETE"></grant>
     </table>
     <table name="user_access_level" owner="pgsql" primaryKey="user_access_level_id" primaryKeyName="user_access_level_pkey">
-      <tableOption sqlFormat="pgsql8">
-        <name>with</name>
-        <value>(oids=false)</value>
-      </tableOption>
       <column name="user_access_level_id" type="integer" null="false"></column>
       <column name="user_access_level" type="character varying(10)" null="false" default="true"></column>
       <column name="can_see_invisible_users" type="boolean" null="false" default="false"></column>
@@ -117,10 +108,6 @@
       <grant role="someapp" operation="SELECT"></grant>
     </table>
     <table name="user_status_list" owner="pgsql" primaryKey="user_status_list_id" primaryKeyName="user_status_list_pkey">
-      <tableOption sqlFormat="pgsql8">
-        <name>with</name>
-        <value>(oids=false)</value>
-      </tableOption>
       <column name="user_status_list_id" type="integer" null="false"></column>
       <column name="is_visible" type="boolean" null="false" default="true"></column>
       <column name="can_login" type="boolean" null="false" default="true"></column>

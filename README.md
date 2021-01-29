@@ -312,6 +312,68 @@ func DoSomethingWithTable() []output.ToSql {
 }
 ```
 
+### New Features & Bugfixes
+
+v2 and v3's goals are to be as minimally different behavior-wise from v1 as possible, even including bugs.
+
+However, as I've gone, I've found that a few features/fixes needed to be added so I can validate that the code is as correct as possible. These changes are designed to be as minimally impactful as possible and not break practical compatibility.
+
+The general theme here is that lowering the amount of human intervention required to generate a correct and functional migration is not considered to be a forwards- or backwards-incompatible change, nor are changes that do not affect the ability for v1 to consume v2-generated XML, nor are changes that avoid crashes that would prevent normal operation of the code.
+
+- CHANGED: Function definition bodies, view queries, and similar fields are extracted/composited as `<![CDATA[...]]>` directives
+  - Rationale: Besides being more correct, it's necessary due to the way Go XML un/marshalling works
+  - Before: These were extracted as plain text, with xml characters escaped
+  - After: These are now extracted as CDATA
+  - Compatibility: v1 should still be able to consume this without issue - TODO(go,core) verify this claim
+- NEW: Heuristic-based `<database><role>` assignment in pgsql8 extraction
+  - Rationale: Prevented automated testing of diff of schema to extracted schema
+  - Before: All roles were set to the database user doing the extraction, other roles encountered treated as `<customRole>`
+  - After: Roles are now set according to their usage in the schema, falling back to the current user. Other roles still treated as custom roles.
+  - Compatibility: Previous behavior required human intervention 100% of the time, and this cuts it down to near zero.
+- NEW: Extracting table inheritance in pgsql8
+  - Rationale: Prevented automated testing of diff of schema to extracted schema (due to partitioning synthesis)
+  - Before: Tables that inherited from another were extracted as full-blown tables
+  - After: Tables inheriting from another are marked with (the already supported) `inheritsSchema` and `inheritsTable` attributes. Columns that are inherited from the parent are omitted from the child.
+  - Compatibility: Previous behavior was incomplete and required human intervention 100% of the time, this almost never does
+- NEW: Extracting CHECK constraints in pgsql8
+  - Rationale: Prevented automated testing of diff of schema to extracted schema (due to partitioning synthesis)
+  - Before: CHECK constraints were ignored
+  - After: CHECK constraints are extracted as `<constraint type="CHECK">` elements
+  - Compatibility: Previous behavior was incomplete and required human intervention 100% of the time, this almost never does
+- NEW: Extracting trigger functions in pgsql8
+  - Rationale: Prevented automated testing of diff of schema to extracted schema (due to partitioning synthesis)
+  - Before: Functions with `RETURNS trigger` were not extracted
+  - After: Functions with `RETURNS trigger` are now extracted as such
+  - Compatibility: Previous behavior was incomplete and required human intervention 100% of the time, this almost never does
+- FIXED: No longer extracts aggregate/window functions in pgsql8
+  - Rationale: I was already mucking about in the function and noticed the potential bug. There was no compelling reason to leave the bad behavior.
+  - Before: User-defined aggregate and window functions would have been attempted to be extracted, and likely would have resulted in invalid XML if not crashing outright.
+  - After: Aggregate/window functions are retrieved, but ignored with a warning.
+  - Compatibility: Previous behavior either resulted in incoherent XML requiring human intervention or would not work at all if an aggregate/window function was present. New behavior prevents this case entirely and warns the user.
+- CHANGED: No longer ignores "C" language functions in pgsql8
+  - Rationale: I was already mucking about in the function and noticed the potential for incomplete extraction. Changing to a warning does not change behavior at all, but becomes more informative to the user.
+  - Before: Extraction query flat out ignored `LANGUAGE C` functions
+  - After: `LANGUAGE C` functions are retrieved, but ignored with a warning
+  - Compatibility: No behavior change
+- FIXED: _Always_ extracts `oids=false` for tables in Postgres 12+ (issue https://github.com/dbsteward/dbsteward/issues/139)
+  - Rationale: Postgres 12 removes the `pg_catalog.pg_class.relhasoids` column, which causes DBSteward to crash with a fatal error. `oids=true` is no longer supported, and `oids=false` is not only the default, but the only possible value. I am also periodically testing against recent Postgres versions and noting/fixing issues related to that.
+  - Before: Extraction would attempt to query for `relhasoids` for table storage options and crash in Postgres 12+
+  - After: Extraction checks Postgres server version and changes queries accordingly. In Postgres 12+, we assume `oids=false`.
+  - Compatibility: No behavior change for Postgres <12, prevents a crash in Postgres >=12
+- CHANGED: Does not extract `oids=false` for tables in pgsql8 (issue https://github.com/dbsteward/dbsteward/issues/97)
+  - Rationale: `oids=false` is the default in postgres, there is no need to specify it. Cuts down on clutter in extracted xml. The opposite, `oids=true` is left unchanged
+  - Before: a `<tableOption><name>with</name><value>(oids=false)</value></tableOption>` would be extracted
+  - After: this no-op value is not extracted.
+  - Compatibility: Although it results in different DDL, it is functionally the same on a clean build - specifying this option has no effect, as it's the default behavior.
+
+And here's a list of changes that I do not intend to keep forever, at least without serious thought and rework:
+
+- CHANGED: Foreign key constraint creation time deferred until after data changes (issue https://github.com/dbsteward/dbsteward/issues/142)
+  - Rationale: This is flat out broken in dbsteward, and there's no good way around it, as it prevents applying the upgrade from `someapp_v1.xml` to `someapp_v2.xml`. Changed to keep moving on things, pending further discussion.
+  - Before: Foreign key constraints were created in stage 1
+  - After: Foreign key constraints were created in stage 4
+  - Compatibility: DANGEROUS. This is a drastic change, and violates some of the guarantees and safety of the multi-stage system.
+
 ## Thoughts for the future
 
 ### General Architecture
