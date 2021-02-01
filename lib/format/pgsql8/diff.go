@@ -10,7 +10,6 @@ import (
 
 type Diff struct {
 	*sql99.Diff
-	AsTransaction      bool
 	AddDefaults        bool
 	IgnoreStartWith    bool
 	OldTableDependency []*model.TableRef
@@ -20,7 +19,6 @@ type Diff struct {
 func NewDiff() *Diff {
 	diff := &Diff{
 		Diff:            sql99.NewDiff(GlobalLookup),
-		AsTransaction:   true,  // TODO(go,pgsql) where does this get set from?
 		AddDefaults:     false, // TODO(go,pgsql) where does this get set from?
 		IgnoreStartWith: true,  // TODO(go,pgsql) where does this get set from?
 	}
@@ -77,28 +75,26 @@ func (self *Diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSe
 		// TODO(go,slony)
 	}
 
-	if self.AsTransaction {
+	// stage 1 and 3 should not be in a transaction as they will be submitted via slonik EXECUTE SCRIPT
+	if !dbsteward.GenerateSlonik {
+		stage1.AppendHeader("\nBEGIN;\n\n")
+		stage1.AppendFooter("\nCOMMIT;\n")
+	} else {
+		stage1.AppendHeader("\n-- generateslonik specified: pgsql8 STAGE1 upgrade omitting BEGIN. slonik EXECUTE SCRIPT will wrap stage 1 DDL and DCL in a transaction\n")
+	}
+
+	if !dbsteward.SingleStageUpgrade {
+		stage2.AppendHeader("\nBEGIN;\n\n")
+		stage2.AppendFooter("\nCOMMIT;\n")
+		stage4.AppendHeader("\nBEGIN;\n\n")
+		stage4.AppendFooter("\nCOMMIT;\n")
+
 		// stage 1 and 3 should not be in a transaction as they will be submitted via slonik EXECUTE SCRIPT
 		if !dbsteward.GenerateSlonik {
-			stage1.AppendHeader("\nBEGIN;\n\n")
-			stage1.AppendFooter("\nCOMMIT;\n")
+			stage3.AppendHeader("\nBEGIN;\n\n")
+			stage3.AppendFooter("\nCOMMIT;\n")
 		} else {
-			stage1.AppendHeader("\n-- generateslonik specified: pgsql8 STAGE1 upgrade omitting BEGIN. slonik EXECUTE SCRIPT will wrap stage 1 DDL and DCL in a transaction\n")
-		}
-
-		if !dbsteward.SingleStageUpgrade {
-			stage2.AppendHeader("\nBEGIN;\n\n")
-			stage2.AppendFooter("\nCOMMIT;\n")
-			stage4.AppendHeader("\nBEGIN;\n\n")
-			stage4.AppendFooter("\nCOMMIT;\n")
-
-			// stage 1 and 3 should not be in a transaction as they will be submitted via slonik EXECUTE SCRIPT
-			if !dbsteward.GenerateSlonik {
-				stage3.AppendHeader("\nBEGIN;\n\n")
-				stage3.AppendFooter("\nCOMMIT;\n")
-			} else {
-				stage3.AppendHeader("\n-- generateslonik specified: pgsql8 STAGE3 upgrade omitting BEGIN. slonik EXECUTE SCRIPT will wrap stage 3 DDL and DCL in a transaction\n")
-			}
+			stage3.AppendHeader("\n-- generateslonik specified: pgsql8 STAGE3 upgrade omitting BEGIN. slonik EXECUTE SCRIPT will wrap stage 3 DDL and DCL in a transaction\n")
 		}
 	}
 
