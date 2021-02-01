@@ -133,13 +133,12 @@ func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter,
 }
 
 type updateTableColumnsAgg struct {
-	before1          []output.ToSql
-	before3          []output.ToSql
-	stage1           []sql.TableAlterPart
-	stage3           []sql.TableAlterPart
-	after1           []output.ToSql
-	after3           []output.ToSql
-	dropDefaultsCols []string
+	before1 []output.ToSql
+	before3 []output.ToSql
+	stage1  []sql.TableAlterPart
+	stage3  []sql.TableAlterPart
+	after1  []output.ToSql
+	after3  []output.ToSql
 }
 
 func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
@@ -228,12 +227,6 @@ func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegme
 		Parts: agg.stage3,
 	})
 
-	defaultDrops := make([]sql.TableAlterPart, len(agg.dropDefaultsCols))
-	for i, col := range agg.dropDefaultsCols {
-		defaultDrops[i] = &sql.TableAlterPartColumnDropDefault{col}
-	}
-	stage1.WriteSql(&sql.TableAlterParts{ref, defaultDrops})
-
 	stage1.WriteSql(agg.after1...)
 	stage3.WriteSql(agg.after3...)
 }
@@ -283,7 +276,7 @@ func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTab
 		// this is because ADD COLUMNs with NOT NULL will fail when there are existing rows
 		agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnCreate{
 			// TODO(go,nth) clean up this call, get rid of booleans and global flag
-			ColumnDef: GlobalColumn.GetFullDefinition(lib.GlobalDBSteward.NewDatabase, newSchema, newTable, newColumn, GlobalDiff.AddDefaults, false, true),
+			ColumnDef: GlobalColumn.GetFullDefinition(lib.GlobalDBSteward.NewDatabase, newSchema, newTable, newColumn, false, true),
 		})
 
 		// instead we put the NOT NULL defintion in stage3 schema changes once data has been updated in stage2 data
@@ -317,10 +310,6 @@ func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTab
 					UpdatedValues:  []sql.ToSqlValue{sql.RawSql(newColumn.Default)},
 				},
 			})
-		}
-
-		if GlobalDiff.AddDefaults && newColumn.Nullable {
-			agg.dropDefaultsCols = append(agg.dropDefaultsCols, newColumn.Name)
 		}
 
 		// some columns need to be filled with values before any new constraints can be applied
@@ -413,13 +402,6 @@ func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTab
 			if newColumn.Nullable {
 				agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnSetNull{newColumn.Name, true})
 			} else {
-				if GlobalDiff.AddDefaults {
-					if defaultVal := GlobalColumn.GetDefaultValue(newType); defaultVal != nil {
-						agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnSetDefault{newColumn.Name, defaultVal})
-						agg.dropDefaultsCols = append(agg.dropDefaultsCols, newColumn.Name)
-					}
-				}
-
 				// if the default value is defined in the dbsteward XML
 				// set the value of the column to the default in end of stage 1 so that NOT NULL can be applied in stage 3
 				// this way custom <sql> tags can be avoided for upgrade generation if defaults are specified

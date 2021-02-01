@@ -27,7 +27,7 @@ func (self *Column) GetReducedDefinition(doc *model.Definition, schema *model.Sc
 	}
 }
 
-func (self *Column) GetFullDefinition(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column, addDefaults, includeNullDefinition, includeDefaultNextval bool) sql.ColumnDefinition {
+func (self *Column) GetFullDefinition(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column, includeNullDefinition, includeDefaultNextval bool) sql.ColumnDefinition {
 	colType := self.GetColumnType(doc, schema, table, column)
 	out := sql.ColumnDefinition{
 		Name:     column.Name,
@@ -51,8 +51,6 @@ func (self *Column) GetFullDefinition(doc *model.Definition, schema *model.Schem
 			deftmp := sql.RawSql(column.Default)
 			out.Default = &deftmp
 		}
-	} else if !column.Nullable && addDefaults {
-		out.Default = GlobalColumn.GetDefaultValue(colType)
 	}
 
 	if includeNullDefinition {

@@ -10,7 +10,6 @@ import (
 
 type Diff struct {
 	*sql99.Diff
-	AddDefaults        bool
 	IgnoreStartWith    bool
 	OldTableDependency []*model.TableRef
 	NewTableDependency []*model.TableRef
@@ -19,8 +18,7 @@ type Diff struct {
 func NewDiff() *Diff {
 	diff := &Diff{
 		Diff:            sql99.NewDiff(GlobalLookup),
-		AddDefaults:     false, // TODO(go,pgsql) where does this get set from?
-		IgnoreStartWith: true,  // TODO(go,pgsql) where does this get set from?
+		IgnoreStartWith: true, // TODO(go,pgsql) where does this get set from?
 	}
 	diff.Diff.Diff = diff
 	return diff
