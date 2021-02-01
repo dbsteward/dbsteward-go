@@ -1,5 +1,5 @@
 -- someapp_v2_upgrade_stage1_schema1.sql
--- DBSteward stage 1 structure additions and modifications - generated Fri, 29 Jan 2021 13:30:09 -0500
+-- DBSteward stage 1 structure additions and modifications - generated Mon, 01 Feb 2021 13:23:42 -0500
 -- Old definition: someapp_v1_composite.xml
 -- New definition someapp_v2_composite.xml
 

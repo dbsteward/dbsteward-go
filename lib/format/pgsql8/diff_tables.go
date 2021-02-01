@@ -716,7 +716,6 @@ type changedRow struct {
 }
 
 func (self *DiffTables) getNewAndChangedRows(oldTable, newTable *model.Table) ([]*model.DataRow, []*changedRow) {
-	// TODO(go,pgsql) consider DataRow.Delete
 	if newTable == nil || newTable.Rows == nil || len(newTable.Rows.Rows) == 0 || len(newTable.Rows.Columns) == 0 {
 		// there are no new rows at all, so nothing is new or changed
 		return nil, nil
@@ -732,6 +731,10 @@ func (self *DiffTables) getNewAndChangedRows(oldTable, newTable *model.Table) ([
 	newRows := []*model.DataRow{}
 	updatedRows := []*changedRow{}
 	for _, newRow := range newTable.Rows.Rows {
+		if newRow.Delete {
+			// if the new row marked for deletion, it is neither new nor updated
+			continue
+		}
 		oldRow := oldTable.Rows.TryGetRowMatchingKeyCols(newRow, newTable.PrimaryKey)
 		if oldRow == nil {
 			newRows = append(newRows, newRow)
@@ -747,9 +750,8 @@ func (self *DiffTables) getNewAndChangedRows(oldTable, newTable *model.Table) ([
 }
 
 // returns the rows in oldTable that are no longer in newTable
-// TODO(go,3) move this to model
+// TODO(go,3) move this to model?
 func (self *DiffTables) getOldRows(oldTable, newTable *model.Table) []*model.DataRow {
-	// TODO(go,pgsql) consider DataRow.Delete
 	if oldTable == nil || oldTable.Rows == nil || len(oldTable.Rows.Rows) == 0 || len(oldTable.Rows.Columns) == 0 {
 		// there are no old rows at all
 		return nil
@@ -763,9 +765,15 @@ func (self *DiffTables) getOldRows(oldTable, newTable *model.Table) []*model.Dat
 
 	oldRows := []*model.DataRow{}
 	for _, oldRow := range oldTable.Rows.Rows {
+		if oldRow.Delete {
+			// don't consider this row if it was deleted in old, regardless of status in new
+			// TODO(go,pgsql) is this correct?
+			continue
+		}
 		// NOTE: we use new primary key here, because new is new, baby
 		newRow := newTable.Rows.TryGetRowMatchingKeyCols(oldRow, newTable.PrimaryKey)
-		if newRow == nil {
+		if newRow == nil || newRow.Delete {
+			// if the new row is missing or marked for deletion, we want to drop it
 			oldRows = append(oldRows, oldRow)
 		}
 		// don't bother checking for changes, that's handled by getNewAndUpdatedRows in a completely different codepath
