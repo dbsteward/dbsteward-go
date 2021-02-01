@@ -43,9 +43,6 @@ func (self *DiffSequences) DiffSequences(ofs output.OutputFileSegmenter, oldSche
 		if !util.IntpEq(oldSeq.Max, newSeq.Max) {
 			parts = append(parts, &sql.SequenceAlterPartMaxValue{newSeq.Max})
 		}
-		if !GlobalDiff.IgnoreStartWith && newSeq.Start != nil && !util.IntpEq(oldSeq.Start, newSeq.Start) {
-			parts = append(parts, &sql.SequenceAlterPartRestartWith{*newSeq.Start})
-		}
 		if !util.IntpEq(oldSeq.Cache, newSeq.Cache) {
 			parts = append(parts, &sql.SequenceAlterPartCache{newSeq.Cache})
 		}
