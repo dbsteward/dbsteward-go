@@ -26,6 +26,10 @@ func (self ConstraintType) Includes(sub ConstraintType) bool {
 	return self&sub != 0
 }
 
+func (self ConstraintType) Equals(other ConstraintType) bool {
+	return self == other
+}
+
 type TableConstraint struct {
 	Schema           *model.Schema
 	Table            *model.Table
@@ -313,7 +317,7 @@ func (self *TableConstraint) Equals(other *TableConstraint) bool {
 		return false
 	}
 
-	if !strings.EqualFold(string(self.Type), string(other.Type)) {
+	if !self.Type.Equals(other.Type) {
 		return false
 	}
 

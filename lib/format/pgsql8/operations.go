@@ -941,7 +941,7 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 					// TODO(go,3) this seems like something nice to have on the model
 					if len(column.ForeignTable) > 0 && len(column.ForeignColumn) > 0 {
 						if len(colType) > 0 {
-							dbsteward.Fatal("type of %s was found for column %s but it is foreign keyed", colType, column)
+							dbsteward.Fatal("type of %s was found for column %s but it is foreign keyed", colType, column.Name)
 						}
 						foreign := lib.GlobalDBX.GetTerminalForeignColumn(doc, schema, table, column)
 						colType = foreign.Type
