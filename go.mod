@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/alexflint/go-arg v1.3.0
+	github.com/golang/mock v1.4.4
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jackc/pgx/v4 v4.10.1
 	github.com/pkg/errors v0.8.1
