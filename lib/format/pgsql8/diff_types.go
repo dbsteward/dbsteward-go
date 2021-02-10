@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -53,7 +54,9 @@ func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *mode
 			self.diffDomain(ofs, oldSchema, oldType, newSchema, newType)
 		} else {
 			ofs.WriteSql(GlobalDataType.GetDropSql(oldSchema, oldType)...)
-			ofs.WriteSql(GlobalDataType.GetCreationSql(newSchema, newType)...)
+			sql, err := GlobalDataType.GetCreationSql(newSchema, newType)
+			lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for type alter")
+			ofs.WriteSql(sql...)
 		}
 
 		// functions are only recreated if they changed elsewise, so need to create them here
@@ -81,7 +84,9 @@ func (self *DiffTypes) createTypes(ofs output.OutputFileSegmenter, oldSchema *mo
 	for _, newType := range newSchema.Types {
 		if oldSchema.TryGetTypeNamed(newType.Name) == nil {
 			GlobalOperations.SetContextReplicaSetId(newType.SlonySetId)
-			ofs.WriteSql(GlobalDataType.GetCreationSql(newSchema, newType)...)
+			sql, err := GlobalDataType.GetCreationSql(newSchema, newType)
+			lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for type diff")
+			ofs.WriteSql(sql...)
 		}
 	}
 }
@@ -95,7 +100,9 @@ func (self *DiffTypes) diffDomain(ofs output.OutputFileSegmenter, oldSchema *mod
 		// TODO(feat) don't we need to convert columns as in DiffTypes?
 		ofs.WriteSql(sql.NewComment("domain base type changed from %s to %s; recreating the type", oldInfo.BaseType, newInfo.BaseType))
 		ofs.WriteSql(GlobalDataType.GetDropSql(oldSchema, oldType)...)
-		ofs.WriteSql(GlobalDataType.GetCreationSql(newSchema, newType)...)
+		sql, err := GlobalDataType.GetCreationSql(newSchema, newType)
+		lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for domain diff")
+		ofs.WriteSql(sql...)
 	}
 
 	ref := sql.TypeRef{newSchema.Name, newType.Name}

@@ -1074,7 +1074,9 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	// types: enumerated list, etc
 	for _, schema := range doc.Schemas {
 		for _, datatype := range schema.Types {
-			ofs.WriteSql(GlobalDataType.GetCreationSql(schema, datatype)...)
+			sql, err := GlobalDataType.GetCreationSql(schema, datatype)
+			lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for build")
+			ofs.WriteSql(sql...)
 		}
 	}
 

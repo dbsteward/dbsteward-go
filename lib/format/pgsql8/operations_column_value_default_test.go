@@ -3,11 +3,11 @@ package pgsql8_test
 import (
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib"
+	"github.com/stretchr/testify/assert"
 
+	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/model"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestOperations_ColumnValueDefault_NullReturnsNull(t *testing.T) {
