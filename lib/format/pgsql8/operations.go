@@ -1275,6 +1275,9 @@ func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Ta
 		return sql.ValueNull
 	}
 	if dataCol.Empty {
+		if self.EscapeStringValues {
+			return sql.EscapedStringValue("")
+		}
 		return sql.StringValue("")
 	}
 	if dataCol.Sql {
