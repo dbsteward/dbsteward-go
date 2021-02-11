@@ -1273,15 +1273,18 @@ func (self *Operations) ValueEscape(datatype string, value string, doc *model.De
 }
 
 func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Table, columnName string, dataCol *model.DataCol) sql.ToSqlValue {
+	// if the column represents NULL, return a NULL value
 	if dataCol.Null {
 		return sql.ValueNull
 	}
+	// if the column represents an empty string, return an empty string
 	if dataCol.Empty {
 		if self.EscapeStringValues {
 			return sql.EscapedStringValue("")
 		}
 		return sql.StringValue("")
 	}
+	// if the column represents a sql expression, return an expression or DEFAULT
 	if dataCol.Sql {
 		if strings.EqualFold(strings.TrimSpace(dataCol.Text), "default") {
 			return sql.ValueDefault
@@ -1309,11 +1312,10 @@ func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Ta
 		return sql.RawSql(col.Default)
 	}
 
-	valueType := GlobalColumn.GetColumnType(lib.GlobalDBSteward.NewDatabase, schema, table, col)
-	// TODO(go,pgsql) I'd like to push sql value encoding/escpaing down to the sql package and the ToSqlValue interface
-	// which means LiteralValue should change to return a ToSqlValue, not a string. but that's going to be a bigger thing
-	// than I'm going to implement right now, so we're going to treat the LiteralValue return as RawSql
-	return sql.RawSql(self.LiteralValue(valueType, dataCol.Text))
+	return &sql.TypedValue{
+		Type:  GlobalColumn.GetColumnType(lib.GlobalDBSteward.NewDatabase, schema, table, col),
+		Value: dataCol.Text,
+	}
 }
 
 func (self *Operations) StripStringQuoting(str string) string {
