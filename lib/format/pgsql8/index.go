@@ -52,9 +52,9 @@ func (self *Index) GetDropSql(schema *model.Schema, table *model.Table, index *m
 	}
 }
 
-func (self *Index) GetTableIndexes(table *model.Table) []*model.Index {
+func (self *Index) GetTableIndexes(schema *model.Schema, table *model.Table) ([]*model.Index, error) {
 	if table == nil {
-		return nil
+		return nil, nil
 	}
 	out := make([]*model.Index, len(table.Indexes))
 	copy(out, table.Indexes)
@@ -65,7 +65,7 @@ func (self *Index) GetTableIndexes(table *model.Table) []*model.Index {
 			out = append(out, &model.Index{
 				Name:   self.BuildSecondaryKeyName(table.Name, column.Name),
 				Unique: true,
-				Using:  model.IndexTypeBtree,
+				Using:  model.IndexTypeBtree, // TODO(feat) can these support other types?
 				Dimensions: []*model.IndexDim{{
 					Name:  column.Name + "_unq",
 					Value: column.Name,
@@ -74,16 +74,31 @@ func (self *Index) GetTableIndexes(table *model.Table) []*model.Index {
 		}
 	}
 
-	return out
-}
-
-func (self *Index) TryGetTableIndexNamed(table *model.Table, name string) *model.Index {
-	for _, index := range self.GetTableIndexes(table) {
-		if strings.EqualFold(index.Name, name) {
-			return index
+	// validate that there are no duplicate index names
+	// TODO(go,3) move this validation elsewhere
+	names := util.NewSet(util.IdentityId)
+	for _, index := range out {
+		if names.Has(index.Name) {
+			return out, fmt.Errorf("Duplicate index name %s on table %s.%s", index.Name, schema.Name, table.Name)
+		} else {
+			names.Add(index.Name)
 		}
 	}
-	return nil
+
+	return out, nil
+}
+
+func (self *Index) TryGetTableIndexNamed(schema *model.Schema, table *model.Table, name string) (*model.Index, error) {
+	indexes, err := self.GetTableIndexes(schema, table)
+	if err != nil {
+		return nil, err
+	}
+	for _, index := range indexes {
+		if strings.EqualFold(index.Name, name) {
+			return index, nil
+		}
+	}
+	return nil, nil
 }
 
 func (self *Index) BuildPrimaryKeyName(table string) string {
