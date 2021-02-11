@@ -137,7 +137,7 @@ func (self *XmlParser) expandIncludes(doc *model.Definition, file string) *model
 }
 
 func (self *XmlParser) XmlCompositePgData(doc *model.Definition, dataFiles []string) *model.Definition {
-	// TODO(go,core)
+	// TODO(go,pgsql)
 	return nil
 }
 
