@@ -17,3 +17,14 @@ func TestMain(m *testing.M) {
 	lib.GlobalDBSteward.SqlFormat = model.SqlFormatPgsql8
 	os.Exit(m.Run())
 }
+
+func setOldNewDocs(old, new *model.Definition) {
+	lib.GlobalDBSteward.OldDatabase = old
+	lib.GlobalDBSteward.NewDatabase = new
+	if old != nil {
+		pgsql8.GlobalDiff.OldTableDependency = lib.GlobalDBX.TableDependencyOrder(old)
+	}
+	if new != nil {
+		pgsql8.GlobalDiff.NewTableDependency = lib.GlobalDBX.TableDependencyOrder(new)
+	}
+}

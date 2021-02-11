@@ -130,12 +130,15 @@ func (self *DiffTypes) diffDomain(ofs output.OutputFileSegmenter, oldSchema *mod
 	for _, newConstraint := range newType.DomainConstraints {
 		oldConstraint := oldType.TryGetDomainConstraintNamed(newConstraint.Name)
 		if oldConstraint != nil {
-			ofs.WriteSql(sql.NewComment("domain constraint %s changed from %s", oldConstraint.Name, oldConstraint.Check))
-			ofs.WriteSql(&sql.TypeDomainAlterDropConstraint{ref, oldConstraint.Name})
+			if !oldConstraint.Equals(newConstraint) {
+				ofs.WriteSql(sql.NewComment("domain constraint %s changed from %s", oldConstraint.Name, oldConstraint.Check))
+				ofs.WriteSql(&sql.TypeDomainAlterDropConstraint{ref, oldConstraint.Name})
+				ofs.WriteSql(&sql.TypeDomainAlterAddConstraint{ref, newConstraint.Name, sql.RawSql(newConstraint.GetNormalizedCheck())})
+			}
 		} else {
 			ofs.WriteSql(sql.NewComment("domain constraint %s added", newConstraint.Name))
+			ofs.WriteSql(&sql.TypeDomainAlterAddConstraint{ref, newConstraint.Name, sql.RawSql(newConstraint.GetNormalizedCheck())})
 		}
-		ofs.WriteSql(&sql.TypeDomainAlterAddConstraint{ref, newConstraint.Name, sql.RawSql(newConstraint.GetNormalizedCheck())})
 	}
 	for _, oldConstraint := range oldType.DomainConstraints {
 		if newType.TryGetDomainConstraintNamed(oldConstraint.Name) == nil {

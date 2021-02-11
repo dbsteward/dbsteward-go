@@ -65,18 +65,12 @@ func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataT
 		for i, constraint := range datatype.DomainConstraints {
 			// TODO(go,3) put normalization elsewhere
 			name := strings.TrimSpace(constraint.Name)
-			check := strings.TrimSpace(constraint.Check)
+			check := strings.TrimSpace(constraint.GetNormalizedCheck())
 			if name == "" {
 				return nil, fmt.Errorf("Domain type %s.%s constraint %d has empty name", schema.Name, datatype.Name, i)
 			}
 			if check == "" {
 				return nil, fmt.Errorf("Domain type %s.%s constraint %s has no definition", schema.Name, datatype.Name, name)
-			}
-			if util.IHasPrefix(check, "check(") {
-				check = check[len("check(") : len(check)-1]
-			}
-			if matches := util.IMatch(`^check\s*\((.*)\)$`, check); len(matches) > 1 {
-				check = strings.TrimSpace(matches[1])
 			}
 			constraints[i] = sql.TypeDomainCreateConstraint{
 				Name:  name,

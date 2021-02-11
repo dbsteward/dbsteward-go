@@ -155,15 +155,17 @@ func (self *DataTypeDomainType) Equals(other *DataTypeDomainType) bool {
 }
 
 func (self *DataTypeDomainConstraint) GetNormalizedCheck() string {
-	if util.IHasPrefix(self.Check, "check(") {
-		return self.Check[6 : len(self.Check)-1]
+	check := strings.TrimSpace(self.Check)
+	if matches := util.IMatch(`^check\s*\((.*)\)$`, check); len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
 	}
-	return self.Check
+	return check
 }
 
 func (self *DataTypeDomainConstraint) Equals(other *DataTypeDomainConstraint) bool {
 	if self == nil || other == nil {
 		return false
 	}
-	return strings.EqualFold(self.Name, other.Name) && self.GetNormalizedCheck() == other.GetNormalizedCheck()
+	return strings.EqualFold(self.Name, other.Name) &&
+		self.GetNormalizedCheck() == other.GetNormalizedCheck()
 }
