@@ -191,19 +191,13 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 	if ct.Includes(ConstraintTypeConstraint) {
 		for _, column := range table.Columns {
 			if ct.Includes(ConstraintTypeForeign) && column.HasForeignKey() {
-				foreign := column.GetReferencedKey()
-				local := model.Key{
-					Schema:  schema,
-					Table:   table,
-					Columns: []*model.Column{column},
-				}
-				ref := lib.GlobalDBX.ResolveForeignKey(doc, local, foreign)
+				ref := lib.GlobalDBX.ResolveForeignKeyColumn(doc, schema, table, column)
 				constraints = append(constraints, &TableConstraint{
 					Name:             util.CoalesceStr(column.ForeignKeyName, GlobalIndex.BuildForeignKeyName(table.Name, column.Name)),
 					Type:             ConstraintTypeForeign,
 					Schema:           schema,
 					Table:            table,
-					Columns:          local.Columns,
+					Columns:          []*model.Column{column},
 					ForeignIndexName: column.ForeignIndexName,
 					ForeignSchema:    ref.Schema,
 					ForeignTable:     ref.Table,

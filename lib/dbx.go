@@ -45,14 +45,7 @@ func (self *DBX) BuildStagedSql(doc *model.Definition, ofs output.OutputFileSegm
 }
 
 func (self *DBX) GetTerminalForeignColumn(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) *model.Column {
-	local := model.Key{
-		Schema:  schema,
-		Table:   table,
-		Columns: []*model.Column{column},
-	}
-	foreign := column.TryGetReferencedKey()
-	util.Assert(foreign != nil, "GetTerminalForeignColumn called with column that does not reference a foreign column")
-	fkey := self.ResolveForeignKey(doc, local, *foreign)
+	fkey := self.ResolveForeignKeyColumn(doc, schema, table, column)
 	fcol := fkey.Columns[0]
 
 	if fcol.Type == "" && fcol.ForeignTable != "" {
@@ -60,6 +53,20 @@ func (self *DBX) GetTerminalForeignColumn(doc *model.Definition, schema *model.S
 		return self.GetTerminalForeignColumn(doc, fkey.Schema, fkey.Table, fcol)
 	}
 	return fcol
+}
+
+func (self *DBX) ResolveForeignKeyColumn(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) model.Key {
+	// this used to be called format_constraint::foreign_key_lookup() in v1
+	// most of the functionality got split to the more general ResolveForeignKey
+	foreign := column.TryGetReferencedKey()
+	util.Assert(foreign != nil, "ResolveForeignKeyColumn called with column that does not reference a foreign column")
+
+	local := model.Key{
+		Schema:  schema,
+		Table:   table,
+		Columns: []*model.Column{column},
+	}
+	return self.ResolveForeignKey(doc, local, *foreign)
 }
 
 func (self *DBX) ResolveForeignKey(doc *model.Definition, localKey model.Key, foreignKey model.KeyNames) model.Key {
@@ -90,7 +97,7 @@ func (self *DBX) ResolveForeignKey(doc *model.Definition, localKey model.Key, fo
 			col = localKey.Columns[i].Name
 		}
 
-		fCol := fref.Table.TryGetColumnNamed(col)
+		fCol := self.TryInheritanceGetColumn(doc, fref.Schema, fref.Table, col)
 		if fCol == nil {
 			GlobalDBSteward.Fatal("Failed to find foreign column %s in %s referenced by %s", col, foreignKey.String(), localKey.String())
 		}
