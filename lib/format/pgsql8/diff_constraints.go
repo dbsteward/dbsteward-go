@@ -41,7 +41,7 @@ func (self *DiffConstraints) CreateConstraintsTable(ofs output.OutputFileSegment
 		}
 
 		// add all still-defined constraints back and any new ones to the table
-		for _, constraint := range GlobalConstraint.GetTableConstraints(lib.GlobalDBSteward.NewDatabase, oldSchema, oldTable, constraintType) {
+		for _, constraint := range GlobalConstraint.GetTableConstraints(lib.GlobalDBSteward.NewDatabase, newSchema, newTable, constraintType) {
 			ofs.WriteSql(GlobalConstraint.GetCreationSql(constraint)...)
 		}
 

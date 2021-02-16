@@ -331,8 +331,21 @@ func (self *TableConstraint) Equals(other *TableConstraint) bool {
 		return false
 	}
 
+	if len(self.ForeignCols) != len(other.ForeignCols) {
+		return false
+	}
+
 	for i, col := range self.Columns {
-		if !strings.EqualFold(col.Type, other.Columns[i].Type) {
+		if !strings.EqualFold(col.Name, other.Columns[i].Name) {
+			return false
+		}
+
+		// TODO(feat) We should double check this: does changing a column type invalidate a constraint over it?
+		// if !strings.EqualFold(col.Type, other.Columns[i].Type) {
+		// 	return false
+		// }
+
+		if len(self.ForeignCols) > 0 && !strings.EqualFold(self.ForeignCols[i].Type, other.ForeignCols[i].Type) {
 			return false
 		}
 	}
