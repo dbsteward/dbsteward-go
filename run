@@ -21,7 +21,7 @@ function _mockgen {
 function test { #: Runs all tests
   run-in-docker
   generate
-  cmd go test ./...
+  cmd go test -coverprofile=profile.cov ./...
 }
 
 function dbsteward { # [...args]: Builds and runs dbsteward

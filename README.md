@@ -1,5 +1,7 @@
 # DBSteward (Go Edition)
 
+[![Coverage Status](https://coveralls.io/repos/github/dbsteward/dbsteward-go/badge.svg?branch=master)](https://coveralls.io/github/dbsteward/dbsteward-go?branch=master) [![Tests and Coverage](https://github.com/dbsteward/dbsteward-go/actions/workflows/main.yml/badge.svg)](https://github.com/dbsteward/dbsteward-go/actions/workflows/main.yml)
+
 **NOTE** This codebase is **VERY** work-in-progress, and **is not functional yet**
 
 This repo contains a rewrite of https://github.com/dbsteward/dbsteward. If you're looking for working software, go there.
