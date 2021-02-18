@@ -3,10 +3,14 @@ on: [push, pull_request]
 
 jobs:
   build:
+    # TODO can we make this run inside dev/dev.Dockerfile?
     runs-on: ubuntu-latest
-
     steps:
+      - uses: actions/setup-go@v1
+        with:
+          go-version: '1.15'
       - uses: actions/checkout@v2
+      - run: go test -v -coverprofile=profile.cov ./...
       - uses: shogo82148/actions-goveralls@v1
         with:
           path-to-profile: profile.cov
