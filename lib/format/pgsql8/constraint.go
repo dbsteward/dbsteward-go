@@ -380,7 +380,9 @@ func (self *TableConstraint) DependsOnRenamedTable(doc *model.Definition) bool {
 		return false
 	}
 
-	if GlobalDiffTables.IsRenamedTable(refSchema, refTable) {
+	isRenamed, err := GlobalDiffTables.IsRenamedTable(refSchema, refTable)
+	lib.GlobalDBSteward.FatalIfError(err, "while checking if constraint depends on renamed table")
+	if isRenamed {
 		lib.GlobalDBSteward.Notice("Constraint %s.%s.%s references renamed table %s.%s", self.Schema.Name, self.Table.Name, self.Name, refSchema.Name, refTable.Name)
 		return true
 	}

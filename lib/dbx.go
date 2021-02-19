@@ -149,14 +149,14 @@ func (self *DBX) TryGetTableFormerlyKnownAs(newDoc *model.Definition, oldSchema 
 // this is the "backwards looking" version of TryGetTableFormerlyKnownAs
 // TODO(go,nth) rename this, clean it up, get rid of those damn gotos
 func (self *DBX) RenamedTableCheckPointer(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) (*model.Schema, *model.Table) {
-	if GlobalDBSteward.IgnoreOldNames {
-		goto end
-	}
 	if newSchema == nil || newTable == nil {
-		goto end
+		return oldSchema, oldTable
 	}
-	if !GlobalDBSteward.Lookup().DiffTables.IsRenamedTable(newSchema, newTable) {
-		goto end
+
+	isRenamed, err := GlobalDBSteward.Lookup().DiffTables.IsRenamedTable(newSchema, newTable)
+	GlobalDBSteward.FatalIfError(err, "while checking table rename status")
+	if !isRenamed {
+		return oldSchema, oldTable
 	}
 
 	if newTable.OldSchemaName != "" {
@@ -172,8 +172,6 @@ func (self *DBX) RenamedTableCheckPointer(oldSchema *model.Schema, oldTable *mod
 	if oldTable == nil {
 		GlobalDBSteward.Fatal("Sanity failure: %s.%s has oldTableName attribute, but table %s.%s not found", newSchema.Name, newTable.Name, oldSchema.Name, newTable.OldTableName)
 	}
-
-end:
 	return oldSchema, oldTable
 }
 

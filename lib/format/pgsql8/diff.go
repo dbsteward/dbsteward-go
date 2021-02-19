@@ -181,8 +181,10 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			GlobalDiffConstraints.DropConstraints(stage1, oldSchema, newSchema, ConstraintTypeConstraint)
 			GlobalDiffConstraints.DropConstraints(stage1, oldSchema, newSchema, ConstraintTypePrimaryKey)
 			GlobalDiffTables.DropTables(stage1, oldSchema, newSchema)
-			GlobalDiffTables.CreateTables(stage1, oldSchema, newSchema)
-			GlobalDiffTables.DiffTables(stage1, stage3, oldSchema, newSchema)
+			err := GlobalDiffTables.CreateTables(stage1, oldSchema, newSchema)
+			lib.GlobalDBSteward.FatalIfError(err, "while creating tables")
+			err = GlobalDiffTables.DiffTables(stage1, stage3, oldSchema, newSchema)
+			lib.GlobalDBSteward.FatalIfError(err, "while diffing tables")
 			GlobalDiffIndexes.DiffIndexes(stage1, oldSchema, newSchema)
 			GlobalDiffTables.DiffClusters(stage1, oldSchema, newSchema)
 			GlobalDiffConstraints.CreateConstraints(stage1, oldSchema, newSchema, ConstraintTypePrimaryKey)
@@ -257,8 +259,10 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			// when a table has an oldTableName oldSchemaName specified,
 			// GlobalDBX.RenamedTableCheckPointer() will modify these pointers to be the old table
 			oldSchema, oldTable = lib.GlobalDBX.RenamedTableCheckPointer(oldSchema, oldTable, newSchema, newTable)
-			GlobalDiffTables.CreateTable(stage1, oldSchema, newSchema, newTable)
-			GlobalDiffTables.DiffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
+			err := GlobalDiffTables.CreateTable(stage1, oldSchema, newSchema, newTable)
+			lib.GlobalDBSteward.FatalIfError(err, "while creating table %s.%s", newSchema.Name, newTable.Name)
+			err = GlobalDiffTables.DiffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
+			lib.GlobalDBSteward.FatalIfError(err, "while diffing table %s.%s", newSchema.Name, newTable.Name)
 			GlobalDiffIndexes.DiffIndexesTable(stage1, oldSchema, oldTable, newSchema, newTable)
 			GlobalDiffTables.DiffClustersTable(stage1, oldSchema, oldTable, newSchema, newTable)
 			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypePrimaryKey)
@@ -302,7 +306,9 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 		for _, newTable := range newSchema.Tables {
 			GlobalOperations.SetContextReplicaSetId(newTable.SlonySetId)
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
-			if !lib.GlobalDBSteward.IgnoreOldNames && GlobalDiffTables.IsRenamedTable(newSchema, newTable) {
+			isRenamed, err := GlobalDiffTables.IsRenamedTable(newSchema, newTable)
+			lib.GlobalDBSteward.FatalIfError(err, "while updating permissions")
+			if isRenamed {
 				// skip permission diffing on it, it is the same
 				// TODO(feat) that seems unlikely? we should probably check permissions on renamed table
 				continue
@@ -357,7 +363,9 @@ func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
 			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 
-			if GlobalDiffTables.IsRenamedTable(newSchema, newTable) {
+			isRenamed, err := GlobalDiffTables.IsRenamedTable(newSchema, newTable)
+			lib.GlobalDBSteward.FatalIfError(err, "while updating data")
+			if isRenamed {
 				lib.GlobalDBSteward.Info("%s.%s used to be called %s - will diff data against that definition", newSchema.Name, newTable.Name, newTable.OldTableName)
 				oldSchema = GlobalTable.GetOldTableSchema(newSchema, newTable)
 				oldTable = GlobalTable.GetOldTable(newSchema, newTable)

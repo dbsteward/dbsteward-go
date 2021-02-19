@@ -6,6 +6,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/util"
+	"github.com/pkg/errors"
 )
 
 type XmlParser struct {
@@ -68,12 +69,12 @@ func (self *XmlParser) expandPartitionedTable(doc *model.Definition, schema *mod
 	lib.GlobalDBSteward.Fatal("Invalid partition type: %s", table.Partitioning.Type)
 }
 
-func (self *XmlParser) CheckPartitionChange(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *XmlParser) CheckPartitionChange(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
 	util.Assert(oldTable.Partitioning != nil, "oldTable.Partitioning must not be nil")
 	util.Assert(newTable.Partitioning != nil, "newTable.Partitioning must not be nil")
 
 	if !oldTable.Partitioning.Type.Equals(newTable.Partitioning.Type) {
-		lib.GlobalDBSteward.Fatal(
+		return errors.Errorf(
 			"Changing partitioning types (%s -> %s) on table %s.%s is not supported",
 			oldTable.Partitioning.Type, newTable.Partitioning.Type,
 			newSchema.Name, newTable.Name,
@@ -81,9 +82,8 @@ func (self *XmlParser) CheckPartitionChange(oldSchema *model.Schema, oldTable *m
 	}
 
 	if newTable.Partitioning.Type.Equals(model.TablePartitionTypeModulo) {
-		self.checkModuloPartitionChange(oldSchema, oldTable, newSchema, newTable)
-		return
+		return self.checkModuloPartitionChange(oldSchema, oldTable, newSchema, newTable)
 	}
 
-	lib.GlobalDBSteward.Fatal("Invalid partition type: %s", newTable.Partitioning.Type)
+	return errors.Errorf("Invalid partition type: %s", newTable.Partitioning.Type)
 }

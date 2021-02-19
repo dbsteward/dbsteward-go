@@ -7,6 +7,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/util"
+	"github.com/pkg/errors"
 )
 
 type moduloPartition struct {
@@ -180,15 +181,16 @@ func (self *XmlParser) createModuloPartitionTrigger(schema *model.Schema, table 
 	})
 }
 
-func (self *XmlParser) checkModuloPartitionChange(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *XmlParser) checkModuloPartitionChange(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
 	oldOpts := newModuloPartition(oldSchema, oldTable)
 	newOpts := newModuloPartition(newSchema, newTable)
 	if oldOpts.parts != newOpts.parts {
-		lib.GlobalDBSteward.Fatal("Changing the number of partitions in a table will lead to data loss: %s.%s", newSchema.Name, newTable.Name)
+		return errors.Errorf("Changing the number of partitions in a table will lead to data loss: %s.%s", newSchema.Name, newTable.Name)
 	}
 	if oldOpts.column != newOpts.column {
-		lib.GlobalDBSteward.Fatal("Changing the paritioning column in a table will lead to data loss: %s.%s", newSchema.Name, newTable.Name)
+		return errors.Errorf("Changing the paritioning column in a table will lead to data loss: %s.%s", newSchema.Name, newTable.Name)
 	}
+	return nil
 }
 
 func simpleBuildIdentifier(prefix, name, suffix string) string {

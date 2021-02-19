@@ -9,6 +9,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
+	"github.com/pkg/errors"
 )
 
 type DiffTables struct {
@@ -21,34 +22,55 @@ func NewDiffTables() *DiffTables {
 // TODO(go,core) lift much of this up to sql99
 
 // applies transformations to tables that exist in both old and new
-func (self *DiffTables) DiffTables(stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
+func (self *DiffTables) DiffTables(stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) error {
 	// note: old dbsteward called create_tables here, but because we split out DiffTable, we can't call it both places,
 	// so callers were updated to call CreateTables or CreateTable just before calling DiffTables or DiffTable, respectively
 
 	if oldSchema == nil {
-		return
+		return nil
 	}
 	for _, newTable := range newSchema.Tables {
 		oldTable := oldSchema.TryGetTableNamed(newTable.Name)
 		oldSchema, oldTable = lib.GlobalDBX.RenamedTableCheckPointer(oldSchema, oldTable, newSchema, newTable)
-		self.DiffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
+		err := self.DiffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
+		if err != nil {
+			return errors.Wrapf(err, "while diffing table %s.%s", newSchema.Name, newTable.Name)
+		}
 	}
+	return nil
 }
 
-func (self *DiffTables) DiffTable(stage1, stage3 output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *DiffTables) DiffTable(stage1, stage3 output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
 	if oldTable == nil || newTable == nil {
 		// create and drop are handled elsewhere
-		return
+		return nil
 	}
 
-	self.updateTableOptions(stage1, oldSchema, oldTable, newSchema, newTable)
-	self.updateTableColumns(stage1, stage3, oldTable, newSchema, newTable)
-	self.checkPartition(oldSchema, oldTable, newSchema, newTable)
-	self.checkInherits(stage1, oldTable, newSchema, newTable)
-	self.addAlterStatistics(stage1, oldTable, newSchema, newTable)
+	err := self.updateTableOptions(stage1, oldSchema, oldTable, newSchema, newTable)
+	if err != nil {
+		return errors.Wrap(err, "while diffing table options")
+	}
+	err = self.updateTableColumns(stage1, stage3, oldTable, newSchema, newTable)
+	if err != nil {
+		return errors.Wrap(err, "while diffing table columns")
+	}
+	err = self.checkPartition(oldSchema, oldTable, newSchema, newTable)
+	if err != nil {
+		return errors.Wrap(err, "while diffing table partitions")
+	}
+	err = self.checkInherits(stage1, oldTable, newSchema, newTable)
+	if err != nil {
+		return errors.Wrap(err, "while diffing table inheritance")
+	}
+	err = self.addAlterStatistics(stage1, oldTable, newSchema, newTable)
+	if err != nil {
+		return errors.Wrap(err, "while diffing table statistics")
+	}
+
+	return nil
 }
 
-func (self *DiffTables) updateTableOptions(stage1 output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *DiffTables) updateTableOptions(stage1 output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
 	util.Assert(oldTable != nil, "expect oldTable to not be nil")
 	util.Assert(newTable != nil, "expect newTable to not be nil")
 
@@ -66,10 +88,10 @@ func (self *DiffTables) updateTableOptions(stage1 output.OutputFileSegmenter, ol
 		return strings.EqualFold(newKey, oldKey) && !strings.EqualFold(newOpts[newKey], oldOpts[oldKey])
 	})
 
-	self.applyTableOptionsDiff(stage1, newSchema, newTable, updateOpts, createOpts, deleteOpts)
+	return self.applyTableOptionsDiff(stage1, newSchema, newTable, updateOpts, createOpts, deleteOpts)
 }
 
-func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *model.Schema, table *model.Table, updateOpts, createOpts, deleteOpts map[string]string) {
+func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *model.Schema, table *model.Table, updateOpts, createOpts, deleteOpts map[string]string) error {
 	alters := []sql.TableAlterPart{}
 	ref := sql.TableRef{schema.Name, table.Name}
 
@@ -130,6 +152,8 @@ func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter,
 			Parts: alters,
 		})
 	}
+
+	return nil
 }
 
 type updateTableColumnsAgg struct {
@@ -141,16 +165,25 @@ type updateTableColumnsAgg struct {
 	after3  []output.ToSql
 }
 
-func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
 	agg := &updateTableColumnsAgg{}
 
 	// TODO(go,pgsql) old dbsteward interleaved commands into a single list, and output in the same order
-	// meaning that a BEFORE3 could be output before a BEFORE1. in this implementation, _all_ BEFORE1s
-	// are printed before BEFORE3s. Double check that this doesn't break anything.
+	// meaning that a BEFORE3 could be output before a BEFORE1 in a single-stage upgrade. in this implementation,
+	// _all_ BEFORE1s are printed before BEFORE3s. Double check that this doesn't break anything.
 
-	self.addDropTableColumns(agg, oldTable, newTable)
-	self.addCreateTableColumns(agg, oldTable, newSchema, newTable)
-	self.addModifyTableColumns(agg, oldTable, newSchema, newTable)
+	err := self.addDropTableColumns(agg, oldTable, newTable)
+	if err != nil {
+		return err
+	}
+	err = self.addCreateTableColumns(agg, oldTable, newSchema, newTable)
+	if err != nil {
+		return err
+	}
+	err = self.addModifyTableColumns(agg, oldTable, newSchema, newTable)
+	if err != nil {
+		return err
+	}
 
 	// Note: in the case of single stage upgrades, stage1==stage3, so do all the Before's before all of the stages, and do them in stage order
 	stage1.WriteSql(agg.before1...)
@@ -207,10 +240,12 @@ func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegme
 			})
 		}
 	}
-	stage1.WriteSql(&sql.TableAlterParts{
-		Table: ref,
-		Parts: agg.stage1,
-	})
+	if len(agg.stage1) > 0 {
+		stage1.WriteSql(&sql.TableAlterParts{
+			Table: ref,
+			Parts: agg.stage1,
+		})
+	}
 	if useReplicationOwner {
 		// replicated table? put ownership back
 		stage1.WriteSql(&sql.Annotated{
@@ -221,17 +256,20 @@ func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegme
 			},
 		})
 	}
-
-	stage3.WriteSql(&sql.TableAlterParts{
-		Table: ref,
-		Parts: agg.stage3,
-	})
+	if len(agg.stage3) > 0 {
+		stage3.WriteSql(&sql.TableAlterParts{
+			Table: ref,
+			Parts: agg.stage3,
+		})
+	}
 
 	stage1.WriteSql(agg.after1...)
 	stage3.WriteSql(agg.after3...)
+
+	return nil
 }
 
-func (self *DiffTables) addDropTableColumns(agg *updateTableColumnsAgg, oldTable, newTable *model.Table) {
+func (self *DiffTables) addDropTableColumns(agg *updateTableColumnsAgg, oldTable, newTable *model.Table) error {
 	for _, oldColumn := range oldTable.Columns {
 		if newTable.TryGetColumnNamed(oldColumn.Name) != nil {
 			// new column exists, not dropping it
@@ -248,9 +286,10 @@ func (self *DiffTables) addDropTableColumns(agg *updateTableColumnsAgg, oldTable
 			agg.stage3 = append(agg.stage3, &sql.TableAlterPartColumnDrop{oldColumn.Name})
 		}
 	}
+	return nil
 }
 
-func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
 	// note that postgres treats identifiers as case-sensitive when quoted
 	// TODO(go,3) find a way to generalize/streamline this
 	caseSensitive := lib.GlobalDBSteward.QuoteAllNames || lib.GlobalDBSteward.QuoteColumnNames
@@ -261,7 +300,11 @@ func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTab
 			continue
 		}
 
-		if !lib.GlobalDBSteward.IgnoreOldNames && self.IsRenamedColumn(oldTable, newTable, newColumn) {
+		isRenamed, err := self.IsRenamedColumn(oldTable, newTable, newColumn)
+		if err != nil {
+			return errors.Wrapf(err, "while adding new table columns")
+		}
+		if isRenamed {
 			agg.after1 = append(agg.after1, &sql.Annotated{
 				Annotation: "column rename from oldColumnName specification",
 				Wrapped: &sql.ColumnRename{
@@ -340,9 +383,11 @@ func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTab
 			})
 		}
 	}
+
+	return nil
 }
 
-func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
 	dbsteward := lib.GlobalDBSteward
 
 	// note that postgres treats identifiers as case-sensitive when quoted
@@ -355,7 +400,11 @@ func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTab
 			// old table does not contain column, CREATE handled by addCreateTableColumns
 			continue
 		}
-		if !dbsteward.IgnoreOldNames && self.IsRenamedColumn(oldTable, newTable, newColumn) {
+		isRenamed, err := self.IsRenamedColumn(oldTable, newTable, newColumn)
+		if err != nil {
+			return errors.Wrapf(err, "while diffing table columns")
+		}
+		if isRenamed {
 			// column is renamed, RENAME is handled by addCreateTableColumns
 			// TODO(feat) doens't this mean the ONLY change to a renamed column is the RENAME? That doesn't seem right, could lead to bad data
 			continue
@@ -367,7 +416,7 @@ func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTab
 
 		if !GlobalDataType.IsLinkedTableType(oldType) && GlobalDataType.IsLinkedTableType(newType) {
 			// TODO(feat) can we remove this restriction? or is this a postgres thing?
-			dbsteward.Fatal(
+			return errors.Errorf(
 				"Column %s.%s.%s has linked type %s. Column types cannot be altered to serial. If this column cannot be recreated as part of database change control, a user defined serial should be created, and corresponding nextval() defined as the default for the column.",
 				newSchema.Name, newTable.Name, newColumn.Name, newType,
 			)
@@ -433,35 +482,39 @@ func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTab
 			agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnDropDefault{newColumn.Name})
 		}
 	}
+
+	return nil
 }
 
-func (self *DiffTables) checkPartition(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *DiffTables) checkPartition(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
 	if oldTable.Partitioning == nil && newTable.Partitioning == nil {
-		return
+		return nil
 	}
 	if oldTable.Partitioning == nil || newTable.Partitioning == nil {
 		// TODO(go,3) can we make this happen?
-		lib.GlobalDBSteward.Fatal("Changing partition status of a table may lead to data loss: %s", oldTable.Name)
+		return errors.Errorf("Changing partition status of a table may lead to data loss: %s.%s", oldSchema.Name, oldTable.Name)
 	}
 	if newTable.OldTableName != "" {
 		// TODO(go,3) can it be?
-		lib.GlobalDBSteward.Fatal("Changing a parititioned table's name is not supported")
+		return errors.Errorf("Changing a parititioned table's name is not supported: %s.%s", oldSchema.Name, oldTable.Name)
 	}
 	// XmlParser has the rest of this knowledge
-	GlobalXmlParser.CheckPartitionChange(oldSchema, oldTable, newSchema, newTable)
+	return GlobalXmlParser.CheckPartitionChange(oldSchema, oldTable, newSchema, newTable)
 }
 
-func (self *DiffTables) checkInherits(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *DiffTables) checkInherits(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
 	if oldTable.InheritsSchema == "" && oldTable.InheritsTable == "" && newTable.InheritsSchema == "" && newTable.InheritsTable == "" {
-		return
+		return nil
 	}
 
 	if (oldTable.InheritsSchema == "" && oldTable.InheritsTable == "") != (newTable.InheritsSchema == "" && newTable.InheritsTable == "") {
-		lib.GlobalDBSteward.Fatal("Changing table inheritance is not supported in %s.%s", newSchema.Name, newTable.Name)
+		return errors.Errorf("Changing table inheritance is not supported in %s.%s", newSchema.Name, newTable.Name)
 	}
+
+	return nil
 }
 
-func (self *DiffTables) addAlterStatistics(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *DiffTables) addAlterStatistics(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
 	for _, newColumn := range newTable.Columns {
 		oldColumn := oldTable.TryGetColumnNamed(newColumn.Name)
 		if oldColumn == nil {
@@ -480,23 +533,26 @@ func (self *DiffTables) addAlterStatistics(stage1 output.OutputFileSegmenter, ol
 			})
 		}
 	}
+	return nil
 }
 
-func (self *DiffTables) IsRenamedTable(schema *model.Schema, table *model.Table) bool {
-	util.Assert(!lib.GlobalDBSteward.IgnoreOldNames, "should check IgnoreOldNames before calling IsRenamedTable")
+func (self *DiffTables) IsRenamedTable(schema *model.Schema, table *model.Table) (bool, error) {
+	if lib.GlobalDBSteward.IgnoreOldNames {
+		return false, nil
+	}
 	if table.OldTableName == "" {
-		return false
+		return false, nil
 	}
 	if schema.TryGetTableNamed(table.OldTableName) != nil {
 		// TODO(feat) what if the table moves schemas?
 		// TODO(feat) what if we move a table and replace it with a table of the same name?
-		lib.GlobalDBSteward.Fatal("oldTableName panic - new schema %s still contains table named %s", schema.Name, table.OldTableName)
+		return true, errors.Errorf("oldTableName panic - new schema %s still contains table named %s", schema.Name, table.OldTableName)
 	}
 
 	oldSchema := GlobalTable.GetOldTableSchema(schema, table)
 	if oldSchema != nil {
 		if oldSchema.TryGetTableNamed(table.OldTableName) == nil {
-			lib.GlobalDBSteward.Fatal("oldTableName panic - old schema %s does not contain table named %s", oldSchema.Name, table.OldTableName)
+			return true, errors.Errorf("oldTableName panic - old schema %s does not contain table named %s", oldSchema.Name, table.OldTableName)
 		}
 	}
 
@@ -505,21 +561,23 @@ func (self *DiffTables) IsRenamedTable(schema *model.Schema, table *model.Table)
 	// table.OldTableName does not exist in new schema
 	if oldSchema.TryGetTableNamed(table.OldTableName) != nil && schema.TryGetTableNamed(table.OldTableName) == nil {
 		lib.GlobalDBSteward.Info("Table %s used to be called %s", table.Name, table.OldTableName)
-		return true
+		return true, nil
 	}
-	return false
+	return false, nil
 }
 
-func (self *DiffTables) IsRenamedColumn(oldTable, newTable *model.Table, newColumn *model.Column) bool {
+func (self *DiffTables) IsRenamedColumn(oldTable, newTable *model.Table, newColumn *model.Column) (bool, error) {
 	dbsteward := lib.GlobalDBSteward
-	util.Assert(!dbsteward.IgnoreOldNames, "should check IgnoreOldNames before calling IsRenamedColumn")
+	if dbsteward.IgnoreOldNames {
+		return false, nil
+	}
 
 	caseSensitive := false
 	if dbsteward.QuoteColumnNames || dbsteward.QuoteAllNames || dbsteward.SqlFormat.Equals(model.SqlFormatMysql5) {
 		for _, oldColumn := range oldTable.Columns {
 			if strings.EqualFold(oldColumn.Name, newColumn.Name) {
 				if oldColumn.Name != newColumn.Name && newColumn.OldColumnName == "" {
-					dbsteward.Fatal(
+					return true, errors.Errorf(
 						"Ambiguous operation! It looks like column name case changed between old_column %s.%s and new_column %s.%s",
 						oldTable.Name, oldColumn.Name, newTable.Name, newColumn.Name,
 					)
@@ -530,14 +588,14 @@ func (self *DiffTables) IsRenamedColumn(oldTable, newTable *model.Table, newColu
 		caseSensitive = true
 	}
 	if newColumn.OldColumnName == "" {
-		return false
+		return false, nil
 	}
 	if newTable.TryGetColumnNamedCase(newColumn.OldColumnName, caseSensitive) != nil {
 		// TODO(feat) what if we are both renaming the old column and creating a new one with the old name?
-		dbsteward.Fatal("oldColumnName panic - new table %s still contains column named %s", newTable.Name, newColumn.OldColumnName)
+		return true, errors.Errorf("oldColumnName panic - new table %s still contains column named %s", newTable.Name, newColumn.OldColumnName)
 	}
 	if oldTable.TryGetColumnNamedCase(newColumn.OldColumnName, caseSensitive) == nil {
-		dbsteward.Fatal("oldColumnName panic - old table %s does not contain column named %s", oldTable.Name, newColumn.OldColumnName)
+		return true, errors.Errorf("oldColumnName panic - old table %s does not contain column named %s", oldTable.Name, newColumn.OldColumnName)
 	}
 
 	// it is a new old named table rename if:
@@ -545,32 +603,40 @@ func (self *DiffTables) IsRenamedColumn(oldTable, newTable *model.Table, newColu
 	// newColumn.OldColumnName does not exist in new schema
 	if oldTable.TryGetColumnNamedCase(newColumn.OldColumnName, caseSensitive) != nil && newTable.TryGetColumnNamedCase(newColumn.OldColumnName, caseSensitive) == nil {
 		dbsteward.Info("Column %s.%s used to be called %s", newTable.Name, newColumn.Name, newColumn.OldColumnName)
-		return true
+		return true, nil
 	}
-	return false
+	return false, nil
 }
 
-func (self *DiffTables) CreateTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
+func (self *DiffTables) CreateTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) error {
 	if newSchema == nil {
 		// if the new schema is nil, there's no tables to create
-		return
+		return nil
 	}
 	for _, newTable := range newSchema.Tables {
-		self.CreateTable(ofs, oldSchema, newSchema, newTable)
+		err := self.CreateTable(ofs, oldSchema, newSchema, newTable)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (self *DiffTables) CreateTable(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, newTable *model.Table) {
+func (self *DiffTables) CreateTable(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, newTable *model.Table) error {
 	if newTable == nil {
 		// TODO(go,nth) we shouldn't be here? should this be an Assert?
-		return
+		return nil
 	}
 	if oldSchema.TryGetTableNamed(newTable.Name) != nil {
 		// old table exists, alters or drops will be handled by other code
-		return
+		return nil
 	}
 
-	if !lib.GlobalDBSteward.IgnoreOldNames && self.IsRenamedTable(newSchema, newTable) {
+	isRenamed, err := self.IsRenamedTable(newSchema, newTable)
+	if err != nil {
+		return err
+	}
+	if isRenamed {
 		// this is a renamed table, so rename it instead of creating a new one
 		oldTableSchema := GlobalTable.GetOldTableSchema(newSchema, newTable)
 		oldTable := GlobalTable.GetOldTable(newSchema, newTable)
@@ -598,6 +664,7 @@ func (self *DiffTables) CreateTable(ofs output.OutputFileSegmenter, oldSchema, n
 		ofs.WriteSql(GlobalTable.GetCreationSql(newSchema, newTable)...)
 		ofs.WriteSql(GlobalTable.DefineTableColumnDefaults(newSchema, newTable)...)
 	}
+	return nil
 }
 
 func (self *DiffTables) DropTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
@@ -644,7 +711,9 @@ func (self *DiffTables) DiffClustersTable(ofs output.OutputFileSegmenter, oldSch
 
 func (self *DiffTables) DiffData(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
 	for _, newTable := range newSchema.Tables {
-		if self.IsRenamedTable(newSchema, newTable) {
+		isRenamed, err := self.IsRenamedTable(newSchema, newTable)
+		lib.GlobalDBSteward.FatalIfError(err, "while diffing data")
+		if isRenamed {
 			// if the table was renamed, get old definition pointers, diff that
 			oldSchema := GlobalTable.GetOldTableSchema(newSchema, newTable)
 			oldTable := GlobalTable.GetOldTable(newSchema, newTable)

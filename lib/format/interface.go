@@ -53,5 +53,5 @@ type Diff interface {
 }
 
 type DiffTables interface {
-	IsRenamedTable(*model.Schema, *model.Table) bool
+	IsRenamedTable(*model.Schema, *model.Table) (bool, error)
 }
