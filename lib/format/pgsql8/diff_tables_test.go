@@ -81,6 +81,229 @@ func TestDiffTables_DiffTables_ColumnCaseChange(t *testing.T) {
 	}
 }
 
+func TestDiffTables_DiffTables_TableOptions_NoChange(t *testing.T) {
+	schema := &model.Schema{
+		Name: "public",
+		Tables: []*model.Table{
+			&model.Table{
+				Name:       "test",
+				PrimaryKey: model.DelimitedList{"a"},
+				TableOptions: []*model.TableOption{
+					&model.TableOption{
+						SqlFormat: model.SqlFormatPgsql8,
+						Name:      "tablespace",
+						Value:     "foo",
+					},
+				},
+			},
+		},
+	}
+
+	ddl1, ddl3, err := diffTablesCommon(schema, schema)
+	assert.Equal(t, []output.ToSql{}, ddl1)
+	assert.Equal(t, []output.ToSql{}, ddl3)
+	assert.NoError(t, err)
+}
+func TestDiffTables_DiffTables_TableOptions_AddWith(t *testing.T) {
+	oldSchema := &model.Schema{
+		Name: "public",
+		Tables: []*model.Table{
+			&model.Table{
+				Name:         "test",
+				PrimaryKey:   model.DelimitedList{"a"},
+				TableOptions: []*model.TableOption{},
+			},
+		},
+	}
+	newSchema := &model.Schema{
+		Name: "public",
+		Tables: []*model.Table{
+			&model.Table{
+				Name:       "test",
+				PrimaryKey: model.DelimitedList{"a"},
+				TableOptions: []*model.TableOption{
+					&model.TableOption{
+						SqlFormat: model.SqlFormatPgsql8,
+						Name:      "with",
+						Value:     "(fillfactor=70)",
+					},
+				},
+			},
+		},
+	}
+
+	ddl1, ddl3, err := diffTablesCommon(oldSchema, newSchema)
+	assert.Equal(t, []output.ToSql{
+		sql.NewTableAlter(
+			sql.TableRef{"public", "test"},
+			&sql.TableAlterPartWithoutOids{},
+			&sql.TableAlterPartSetStorageParams{map[string]string{
+				"fillfactor": "70",
+			}},
+		),
+	}, ddl1)
+	assert.Equal(t, []output.ToSql{}, ddl3)
+	assert.NoError(t, err)
+}
+func TestDiffTables_DiffTables_TableOptions_AlterWith(t *testing.T) {
+	oldSchema := &model.Schema{
+		Name: "public",
+		Tables: []*model.Table{
+			&model.Table{
+				Name:       "test",
+				PrimaryKey: model.DelimitedList{"a"},
+				TableOptions: []*model.TableOption{
+					&model.TableOption{
+						SqlFormat: model.SqlFormatPgsql8,
+						Name:      "with",
+						Value:     "(oids=true,fillfactor=70)",
+					},
+				},
+			},
+		},
+	}
+
+	// remove oids=true, change fillfactor to 80
+	newSchema := &model.Schema{
+		Name: "public",
+		Tables: []*model.Table{
+			&model.Table{
+				Name:       "test",
+				PrimaryKey: model.DelimitedList{"a"},
+				TableOptions: []*model.TableOption{
+					&model.TableOption{
+						SqlFormat: model.SqlFormatPgsql8,
+						Name:      "with",
+						Value:     "(fillfactor=80)",
+					},
+				},
+			},
+		},
+	}
+
+	ddl1, ddl3, err := diffTablesCommon(oldSchema, newSchema)
+	assert.Equal(t, []output.ToSql{
+		sql.NewTableAlter(
+			sql.TableRef{"public", "test"},
+			&sql.TableAlterPartWithoutOids{},
+			&sql.TableAlterPartSetStorageParams{map[string]string{
+				"fillfactor": "80",
+			}},
+		),
+	}, ddl1)
+	assert.Equal(t, []output.ToSql{}, ddl3)
+	assert.NoError(t, err)
+}
+func TestDiffTables_DiffTables_TableOptions_AddTablespaceAlterWith(t *testing.T) {
+	oldSchema := &model.Schema{
+		Name: "public",
+		Tables: []*model.Table{
+			&model.Table{
+				Name:       "test",
+				PrimaryKey: model.DelimitedList{"a"},
+				TableOptions: []*model.TableOption{
+					&model.TableOption{
+						SqlFormat: model.SqlFormatPgsql8,
+						Name:      "with",
+						Value:     "(oids=true,fillfactor=70)",
+					},
+				},
+			},
+		},
+	}
+
+	// remove oids=true, change fillfactor to 80, add tablespace
+	newSchema := &model.Schema{
+		Name: "public",
+		Tables: []*model.Table{
+			&model.Table{
+				Name:       "test",
+				PrimaryKey: model.DelimitedList{"a"},
+				TableOptions: []*model.TableOption{
+					&model.TableOption{
+						SqlFormat: model.SqlFormatPgsql8,
+						Name:      "with",
+						Value:     "(fillfactor=80)",
+					},
+					&model.TableOption{
+						SqlFormat: model.SqlFormatPgsql8,
+						Name:      "tablespace",
+						Value:     "foo",
+					},
+				},
+			},
+		},
+	}
+
+	ddl1, ddl3, err := diffTablesCommon(oldSchema, newSchema)
+	assert.Equal(t, []output.ToSql{
+		&sql.TableMoveTablespaceIndexes{
+			Table:      sql.TableRef{"public", "test"},
+			Tablespace: "foo",
+		},
+		sql.NewTableAlter(
+			sql.TableRef{"public", "test"},
+			&sql.TableAlterPartSetTablespace{"foo"},
+			&sql.TableAlterPartWithoutOids{},
+			&sql.TableAlterPartSetStorageParams{map[string]string{
+				"fillfactor": "80",
+			}},
+		),
+	}, ddl1)
+	assert.Equal(t, []output.ToSql{}, ddl3)
+	assert.NoError(t, err)
+}
+func TestDiffTables_DiffTables_TableOptions_DropTablespace(t *testing.T) {
+	oldSchema := &model.Schema{
+		Name: "public",
+		Tables: []*model.Table{
+			&model.Table{
+				Name:       "test",
+				PrimaryKey: model.DelimitedList{"a"},
+				TableOptions: []*model.TableOption{
+					&model.TableOption{
+						SqlFormat: model.SqlFormatPgsql8,
+						Name:      "with",
+						Value:     "(oids=false,fillfactor=70)",
+					},
+					&model.TableOption{
+						SqlFormat: model.SqlFormatPgsql8,
+						Name:      "tablespace",
+						Value:     "foo",
+					},
+				},
+			},
+		},
+	}
+
+	// remove oids=true, change fillfactor to 80, add tablespace
+	newSchema := &model.Schema{
+		Name: "public",
+		Tables: []*model.Table{
+			&model.Table{
+				Name:       "test",
+				PrimaryKey: model.DelimitedList{"a"},
+				TableOptions: []*model.TableOption{
+					&model.TableOption{
+						SqlFormat: model.SqlFormatPgsql8,
+						Name:      "with",
+						Value:     "(oids=false,fillfactor=70)",
+					},
+				},
+			},
+		},
+	}
+
+	ddl1, ddl3, err := diffTablesCommon(oldSchema, newSchema)
+	assert.Equal(t, []output.ToSql{
+		&sql.TableResetTablespace{
+			Table: sql.TableRef{"public", "test"},
+		},
+	}, ddl1)
+	assert.Equal(t, []output.ToSql{}, ddl3)
+	assert.NoError(t, err)
+}
+
 func diffTablesCommon(oldSchema, newSchema *model.Schema) ([]output.ToSql, []output.ToSql, error) {
 	oldDoc := &model.Definition{
 		Schemas: []*model.Schema{oldSchema},
