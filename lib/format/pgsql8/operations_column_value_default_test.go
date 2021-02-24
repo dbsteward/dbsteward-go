@@ -74,6 +74,7 @@ func TestOperations_ColumnValueDefault_UsesLiteralForInt(t *testing.T) {
 }
 
 func TestOperations_ColumnValueDefaultQuotesStrings(t *testing.T) {
+	defer resetGlobalDBSteward()
 	val := getColumnValueDefault(&model.Column{
 		Name: "foo",
 		Type: "text",
@@ -110,7 +111,7 @@ func getColumnValueDefault(def *model.Column, data *model.DataCol) string {
 	schema := doc.Schemas[0]
 	table := schema.Tables[0]
 
-	ops := pgsql8.NewOperations()
+	ops := pgsql8.GlobalOperations
 	ops.EscapeStringValues = true
 
 	// TODO(go,nth) can we do this without also testing GetValueSql?

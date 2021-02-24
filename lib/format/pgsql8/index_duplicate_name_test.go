@@ -26,6 +26,6 @@ func TestIndex_GetTableIndexes_DuplicateIndexNameError(t *testing.T) {
 		},
 	}
 
-	_, err := pgsql8.NewIndex().GetTableIndexes(schema, schema.Tables[0])
+	_, err := pgsql8.GlobalIndex.GetTableIndexes(schema, schema.Tables[0])
 	assert.Error(t, err, "Expected an error because the table had duplicate index names")
 }

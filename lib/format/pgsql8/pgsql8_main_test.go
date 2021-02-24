@@ -11,10 +11,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	lib.GlobalDBSteward = lib.NewDBSteward(format.LookupMap{
-		model.SqlFormatPgsql8: pgsql8.GlobalLookup,
-	})
-	lib.GlobalDBSteward.SqlFormat = model.SqlFormatPgsql8
+	resetGlobalDBSteward()
 	os.Exit(m.Run())
 }
 
@@ -27,4 +24,11 @@ func setOldNewDocs(old, new *model.Definition) {
 	if new != nil {
 		pgsql8.GlobalDiff.NewTableDependency = lib.GlobalDBX.TableDependencyOrder(new)
 	}
+}
+
+func resetGlobalDBSteward() {
+	lib.GlobalDBSteward = lib.NewDBSteward(format.LookupMap{
+		model.SqlFormatPgsql8: pgsql8.GlobalLookup,
+	})
+	lib.GlobalDBSteward.SqlFormat = model.SqlFormatPgsql8
 }

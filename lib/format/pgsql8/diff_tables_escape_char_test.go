@@ -41,7 +41,7 @@ func TestDiffTables_GetDataSql_EscapeCharacters(t *testing.T) {
 		},
 	}
 
-	ddl := pgsql8.NewDiffTables().GetCreateDataSql(nil, nil, schema, schema.Tables[0])
+	ddl := pgsql8.GlobalDiffTables.GetCreateDataSql(nil, nil, schema, schema.Tables[0])
 	assert.Equal(t, []output.ToSql{
 		&sql.DataInsert{
 			Table:   sql.TableRef{"public", "i_test"},

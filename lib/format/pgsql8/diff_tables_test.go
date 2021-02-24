@@ -15,6 +15,7 @@ import (
 )
 
 func TestDiffTables_DiffTables_ColumnCaseChange(t *testing.T) {
+	defer resetGlobalDBSteward()
 	lower := &model.Schema{
 		Name: "test0",
 		Tables: []*model.Table{
@@ -322,7 +323,7 @@ func diffTablesCommon(oldSchema, newSchema *model.Schema) ([]output.ToSql, []out
 	}
 
 	// note: v1 only used DiffTables, v2 split into CreateTables+DiffTables
-	dt := pgsql8.NewDiffTables()
+	dt := pgsql8.GlobalDiffTables
 	err := dt.CreateTables(ofs1, oldSchema, newSchema)
 	if err != nil {
 		return ofs1.Sql, ofs3.Sql, err

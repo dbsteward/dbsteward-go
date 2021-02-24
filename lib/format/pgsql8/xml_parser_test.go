@@ -163,6 +163,6 @@ END;`,
 	}
 
 	// note that Process mutates the document in place
-	pgsql8.NewXmlParser().Process(doc)
+	pgsql8.GlobalXmlParser.Process(doc)
 	assert.Equal(t, expected, doc)
 }

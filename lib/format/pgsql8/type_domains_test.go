@@ -25,7 +25,7 @@ func TestType_Domain_GetCreationSql_NoDomainTypeThrows(t *testing.T) {
 		Types: []*model.DataType{dt},
 	}
 
-	_, err := pgsql8.NewDataType().GetCreationSql(schema, dt)
+	_, err := pgsql8.GlobalDataType.GetCreationSql(schema, dt)
 	if assert.Error(t, err, "GetCreationSql should return an error if there is no underlying domain type") {
 		assert.Contains(t, err.Error(), "contains no domainType child")
 	}
@@ -44,7 +44,7 @@ func TestType_Domain_GetCreationSql(t *testing.T) {
 		Types: []*model.DataType{dt},
 	}
 
-	ddl, err := pgsql8.NewDataType().GetCreationSql(schema, dt)
+	ddl, err := pgsql8.GlobalDataType.GetCreationSql(schema, dt)
 	assert.NoError(t, err)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainCreate{
@@ -70,7 +70,7 @@ func TestType_Domain_GetCreationSql_DefaultNotNull(t *testing.T) {
 		Types: []*model.DataType{dt},
 	}
 
-	ddl, err := pgsql8.NewDataType().GetCreationSql(schema, dt)
+	ddl, err := pgsql8.GlobalDataType.GetCreationSql(schema, dt)
 	assert.NoError(t, err)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainCreate{
@@ -102,7 +102,7 @@ func TestType_Domain_GetCreationSql_Constraint(t *testing.T) {
 		Types: []*model.DataType{dt},
 	}
 
-	ddl, err := pgsql8.NewDataType().GetCreationSql(schema, dt)
+	ddl, err := pgsql8.GlobalDataType.GetCreationSql(schema, dt)
 	assert.NoError(t, err)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainCreate{
@@ -142,7 +142,7 @@ func TestType_Domain_GetCreationSql_MultipleConstraintsAndExplicitCheck(t *testi
 		Types: []*model.DataType{dt},
 	}
 
-	ddl, err := pgsql8.NewDataType().GetCreationSql(schema, dt)
+	ddl, err := pgsql8.GlobalDataType.GetCreationSql(schema, dt)
 	assert.NoError(t, err)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainCreate{
@@ -180,7 +180,7 @@ func TestType_Domain_GetCreationSql_QuotedDefault(t *testing.T) {
 		Types: []*model.DataType{dt},
 	}
 
-	ddl, err := pgsql8.NewDataType().GetCreationSql(schema, dt)
+	ddl, err := pgsql8.GlobalDataType.GetCreationSql(schema, dt)
 	assert.NoError(t, err)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainCreate{
@@ -206,7 +206,7 @@ func TestType_Domain_GetDropSql(t *testing.T) {
 		Types: []*model.DataType{dt},
 	}
 
-	ddl := pgsql8.NewDataType().GetDropSql(schema, dt)
+	ddl := pgsql8.GlobalDataType.GetDropSql(schema, dt)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainDrop{
 			Type: sql.TypeRef{"domains", "my_domain"},

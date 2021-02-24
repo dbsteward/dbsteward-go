@@ -140,7 +140,7 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 		StripComments: true,
 	}
 	setOldNewDocs(oldDoc, newDoc)
-	diffConstraints := pgsql8.NewDiffConstraints()
+	diffConstraints := pgsql8.GlobalDiffConstraints
 	diffConstraints.DropConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, nil, pgsql8.ConstraintTypePrimaryKey)
 	diffConstraints.CreateConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], pgsql8.ConstraintTypePrimaryKey)
 
@@ -382,7 +382,7 @@ func diffConstraintsTableCommon(oldSchema, newSchema *model.Schema, ctype pgsql8
 		StripComments: true,
 	}
 	setOldNewDocs(oldDoc, newDoc)
-	diffConstraints := pgsql8.NewDiffConstraints()
+	diffConstraints := pgsql8.GlobalDiffConstraints
 	diffConstraints.DropConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
 	diffConstraints.CreateConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
 	if ofs.Sql == nil {

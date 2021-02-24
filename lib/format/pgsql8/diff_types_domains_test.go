@@ -319,6 +319,6 @@ func diffTypes(oldSchema, newSchema *model.Schema) []output.ToSql {
 	ofs := &sqltest.RecordingOfs{
 		StripComments: true,
 	}
-	pgsql8.NewDiffTypes().DiffTypes(ofs, oldSchema, newSchema)
+	pgsql8.GlobalDiffTypes.DiffTypes(ofs, oldSchema, newSchema)
 	return ofs.Sql
 }

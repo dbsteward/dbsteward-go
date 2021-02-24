@@ -43,7 +43,7 @@ func TestTable_GetCreationSql_TableOptions(t *testing.T) {
 		},
 	}
 
-	ddl := pgsql8.NewTable().GetCreationSql(schema, schema.Tables[0])
+	ddl := pgsql8.GlobalTable.GetCreationSql(schema, schema.Tables[0])
 	assert.Equal(t, []output.ToSql{
 		&sql.TableCreate{
 			Table: sql.TableRef{"public", "test"},

@@ -101,7 +101,7 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 		StripComments: true,
 	}
 
-	pgsql8.NewDiffTypes().DiffTypes(ofs, oldSchema, newSchema)
+	pgsql8.GlobalDiffTypes.DiffTypes(ofs, oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.FunctionDrop{
 			Function: sql.FunctionRef{"test", "test_arch_type_in_return", []string{}},
