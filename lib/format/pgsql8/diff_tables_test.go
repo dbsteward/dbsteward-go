@@ -305,6 +305,63 @@ func TestDiffTables_DiffTables_TableOptions_DropTablespace(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestDiffTables_GetDeleteCreateDataSql_AddSerialColumn(t *testing.T) {
+	oldSchema := &model.Schema{
+		Name: "test",
+		Tables: []*model.Table{
+			&model.Table{
+				Name:       "serial_test",
+				PrimaryKey: model.DelimitedList{"test_string"},
+				Columns: []*model.Column{
+					{Name: "test_string", Type: "text"},
+					{Name: "test_number", Type: "integer"},
+				},
+				Rows: &model.DataRows{
+					Columns: model.DelimitedList{"test_string", "test_number"},
+					// NOTE original test used tabrows, but that's already been expanded by this point
+					Rows: []*model.DataRow{
+						{Columns: []*model.DataCol{{Text: "testtest"}, {Text: "12345"}}},
+					},
+				},
+			},
+		},
+	}
+	newSchema := &model.Schema{
+		Name: "test",
+		Tables: []*model.Table{
+			&model.Table{
+				Name:       "serial_test",
+				PrimaryKey: model.DelimitedList{"test_string"},
+				Columns: []*model.Column{
+					{Name: "test_serial", Type: "serial"},
+					{Name: "test_string", Type: "text"},
+					{Name: "test_number", Type: "integer"},
+				},
+				Rows: &model.DataRows{
+					Columns: model.DelimitedList{"test_serial", "test_string", "test_number"},
+					// NOTE original test used tabrows, but that's already been expanded by this point
+					Rows: []*model.DataRow{
+						{Columns: []*model.DataCol{{Text: "1"}, {Text: "testtest"}, {Text: "12345"}}},
+					},
+				},
+			},
+		},
+	}
+
+	delddl := pgsql8.GlobalDiffTables.GetDeleteDataSql(oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
+	addddl := pgsql8.GlobalDiffTables.GetCreateDataSql(oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
+	assert.Equal(t, []output.ToSql{}, delddl)
+	assert.Equal(t, []output.ToSql{
+		&sql.DataUpdate{
+			Table:          sql.TableRef{"test", "serial_test"},
+			UpdatedColumns: []string{"test_serial"},
+			UpdatedValues:  []sql.ToSqlValue{&sql.TypedValue{"serial", "1"}},
+			KeyColumns:     []string{"test_string"},
+			KeyValues:      []sql.ToSqlValue{&sql.TypedValue{"text", "testtest"}},
+		},
+	}, addddl)
+}
+
 func diffTablesCommon(oldSchema, newSchema *model.Schema) ([]output.ToSql, []output.ToSql, error) {
 	oldDoc := &model.Definition{
 		Schemas: []*model.Schema{oldSchema},

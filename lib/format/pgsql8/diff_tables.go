@@ -786,7 +786,9 @@ func (self *DiffTables) getNewAndChangedRows(oldTable, newTable *model.Table) ([
 			// if the new row marked for deletion, it is neither new nor updated
 			continue
 		}
-		oldRow := oldTable.Rows.TryGetRowMatchingKeyCols(newRow, newTable.PrimaryKey)
+
+		newKeyCols := newTable.Rows.GetColMapKeys(newRow, newTable.PrimaryKey)
+		oldRow := oldTable.Rows.TryGetRowMatchingColMap(newKeyCols)
 		if oldRow == nil {
 			newRows = append(newRows, newRow)
 		} else if !newTable.Rows.RowEquals(newRow, oldRow, oldTable.Rows.Columns) {
@@ -822,7 +824,8 @@ func (self *DiffTables) getOldRows(oldTable, newTable *model.Table) []*model.Dat
 			continue
 		}
 		// NOTE: we use new primary key here, because new is new, baby
-		newRow := newTable.Rows.TryGetRowMatchingKeyCols(oldRow, newTable.PrimaryKey)
+		oldKeyVals := oldTable.Rows.GetColMapKeys(oldRow, newTable.PrimaryKey)
+		newRow := newTable.Rows.TryGetRowMatchingColMap(oldKeyVals)
 		if newRow == nil || newRow.Delete {
 			// if the new row is missing or marked for deletion, we want to drop it
 			oldRows = append(oldRows, oldRow)
@@ -857,25 +860,17 @@ func (self *DiffTables) buildDataUpdate(schema *model.Schema, table *model.Table
 		newColName := table.Rows.Columns[i]
 
 		oldColIdx := util.IIndexOfStr(newColName, change.oldCols)
-		if oldColIdx < 0 {
-			lib.GlobalDBSteward.Fatal("Could not compare rows: could not find column %s in table %s.%s <rows columns>", newColName, schema.Name, table.Name)
-		}
-		oldCol := change.oldRow.Columns[oldColIdx]
-
-		if !oldCol.Equals(newCol) {
+		if oldColIdx < 0 || !change.oldRow.Columns[oldColIdx].Equals(newCol) {
 			updateCols = append(updateCols, newColName)
 			updateVals = append(updateVals, GlobalOperations.ColumnValueDefault(schema, table, newColName, newCol))
 		}
 	}
 
 	keyVals := []sql.ToSqlValue{}
-	pkCols, ok := table.Rows.TryGetColsMatchingKeyCols(change.newRow, table.PrimaryKey)
-	if !ok {
-		lib.GlobalDBSteward.Fatal("Could not compare rows: could not find primary key columns %v in <rows columns=%v> in table %s.%s", table.PrimaryKey, table.Rows.Columns, schema.Name, table.Name)
-	}
-	for i, pkCol := range pkCols {
+	pkColMap := table.Rows.GetColMapKeys(change.newRow, table.PrimaryKey)
+	for name, col := range pkColMap {
 		// TODO(go,pgsql) orig code in dbx::primary_key_expression uses `format::value_escape`, but that doesn't account for null, empty, sql, etc
-		keyVals = append(keyVals, GlobalOperations.ColumnValueDefault(schema, table, table.PrimaryKey[i], pkCol))
+		keyVals = append(keyVals, GlobalOperations.ColumnValueDefault(schema, table, name, col))
 	}
 
 	return &sql.DataUpdate{
@@ -889,13 +884,10 @@ func (self *DiffTables) buildDataUpdate(schema *model.Schema, table *model.Table
 
 func (self *DiffTables) buildDataDelete(schema *model.Schema, table *model.Table, row *model.DataRow) output.ToSql {
 	keyVals := []sql.ToSqlValue{}
-	pkCols, ok := table.Rows.TryGetColsMatchingKeyCols(row, table.PrimaryKey)
-	if !ok {
-		lib.GlobalDBSteward.Fatal("Could not compare rows: could not find primary key columns %v in <rows columns=%v> in table %s.%s", table.PrimaryKey, table.Rows.Columns, schema.Name, table.Name)
-	}
-	for i, pkCol := range pkCols {
+	pkColMap := table.Rows.GetColMapKeys(row, table.PrimaryKey)
+	for name, col := range pkColMap {
 		// TODO(go,pgsql) orig code in dbx::primary_key_expression uses `format::value_escape`, but that doesn't account for null, empty, sql, etc
-		keyVals = append(keyVals, GlobalOperations.ColumnValueDefault(schema, table, table.PrimaryKey[i], pkCol))
+		keyVals = append(keyVals, GlobalOperations.ColumnValueDefault(schema, table, name, col))
 	}
 	return &sql.DataDelete{
 		Table:      sql.TableRef{schema.Name, table.Name},

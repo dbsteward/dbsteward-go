@@ -72,37 +72,46 @@ func (self *DataRows) ConvertTabRows() {
 	self.TabRows = nil
 }
 
-// attempt to find a row in `self.Rows` which has the same values of `key` columns as `target`
-func (self *DataRows) TryGetRowMatchingKeyCols(target *DataRow, key []string) *DataRow {
-	indexes, ok := self.tryGetColIndexesOfNames(key)
-	if !ok {
-		return nil
-	}
+func (self *DataRows) GetColMap(row *DataRow) map[string]*DataCol {
+	return self.GetColMapKeys(row, self.Columns)
+}
 
-outer:
-	for _, row := range self.Rows {
-		for _, index := range indexes {
-			if !target.Columns[index].Equals(row.Columns[index]) {
-				continue outer
-			}
+func (self *DataRows) GetColMapKeys(row *DataRow, keys []string) map[string]*DataCol {
+	out := map[string]*DataCol{}
+	for i, col := range row.Columns {
+		if util.IIndexOfStr(self.Columns[i], keys) >= 0 {
+			out[self.Columns[i]] = col
 		}
-		return row
+	}
+	return out
+}
+
+func (self *DataRows) TryGetRowMatchingColMap(colmap map[string]*DataCol) *DataRow {
+	for _, row := range self.Rows {
+		if self.RowMatchesColMap(row, colmap) {
+			return row
+		}
 	}
 	return nil
 }
 
-// get the columns of the `target` row for the matching columns given by `key`
-func (self *DataRows) TryGetColsMatchingKeyCols(target *DataRow, key []string) ([]*DataCol, bool) {
-	colIndexes, ok := self.tryGetColIndexesOfNames(key)
-	if !ok {
-		return nil, false
+// `row` matches `colmap` if all the columns in colmap match a column in the row
+func (self *DataRows) RowMatchesColMap(row *DataRow, colmap map[string]*DataCol) bool {
+	for colName, col := range colmap {
+		// find the corresponding column
+		idx := util.IIndexOfStr(colName, self.Columns)
+		if idx < 0 {
+			return false // the column doesn't exist in this DataRows
+		}
+
+		rowCol := row.Columns[idx]
+		if !rowCol.Equals(col) {
+			return false
+		}
 	}
-	out := make([]*DataCol, len(key))
-	for i, idx := range colIndexes {
-		out[i] = target.Columns[idx]
-	}
-	return out, true
+	return true
 }
+
 func (self *DataRows) tryGetColIndexesOfNames(names []string) ([]int, bool) {
 	out := make([]int, len(names))
 	for i, name := range names {

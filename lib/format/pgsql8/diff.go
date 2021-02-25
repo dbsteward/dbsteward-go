@@ -372,6 +372,7 @@ func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 			}
 
 			if deleteMode {
+				// TODO(go,3) clean up inconsistencies between e.g. GetDeleteDataSql and DiffData wrt writing sql to an ofs
 				// TODO(feat) aren't deletes supposed to go in stage 2?
 				ofs.WriteSql(GlobalDiffTables.GetDeleteDataSql(oldSchema, oldTable, newSchema, newTable)...)
 			} else {
