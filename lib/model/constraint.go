@@ -37,3 +37,8 @@ func (self *Constraint) Merge(overlay *Constraint) {
 	self.Type = overlay.Type
 	self.Definition = overlay.Definition
 }
+
+func (self *Constraint) Validate(*Definition, *Schema, *Table) []error {
+	// TODO(go,3) validate values
+	return nil
+}

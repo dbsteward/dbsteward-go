@@ -211,6 +211,18 @@ func (self *Table) AddConstraint(constraint *Constraint) {
 	self.Constraints = append(self.Constraints, constraint)
 }
 
+// TODO(go,nth) replace other table name matches with IdentityMatches where possible
+// TODO(go,nth) replace schema.TryGetTableNamed with TryGetTableMatching where possible
+func (self *Table) IdentityMatches(other *Table) bool {
+	if self == nil || other == nil {
+		return false
+	}
+
+	// TODO(feat) case sensitivity based on engine+quotedness
+	// TODO(feat) take schema into account
+	return strings.EqualFold(self.Name, other.Name)
+}
+
 func (self *Table) Merge(overlay *Table) {
 	if overlay == nil {
 		return
@@ -270,6 +282,61 @@ func (self *Table) MergeDataRows(overlay *DataRows) {
 	// TODO(go,core) impl from xml_parser::data_rows_overlay(); should this maybe go in XmlParser instead?
 }
 
+func (self *Table) Validate(doc *Definition, schema *Schema) []error {
+	// TODO(go,3) check owner, remove from other codepaths
+	// TODO(go,3) validate grants, remove from other codepaths
+	// TODO(go,3) validate primary key, remove from other codepaths
+	// TODO(go,3) validate data rows, remove from other codepaths
+	// TODO(go,3) validate oldname references, remove from other codepaths
+	// TODO(go,3) validate inheritance references, remove from other codepaths
+
+	out := []error{}
+
+	// no two objects should have same identity (also, validate sub-objects)
+	for i, tableOption := range self.TableOptions {
+		out = append(out, tableOption.Validate(doc, schema, self)...)
+		for _, other := range self.TableOptions[i+1:] {
+			if tableOption.IdentityMatches(other) {
+				out = append(out, fmt.Errorf("found two tableOptions in table %s.%s with name %q", schema.Name, self.Name, tableOption.Name))
+			}
+		}
+	}
+	for i, column := range self.Columns {
+		out = append(out, column.Validate(doc, schema, self)...)
+		for _, other := range self.Columns[i+1:] {
+			if column.IdentityMatches(other) {
+				out = append(out, fmt.Errorf("found two columns in table %s.%s with name %q", schema.Name, self.Name, column.Name))
+			}
+		}
+	}
+	for i, foreignKey := range self.ForeignKeys {
+		out = append(out, foreignKey.Validate(doc, schema, self)...)
+		for _, other := range self.ForeignKeys[i+1:] {
+			if foreignKey.IdentityMatches(other) {
+				out = append(out, fmt.Errorf("found two foreignKeys in table %s.%s with constraint name %q", schema.Name, self.Name, foreignKey.ConstraintName))
+			}
+		}
+	}
+	for i, index := range self.Indexes {
+		out = append(out, index.Validate(doc, schema, self)...)
+		for _, other := range self.Indexes[i+1:] {
+			if index.IdentityMatches(other) {
+				out = append(out, fmt.Errorf("found two indexes in table %s.%s with name %q", schema.Name, self.Name, index.Name))
+			}
+		}
+	}
+	for i, constraint := range self.Constraints {
+		out = append(out, constraint.Validate(doc, schema, self)...)
+		for _, other := range self.Constraints[i+1:] {
+			if constraint.IdentityMatches(other) {
+				out = append(out, fmt.Errorf("found two constraints in table %s.%s with name %q", schema.Name, self.Name, constraint.Name))
+			}
+		}
+	}
+
+	return out
+}
+
 func (self *TableOption) IdentityMatches(other *TableOption) bool {
 	if self == nil || other == nil {
 		return false
@@ -284,6 +351,11 @@ func (self *TableOption) Equals(other *TableOption) bool {
 func (self *TableOption) Merge(overlay *TableOption) {
 	// TODO(feat) does this need to be more sophisticated given that sometimes we set name=with,value=<lots of things>?
 	self.Value = overlay.Value
+}
+
+func (self *TableOption) Validate(*Definition, *Schema, *Table) []error {
+	// TODO(go,3) validate values
+	return nil
 }
 
 type TableRef struct {

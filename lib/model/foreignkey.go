@@ -1,6 +1,9 @@
 package model
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type ForeignKeyAction string
 
@@ -38,4 +41,22 @@ func (self *ForeignKey) GetReferencedKey() KeyNames {
 		Columns: cols,
 		KeyName: self.ConstraintName,
 	}
+}
+
+func (self *ForeignKey) IdentityMatches(other *ForeignKey) bool {
+	if self == nil || other == nil {
+		return false
+	}
+	// TODO(go,core) validate this constraint/index name matching behavior
+	// TODO(feat) case sensitivity
+	return strings.EqualFold(self.ConstraintName, other.ConstraintName)
+}
+
+func (self *ForeignKey) Validate(doc *Definition, schema *Schema, table *Table) []error {
+	out := []error{}
+	if self.ConstraintName == "" {
+		out = append(out, fmt.Errorf("foreign key in table %s.%s must have a constraint name", schema.Name, table.Name))
+	}
+	// TODO(go,3) validate reference, remove other codepaths
+	return out
 }

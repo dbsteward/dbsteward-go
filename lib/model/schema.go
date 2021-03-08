@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -126,7 +127,9 @@ func (self *Schema) TryGetFunctionMatching(target *Function) *Function {
 		return nil
 	}
 	for _, function := range self.Functions {
-		if function.IdentityMatches(target) {
+		// TODO(go,core) should we return the matched definition?
+		match, _ := function.IdentityMatches(target)
+		if match {
 			return function
 		}
 	}
@@ -187,6 +190,16 @@ func (self *Schema) GetGrants() []*Grant {
 func (self *Schema) AddGrant(grant *Grant) {
 	// TODO(feat) sanity check
 	self.Grants = append(self.Grants, grant)
+}
+
+// TODO(go,nth) replace other schema name matches with IdentityMatches where possible
+// TODO(go,nth) replace doc.TryGetSchemaNamed with TryGetSchemaMatching where possible
+func (self *Schema) IdentityMatches(other *Schema) bool {
+	if self == nil || other == nil {
+		return false
+	}
+	// TODO(feat) case sensitivity based on engine+quotedness
+	return strings.EqualFold(self.Name, other.Name)
 }
 
 func (self *Schema) Merge(overlay *Schema) {
@@ -250,4 +263,66 @@ func (self *Schema) Merge(overlay *Schema) {
 			self.AddView(overlayView)
 		}
 	}
+}
+
+func (self *Schema) Validate(doc *Definition) []error {
+	// TODO(go,3) check owner, remove from other codepaths
+	// TODO(go,nth) validate grants
+	out := []error{}
+
+	// no two objects should have same identity (also, validate sub-objects)
+	for i, table := range self.Tables {
+		out = append(out, table.Validate(doc, self)...)
+		for _, other := range self.Tables[i+1:] {
+			if table.IdentityMatches(other) {
+				out = append(out, fmt.Errorf("found two tables in schema %s with name %q", self.Name, table.Name))
+			}
+		}
+	}
+	for i, datatype := range self.Types {
+		out = append(out, datatype.Validate(doc, self)...)
+		for _, other := range self.Types[i+1:] {
+			if datatype.IdentityMatches(other) {
+				out = append(out, fmt.Errorf("found two types in schema %s with name %q", self.Name, datatype.Name))
+			}
+		}
+	}
+	for i, sequence := range self.Sequences {
+		out = append(out, sequence.Validate(doc, self)...)
+		for _, other := range self.Sequences[i+1:] {
+			if sequence.IdentityMatches(other) {
+				out = append(out, fmt.Errorf("found two sequences in schema %s with name %q", self.Name, sequence.Name))
+			}
+		}
+	}
+	for i, function := range self.Functions {
+		out = append(out, function.Validate(doc, self)...)
+		for _, other := range self.Functions[i+1:] {
+			match, def := function.IdentityMatches(other)
+			if match {
+				out = append(out, fmt.Errorf(
+					"found two functions in schema %s with signature %s for sql format %s",
+					self.Name, function.ShortSig(), def.SqlFormat,
+				))
+			}
+		}
+	}
+	for i, trigger := range self.Triggers {
+		out = append(out, trigger.Validate(doc, self)...)
+		for _, other := range self.Triggers[i+1:] {
+			if trigger.IdentityMatches(other) {
+				out = append(out, fmt.Errorf("found two triggers in schema %s with name %q", self.Name, trigger.Name))
+			}
+		}
+	}
+	for i, view := range self.Views {
+		out = append(out, view.Validate(doc, self)...)
+		for _, other := range self.Views[i+1:] {
+			if view.IdentityMatches(other) {
+				out = append(out, fmt.Errorf("found two views in schema %s with name %q", self.Name, view.Name))
+			}
+		}
+	}
+
+	return out
 }

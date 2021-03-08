@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/xml"
+	"fmt"
 
 	"github.com/pkg/errors"
 
@@ -174,6 +175,40 @@ func (self *Definition) Merge(overlay *Definition) {
 	}
 }
 
+// Validate is the new implementation of the various validation operations
+// that occur throughout the codebase. It detects issues with the database
+// schema that a user will need to address. (This is NOT to detect an invalidly
+// constructed Definition object / programming errors in dbsteward itself)
+// This is initially intended to replace only the validations that occur in
+// xml_parser::xml_composite_children()
+// TODO(go,3) can we replace this with a more generic visitor pattern?
+// TODO(go,3) should there be warnings?
+func (self *Definition) Validate() []error {
+	out := []error{}
+
+	// no two objects should have the same identity (also, validate sub-objects)
+	for i, schema := range self.Schemas {
+		out = append(out, schema.Validate(self)...)
+		for _, other := range self.Schemas[i+1:] {
+			if schema.IdentityMatches(other) {
+				out = append(out, fmt.Errorf("found two schemas with name %q", schema.Name))
+			}
+		}
+	}
+
+	for i, sql := range self.Sql {
+		out = append(out, sql.Validate(self)...)
+		for _, other := range self.Sql[i+1:] {
+			if sql.IdentityMatches(other) {
+				// TODO(go,nth) better identifier for sql?
+				out = append(out, fmt.Errorf("found two sql elements with text %q", sql.Text))
+			}
+		}
+	}
+
+	return out
+}
+
 func (self *Sql) IdentityMatches(other *Sql) bool {
 	if other == nil {
 		return false
@@ -192,4 +227,8 @@ func (self *Sql) Merge(overlay *Sql) {
 	self.Comment = overlay.Comment
 	self.Stage = overlay.Stage
 	self.SlonySetId = overlay.SlonySetId
+}
+
+func (self *Sql) Validate(*Definition) []error {
+	return nil
 }

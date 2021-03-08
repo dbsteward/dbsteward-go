@@ -116,6 +116,11 @@ func (self *Index) Merge(overlay *Index) {
 	self.Dimensions = overlay.Dimensions
 }
 
+func (self *Index) Validate(*Definition, *Schema, *Table) []error {
+	// TODO(go,3) validate values
+	return nil
+}
+
 func (self *IndexDim) Equals(other *IndexDim) bool {
 	if self == nil || other == nil {
 		return false

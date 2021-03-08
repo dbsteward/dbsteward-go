@@ -76,3 +76,8 @@ func (self *Trigger) Merge(overlay *Trigger) {
 	self.Function = overlay.Function
 	self.SqlFormat = overlay.SqlFormat
 }
+
+func (self *Trigger) Validate(*Definition, *Schema) []error {
+	// TODO(go,3) validate values
+	return nil
+}

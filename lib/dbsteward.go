@@ -54,7 +54,6 @@ type DBSteward struct {
 	fileOutputDirectory            string
 	fileOutputPrefix               string
 	IgnoreOldNames                 bool
-	allowFunctionRedefinition      bool
 	AlwaysRecreateViews            bool
 
 	// TODO(go,3) just pass these explicitly!
@@ -94,7 +93,6 @@ func NewDBSteward(lookupMap format.LookupMap) *DBSteward {
 		fileOutputDirectory:            "",
 		fileOutputPrefix:               "",
 		IgnoreOldNames:                 false,
-		allowFunctionRedefinition:      false,
 		AlwaysRecreateViews:            true,
 
 		OldDatabase: nil,
@@ -534,8 +532,6 @@ func (self *DBSteward) doXmlSlonyId(files []string, slonyOut string) {
 
 	outputPrefix := self.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
-	dbDoc = GlobalXmlParser.SqlFormatConvert(dbDoc)
-	GlobalXmlParser.VendorParse(dbDoc)
 	self.Notice("Saving composite as %s", compositeFile)
 	GlobalXmlParser.SaveDoc(compositeFile, dbDoc)
 
@@ -567,7 +563,6 @@ func (self *DBSteward) doBuild(files []string, dataFiles []string, addendums uin
 
 	outputPrefix := self.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
-	GlobalXmlParser.VendorParse(dbDoc)
 	self.Notice("Saving composite as %s", compositeFile)
 	GlobalXmlParser.SaveDoc(compositeFile, dbDoc)
 
@@ -595,15 +590,11 @@ func (self *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []
 
 	oldOutputPrefix := self.calculateFileOutputPrefix(oldFiles)
 	oldCompositeFile := oldOutputPrefix + "_composite.xml"
-	oldDbDoc = GlobalXmlParser.SqlFormatConvert(oldDbDoc)
-	GlobalXmlParser.VendorParse(oldDbDoc)
 	self.Notice("Saving composite as %s", oldCompositeFile)
 	GlobalXmlParser.SaveDoc(oldCompositeFile, oldDbDoc)
 
 	newOutputPrefix := self.calculateFileOutputPrefix(newFiles)
 	newCompositeFile := newOutputPrefix + "_composite.xml"
-	newDbDoc = GlobalXmlParser.SqlFormatConvert(newDbDoc)
-	GlobalXmlParser.VendorParse(newDbDoc)
 	self.Notice("Saving composite as %s", newCompositeFile)
 	GlobalXmlParser.SaveDoc(newCompositeFile, newDbDoc)
 
@@ -635,8 +626,6 @@ func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendum
 
 	outputPrefix := self.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
-	dbDoc = GlobalXmlParser.SqlFormatConvert(dbDoc)
-	GlobalXmlParser.VendorParse(dbDoc)
 	self.Notice("Saving composite as %s", compositeFile)
 	GlobalXmlParser.SaveDoc(compositeFile, dbDoc)
 

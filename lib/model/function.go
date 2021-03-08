@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/util"
@@ -81,6 +82,10 @@ func (self *Function) ParamSigs() []string {
 	return out
 }
 
+func (self *Function) ShortSig() string {
+	return fmt.Sprintf("%s(%s)", self.Name, strings.Join(self.ParamTypes(), ", "))
+}
+
 func (self *Function) GetGrants() []*Grant {
 	return self.Grants
 }
@@ -90,30 +95,30 @@ func (self *Function) AddGrant(grant *Grant) {
 	self.Grants = append(self.Grants, grant)
 }
 
-func (self *Function) IdentityMatches(other *Function) bool {
+func (self *Function) IdentityMatches(other *Function) (bool, *FunctionDefinition) {
 	if other == nil {
-		return false
+		return false, nil
 	}
 	if !strings.EqualFold(self.Name, other.Name) {
-		return false
+		return false, nil
 	}
 	if len(self.Parameters) != len(other.Parameters) {
-		return false
+		return false, nil
 	}
 	for i, param := range self.Parameters {
 		if !param.IdentityMatches(other.Parameters[i]) {
-			return false
+			return false, nil
 		}
 	}
-	// only return true if both functions have a definition for the same sql format
+	// only return true if both functions have a definition that match
 	for _, selfDef := range self.Definitions {
 		for _, otherDef := range other.Definitions {
-			if selfDef.SqlFormat.Equals(otherDef.SqlFormat) {
-				return true
+			if selfDef.IdentityMatches(otherDef) {
+				return true, selfDef
 			}
 		}
 	}
-	return false
+	return false, nil
 }
 
 func (self *Function) Equals(other *Function, sqlFormat SqlFormat) bool {
@@ -122,7 +127,8 @@ func (self *Function) Equals(other *Function, sqlFormat SqlFormat) bool {
 	}
 
 	// TODO(go,core) should we consider identity part of equality?
-	if !self.IdentityMatches(other) {
+	match, _ := self.IdentityMatches(other)
+	if !match {
 		return false
 	}
 
@@ -155,6 +161,24 @@ func (self *Function) Merge(overlay *Function) {
 	}
 }
 
+func (self *Function) Validate(doc *Definition, schema *Schema) []error {
+	// TODO(go,3) validate owner, remove from other codepaths
+	// TODO(go,3) validate parameters
+	out := []error{}
+	for i, def := range self.Definitions {
+		out = append(out, def.Validate(doc, schema, self)...)
+		for _, other := range self.Definitions[i+1:] {
+			if def.IdentityMatches(other) {
+				out = append(out, fmt.Errorf(
+					"found two definitions for %s.%s for sql format %s",
+					schema.Name, self.ShortSig(), def.SqlFormat,
+				))
+			}
+		}
+	}
+	return out
+}
+
 func (self *FunctionParameter) IdentityMatches(other *FunctionParameter) bool {
 	if self == nil || other == nil {
 		return false
@@ -166,6 +190,10 @@ func (self *FunctionParameter) IdentityMatches(other *FunctionParameter) bool {
 		self.Direction.Equals(other.Direction)
 }
 
+func (self *FunctionDefinition) IdentityMatches(other *FunctionDefinition) bool {
+	return self.SqlFormat.Equals(other.SqlFormat)
+}
+
 func (self *FunctionDefinition) Equals(other *FunctionDefinition) bool {
 	if self == nil || other == nil {
 		return false
@@ -175,4 +203,12 @@ func (self *FunctionDefinition) Equals(other *FunctionDefinition) bool {
 	return self.SqlFormat.Equals(other.SqlFormat) &&
 		strings.EqualFold(self.Language, other.Language) &&
 		self.Text == other.Text
+}
+
+func (self *FunctionDefinition) Validate(doc *Definition, schema *Schema, fn *Function) []error {
+	out := []error{}
+	if self.SqlFormat == "" {
+		out = append(out, fmt.Errorf("function definition for %s.%s must have a sql format", schema.Name, fn.ShortSig()))
+	}
+	return out
 }

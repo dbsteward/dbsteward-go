@@ -62,6 +62,14 @@ func (self *View) Merge(overlay *View) {
 	}
 }
 
+func (self *View) IdentityMatches(other *View) bool {
+	if self == nil || other == nil {
+		return false
+	}
+	// TODO(go,3) take schema into account
+	return strings.EqualFold(self.Name, other.Name)
+}
+
 func (self *View) Equals(other *View, sqlFormat SqlFormat) bool {
 	if self == nil || other == nil {
 		return false
@@ -73,6 +81,12 @@ func (self *View) Equals(other *View, sqlFormat SqlFormat) bool {
 		return false
 	}
 	return true
+}
+
+func (self *View) Validate(*Definition, *Schema) []error {
+	// TODO(go,3) validate owner, remove from other codepaths
+	// TODO(go,3) validate ViewQueries
+	return nil
 }
 
 func (self *View) TryGetViewQuery(sqlFormat SqlFormat) *ViewQuery {

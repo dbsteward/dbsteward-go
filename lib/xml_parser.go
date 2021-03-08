@@ -7,10 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/util"
+	"github.com/hashicorp/go-multierror"
+	"github.com/pkg/errors"
 
 	"github.com/dbsteward/dbsteward/lib/model"
-	"github.com/pkg/errors"
+	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 // TODO(go,3) no globals
@@ -82,7 +83,8 @@ func (self *XmlParser) XmlCompositeAddendums(files []string, addendums uint) (*m
 		doc, err := self.LoadDefintion(file)
 		GlobalDBSteward.FatalIfError(err, "Failed to load and parse xml file %s", file)
 		GlobalDBSteward.Notice("Compositing XML %s", file)
-		composite = self.CompositeDoc(composite, doc, file, startAddendumsIdx, addendumsDoc)
+		composite, err = self.CompositeDoc(composite, doc, file, startAddendumsIdx, addendumsDoc)
+		GlobalDBSteward.FatalIfError(err, "Failed to composite xml file %s", file)
 	}
 
 	self.ValidateXml(self.FormatXml(composite))
@@ -90,20 +92,40 @@ func (self *XmlParser) XmlCompositeAddendums(files []string, addendums uint) (*m
 	return composite, addendumsDoc
 }
 
-func (self *XmlParser) CompositeDoc(base, overlay *model.Definition, file string, startAddendumsIdx int, addendumsDoc *model.Definition) *model.Definition {
+func (self *XmlParser) CompositeDoc(base, overlay *model.Definition, file string, startAddendumsIdx int, addendumsDoc *model.Definition) (*model.Definition, error) {
+	util.Assert(overlay != nil, "CompositeDoc overlay must not be nil, you probably want CompositeDoc(nil, doc, ...) instead")
+
 	if base == nil {
 		base = &model.Definition{}
 	}
 
-	overlay = self.expandIncludes(overlay, file)
+	overlay, err := self.expandIncludes(overlay, file)
+	if err != nil {
+		return base, err
+	}
 	overlay = self.expandTabrowData(overlay)
-	overlay = self.SqlFormatConvert(overlay)
+	overlay, err = self.SqlFormatConvert(overlay)
+	if err != nil {
+		return base, err
+	}
 
 	// TODO(go,core) data addendums
 	// TODO(go,slony) slony composite aspects
 
 	base.Merge(overlay)
-	return base
+	self.VendorParse(base)
+
+	// NOTE: v1 had schema validation occur _during_ the merge, which arguably is more efficient,
+	// but also is a very different operation. We're going to try a separate validation step in v2+
+	errs := base.Validate()
+	if len(errs) > 0 {
+		// TODO(go,nth) can we find a better way to represent validation errors? should we actually validate _outside_ this function?
+		return base, &multierror.Error{
+			Errors: errs,
+		}
+	}
+
+	return base, nil
 }
 
 func (self *XmlParser) expandTabrowData(doc *model.Definition) *model.Definition {
@@ -117,23 +139,30 @@ func (self *XmlParser) expandTabrowData(doc *model.Definition) *model.Definition
 	return doc
 }
 
-func (self *XmlParser) expandIncludes(doc *model.Definition, file string) *model.Definition {
+func (self *XmlParser) expandIncludes(doc *model.Definition, file string) (*model.Definition, error) {
 	for _, includeFile := range doc.IncludeFiles {
 		include := includeFile.Name
 		// if the include is relative, make it relative to the parent file
 		if !filepath.IsAbs(include) {
 			inc, err := filepath.Abs(filepath.Join(filepath.Dir(file), include))
-			GlobalDBSteward.FatalIfError(err, "could not establish absolute path to file %s included from %s", include, file)
+			if err != nil {
+				return doc, fmt.Errorf("could not establish absolute path to file %s included from %s", include, file)
+			}
 			include = inc
 		}
 		includeDoc, err := self.LoadDefintion(include)
-		GlobalDBSteward.FatalIfError(err, "Failed to load and parse xml file %s included from %s", include, file)
+		if err != nil {
+			return doc, fmt.Errorf("Failed to load and parse xml file %s included from %s", include, file)
+		}
 
-		doc = self.CompositeDoc(doc, includeDoc, include, -1, nil)
+		doc, err = self.CompositeDoc(doc, includeDoc, include, -1, nil)
+		if err != nil {
+			return doc, errors.Wrapf(err, "while compositing included file %s from %s", include, file)
+		}
 	}
 	doc.IncludeFiles = nil
 
-	return doc
+	return doc, nil
 }
 
 func (self *XmlParser) XmlCompositePgData(doc *model.Definition, dataFiles []string) *model.Definition {
@@ -141,7 +170,7 @@ func (self *XmlParser) XmlCompositePgData(doc *model.Definition, dataFiles []str
 	return nil
 }
 
-func (self *XmlParser) SqlFormatConvert(doc *model.Definition) *model.Definition {
+func (self *XmlParser) SqlFormatConvert(doc *model.Definition) (*model.Definition, error) {
 	// legacy 1.0 column add directive attribute conversion
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
@@ -159,7 +188,7 @@ func (self *XmlParser) SqlFormatConvert(doc *model.Definition) *model.Definition
 			// TODO(go,4) can we use a "SCHEMA_PUBLIC" macro or something to simplify this?
 			if strings.EqualFold(schema.Name, "public") {
 				if dbo := doc.TryGetSchemaNamed("dbo"); dbo != nil {
-					GlobalDBSteward.Fatal("Attempting to rename schema 'public' to 'dbo' but schema 'dbo' already exists")
+					return doc, fmt.Errorf("Attempting to rename schema 'public' to 'dbo' but schema 'dbo' already exists")
 				}
 				schema.Name = "dbo"
 			}
@@ -203,7 +232,7 @@ func (self *XmlParser) SqlFormatConvert(doc *model.Definition) *model.Definition
 		}
 	}
 
-	return doc
+	return doc, nil
 }
 
 // TODO(go,3) push this to mssql package

@@ -112,6 +112,21 @@ func (self *Column) Merge(overlay *Column) {
 	self.Statistics = overlay.Statistics
 }
 
+func (self *Column) Validate(*Definition, *Schema, *Table) []error {
+	// TODO(go,3) validate values
+	// TODO(go,3) validate foreign references, remove other codepaths
+	// TODO(go,3) validate oldname references, remove other codepaths
+	return nil
+}
+
+func (self *Column) IdentityMatches(other *Column) bool {
+	if self == nil || other == nil {
+		return false
+	}
+	// TODO(feat) case sensitivity
+	return strings.EqualFold(self.Name, other.Name)
+}
+
 // Returns true if this column appears to match the other for inheritance
 // Very similar to normal Equals, but foreign key names are allowed to be different
 func (self *Column) EqualsInherited(other *Column) bool {
