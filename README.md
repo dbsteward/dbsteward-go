@@ -376,6 +376,29 @@ And here's a list of changes that I do not intend to keep forever, at least with
   - After: Foreign key constraints were created in stage 4
   - Compatibility: DANGEROUS. This is a drastic change, and violates some of the guarantees and safety of the multi-stage system.
 
+
+## Idioms and Key Concepts in this codebase
+
+### Identity Equality vs Object Equality
+
+This is a concept that was left largely implicit in the v1 codebase, but is much more explicit in v2.
+
+"Identity Equality" is when two objects have the same identity (but not necessarily the same contents/definition). "Object Equality" is when two objects have the same contents or definition.
+
+We see this crop up when computing diffs. For example, when determining if we need to create or update a new e.g. table, we look at each table in the "new" schema, then search the "old" schema for a table with the same _identity_. If we find a match, then and only then do we check the _contents_ of the tables for equality. If two tables have the same identity but different contents, we (probably) issue an `ALTER TABLE`. If we do not find a match, we (probably) issue a `CREATE TABLE` instead. In the case of tables, we consider case-insensitive table name to be the table's identity.
+
+Wherever possible, we should prefer to explicitly define and use methods for these two purposes. At the moment, those methods use the names `IdentityMatches` and `Equals`.
+
+So, `table1.IdentityMatches(table2)` will return true if `table1`'s identity is equal to `table2`'s identity, and `table1.Equals(table2)` will return true of the contents of the two tables are equal. If either or both of the two objects is `nil`, in either case, we consider the two to be not equal.
+
+There are a few interesting questions that arise here that we should answer and codify soon:
+- Should identity be considered to be part of object equality? i.e. if two tables have the same columns, indexes, etc, but different names, are they the same table? 
+- Should "namespace" be considered to be part of identity equality? i.e. if two tables have the same name but are in different tables, do they have the same identity?
+  - I think the obvious answer here is "yes" - two tables in different schemas with the same name are literally different tables. This implies we need to check parent object lineage in most cases, which we currently _do not_ do, making this a giant `TODO(go,3)`
+- How do we handle case-sensitivity when checking names?
+  - Some engines have different rules for case sensitive identifiers
+  - [Quotedness has a big impact here](#quoting-and-identifiers)
+
 ## Thoughts for the future
 
 ### General Architecture
@@ -444,6 +467,16 @@ As noted at the top, any API changes (that is, a change to the DTD, interpretati
   - Currently we sort of support this via pgdataxml, but a) that's the only format and b) we composite into the xml, which is stored entirely in memory
   - CSV, json, other formats would be very cool
   - Streaming straight from the source so we don't hold it in memory would be cooler
+
+### Specific v3 Refactors
+
+- Drop static global variables in favor of direct dependencies
+- First pass on [strategy architecture](#strategy-architecture)
+- Move all validation to a dedicated step
+- Separate XML un/marshalling from native in-memory model
+- Have all model objects contain backref to parent objects
+- Move all XmlParser/DBX functionality into strategy + model objects
+- Create dedicated "expansion" step to resolve references, etc
 
 ### Off the wall features
 
