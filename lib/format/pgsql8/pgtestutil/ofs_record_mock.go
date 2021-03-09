@@ -1,4 +1,4 @@
-package sqltest
+package pgtestutil
 
 import (
 	"fmt"

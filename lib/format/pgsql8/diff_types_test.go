@@ -6,7 +6,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sqltest"
+	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/stretchr/testify/assert"
 
@@ -97,7 +97,7 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 		},
 	}
 
-	ofs := &sqltest.RecordingOfs{
+	ofs := &pgtestutil.RecordingOfs{
 		StripComments: true,
 	}
 

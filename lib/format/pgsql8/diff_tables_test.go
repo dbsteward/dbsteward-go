@@ -9,7 +9,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sqltest"
+	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
@@ -370,11 +370,11 @@ func diffTablesCommon(oldSchema, newSchema *model.Schema) ([]output.ToSql, []out
 		Schemas: []*model.Schema{newSchema},
 	}
 	setOldNewDocs(oldDoc, newDoc)
-	ofs1 := &sqltest.RecordingOfs{
+	ofs1 := &pgtestutil.RecordingOfs{
 		StripComments: true,
 		Sql:           []output.ToSql{},
 	}
-	ofs3 := &sqltest.RecordingOfs{
+	ofs3 := &pgtestutil.RecordingOfs{
 		StripComments: true,
 		Sql:           []output.ToSql{},
 	}

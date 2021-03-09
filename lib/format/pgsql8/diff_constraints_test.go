@@ -6,7 +6,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sqltest"
+	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
 
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -136,7 +136,7 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 	newDoc := &model.Definition{
 		Schemas: []*model.Schema{newSchema},
 	}
-	ofs := &sqltest.RecordingOfs{
+	ofs := &pgtestutil.RecordingOfs{
 		StripComments: true,
 	}
 	setOldNewDocs(oldDoc, newDoc)
@@ -157,7 +157,7 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 	}, ofs.Sql)
 }
 
-// TODO(go,pgsql) This test exists as tests/pgsql8/Pgsql8ConstraintDiffSQLTest.php testAutoIncrement() but I can't find
+// TODO(go,pgsql) This test exists as tests/pgsql8/Pgsql8ConstraintDiffPgtestutil.php testAutoIncrement() but I can't find
 // any reference to dealing with `auto_increment` type flags in postgres, everything is gated behind sqlformat==mysql5
 // I don't know why this works in v1, but we should figure it out
 
@@ -378,7 +378,7 @@ func diffConstraintsTableCommon(oldSchema, newSchema *model.Schema, ctype pgsql8
 	newDoc := &model.Definition{
 		Schemas: []*model.Schema{newSchema},
 	}
-	ofs := &sqltest.RecordingOfs{
+	ofs := &pgtestutil.RecordingOfs{
 		StripComments: true,
 	}
 	setOldNewDocs(oldDoc, newDoc)

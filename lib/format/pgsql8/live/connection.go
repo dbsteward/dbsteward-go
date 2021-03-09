@@ -1,38 +1,37 @@
-package pgsql8
+package live
 
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strconv"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
 )
 
-var GlobalDb *Db = NewDB()
-
-type Db struct {
+type Connection struct {
 	conn *pgxpool.Pool
 }
 
-func NewDB() *Db {
-	return &Db{}
-}
+type StringMap map[string]string
+type StringMapList []StringMap
 
-func (self *Db) Connect(host string, port uint, name, user, pass string) {
+func NewConnection(host string, port uint, name, user, pass string) (*Connection, error) {
 	// TODO(go,3) sslmode?
 	// TODO(go,3) just have the user pass the entire DSN
 	// TODO(feat) support envvar password
 	dsnNoPass := fmt.Sprintf("host=%s port=%d user=%s dbname=%s", host, port, user, name)
 	dsn := dsnNoPass + fmt.Sprintf(" password=%s", pass)
 	conn, err := pgxpool.Connect(context.Background(), dsn)
-	lib.GlobalDBSteward.FatalIfError(err, "Could not connect to database %s", dsnNoPass)
-	self.conn = conn
+	if err != nil {
+		return nil, errors.Wrap(err, "Could not connect to postgres database")
+	}
+
+	return &Connection{conn}, nil
 }
 
-func (self *Db) Version() (int, error) {
+func (self *Connection) Version() (int, error) {
 	var v string
 	err := self.QueryVal(&v, "SHOW server_version_num;")
 	if err != nil {
@@ -41,12 +40,12 @@ func (self *Db) Version() (int, error) {
 	return strconv.Atoi(v)
 }
 
-func (self *Db) Disconnect() {
+func (self *Connection) Disconnect() {
 	self.conn.Close()
 }
 
-func (self *Db) Query(query string, params ...interface{}) ([]map[string]string, error) {
-	out := []map[string]string{}
+func (self *Connection) Query(query string, params ...interface{}) (StringMapList, error) {
+	out := StringMapList{}
 	rows, err := self.conn.Query(context.TODO(), query, params...)
 	if err != nil {
 		return nil, err
@@ -67,7 +66,7 @@ func (self *Db) Query(query string, params ...interface{}) ([]map[string]string,
 			return nil, err
 		}
 
-		m := map[string]string{}
+		m := StringMap{}
 		for i, col := range cols {
 			m[col] = vals[i].String
 		}
@@ -80,11 +79,11 @@ func (self *Db) Query(query string, params ...interface{}) ([]map[string]string,
 	return out, nil
 }
 
-func (self *Db) QueryVal(val interface{}, sql string, params ...interface{}) error {
+func (self *Connection) QueryVal(val interface{}, sql string, params ...interface{}) error {
 	return self.conn.QueryRow(context.TODO(), sql, params...).Scan(val)
 }
 
-func (self *Db) QueryStringMap(sql string, params ...interface{}) (map[string]string, error) {
+func (self *Connection) QueryStringMap(sql string, params ...interface{}) (StringMap, error) {
 	recs, err := self.Query(sql, params...)
 	if err != nil {
 		return nil, err
