@@ -23,6 +23,7 @@ type Operations struct {
 	EscapeStringValues bool
 
 	contextReplicaSetId int
+	quoter              output.Quoter
 }
 
 func NewOperations() *Operations {
@@ -32,6 +33,24 @@ func NewOperations() *Operations {
 	}
 	pgsql.Operations.Operations = pgsql
 	return pgsql
+}
+
+func (self *Operations) GetQuoter() output.Quoter {
+	if self.quoter == nil {
+		dbsteward := lib.GlobalDBSteward
+		return &sql.Quoter{
+			Logger:                         dbsteward,
+			ShouldQuoteSchemaNames:         dbsteward.QuoteAllNames || dbsteward.QuoteSchemaNames,
+			ShouldQuoteTableNames:          dbsteward.QuoteAllNames || dbsteward.QuoteTableNames,
+			ShouldQuoteColumnNames:         dbsteward.QuoteAllNames || dbsteward.QuoteColumnNames,
+			ShouldQuoteObjectNames:         dbsteward.QuoteAllNames || dbsteward.QuoteObjectNames,
+			ShouldQuoteIllegalIdentifiers:  dbsteward.QuoteIllegalIdentifiers,
+			ShouldQuoteReservedIdentifiers: dbsteward.QuoteReservedIdentifiers,
+			ShouldEEscape:                  self.EscapeStringValues,
+			RequireVerboseIntervalNotation: dbsteward.RequireVerboseIntervalNotation,
+		}
+	}
+	return self.quoter
 }
 
 func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
@@ -46,7 +65,7 @@ func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
 	buildFile, err := os.Create(buildFileName)
 	dbsteward.FatalIfError(err, "Failed to open file %s for output", buildFileName)
 
-	buildFileOfs := output.NewOutputFileSegmenterToFile(dbsteward, self, buildFileName, 1, buildFile, buildFileName, dbsteward.OutputFileStatementLimit)
+	buildFileOfs := output.NewOutputFileSegmenterToFile(dbsteward, self.GetQuoter(), buildFileName, 1, buildFile, buildFileName, dbsteward.OutputFileStatementLimit)
 	if len(dbsteward.LimitToTables) == 0 {
 		buildFileOfs.Write("-- full database definition file generated %s\n", time.Now().Format(time.RFC1123Z))
 	}
@@ -742,6 +761,7 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 					colTypes[column.Name] = colType
 				}
 
+				q := self.GetQuoter()
 				for _, row := range table.Rows.Rows {
 					// TODO(go,nth) can we fix this direct sql construction with a ToSql struct?
 					pkExprs := []string{}
@@ -755,9 +775,8 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 
 						expr := fmt.Sprintf(
 							"%s = %s",
-							self.QuoteColumn(pkCol),
-							// TODO(feat) what about row.Columns[pkIndex].Null
-							self.ValueEscape(colTypes[pkCol], row.Columns[pkIndex].Text, doc),
+							q.QuoteColumn(pkCol),
+							sql.NewValue(colTypes[pkCol], row.Columns[pkIndex].Text, row.Columns[pkIndex].Null).GetValueSql(q),
 						)
 						pkExprs = append(pkExprs, expr)
 					}
@@ -1027,38 +1046,38 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 }
 
 // Implements output.Quoter
-func (self *Operations) LiteralValue(datatype string, value string) string {
-	return self.ValueEscape(datatype, value, nil)
-}
+// func (self *Operations) LiteralValue(datatype string, value string) string {
+// 	return self.ValueEscape(datatype, value, nil)
+// }
 
-func (self *Operations) ValueEscape(datatype string, value string, doc *model.Definition) string {
-	// TODO(go,3) it'd be amazing to have a dedicated Value type that encapsulates this logic and is type-aware, instead of the mishmash of string parsing and type matching we do
-	if len(value) == 0 {
-		// TODO(feat) this can't distinguish between empty strings and null
-		return "NULL"
-	}
+// func (self *Operations) ValueEscape(datatype string, value string, doc *model.Definition) string {
+// 	// TODO(go,3) it'd be amazing to have a dedicated Value type that encapsulates this logic and is type-aware, instead of the mishmash of string parsing and type matching we do
+// 	if len(value) == 0 {
+// 		// TODO(feat) this can't distinguish between empty strings and null
+// 		return "NULL"
+// 	}
 
-	// complain when we require verbose interval notation but data uses a different format
-	if lib.GlobalDBSteward.RequireVerboseIntervalNotation && util.IMatch("interval", datatype) != nil && value[0] != '@' {
-		lib.GlobalDBSteward.Fatal("bad interval value: '%s' -- interval types must be postgresql verbose format: '@ 2 hours 30 minutes'", value)
-	}
+// 	// complain when we require verbose interval notation but data uses a different format
+// 	if lib.GlobalDBSteward.RequireVerboseIntervalNotation && util.IMatch("interval", datatype) != nil && value[0] != '@' {
+// 		lib.GlobalDBSteward.Fatal("bad interval value: '%s' -- interval types must be postgresql verbose format: '@ 2 hours 30 minutes'", value)
+// 	}
 
-	// data types that should be quoted
-	enumRegex := lib.GlobalDBX.EnumRegex(doc)
-	if len(enumRegex) > 0 {
-		enumRegex = "|" + enumRegex
-	}
-	if util.IMatch(fmt.Sprintf(`^(bool.*|character.*|string|text|date|time.*|(var)?char.*|interval|money|inet|uuid|ltree%s)`, enumRegex), datatype) != nil {
-		// data types that should have E prefix to their quotes
-		if self.EscapeStringValues && util.IMatch(`^(character.*|string|text|(var)?char.*)`, datatype) != nil {
-			return self.LiteralStringEscaped(value)
-		} else {
-			return self.LiteralString(value)
-		}
-	}
+// 	// data types that should be quoted
+// 	enumRegex := lib.GlobalDBX.EnumRegex(doc)
+// 	if len(enumRegex) > 0 {
+// 		enumRegex = "|" + enumRegex
+// 	}
+// 	if util.IMatch(fmt.Sprintf(`^(bool.*|character.*|string|text|date|time.*|(var)?char.*|interval|money|inet|uuid|ltree%s)`, enumRegex), datatype) != nil {
+// 		// data types that should have E prefix to their quotes
+// 		if self.EscapeStringValues && util.IMatch(`^(character.*|string|text|(var)?char.*)`, datatype) != nil {
+// 			return self.LiteralStringEscaped(value)
+// 		} else {
+// 			return self.LiteralString(value)
+// 		}
+// 	}
 
-	return value
-}
+// 	return value
+// }
 
 func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Table, columnName string, dataCol *model.DataCol) sql.ToSqlValue {
 	// if the column represents NULL, return a NULL value
@@ -1067,9 +1086,6 @@ func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Ta
 	}
 	// if the column represents an empty string, return an empty string
 	if dataCol.Empty {
-		if self.EscapeStringValues {
-			return sql.EscapedStringValue("")
-		}
 		return sql.StringValue("")
 	}
 	// if the column represents a sql expression, return an expression or DEFAULT
@@ -1108,16 +1124,6 @@ func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Ta
 
 func (self *Operations) StripStringQuoting(str string) string {
 	return strings.ReplaceAll(strings.TrimPrefix(strings.TrimSuffix(str, "'"), "'"), "''", "'")
-}
-
-// TODO(go,3) is there ever any reason we wouldn't always E-escape a string?
-func (self *Operations) LiteralString(str string) string {
-	return fmt.Sprintf("'%s'", strings.ReplaceAll(str, "'", "''"))
-}
-
-func (self *Operations) LiteralStringEscaped(str string) string {
-	// TODO(go,nth) verify this works in all cases
-	return "E" + self.LiteralString(str)
 }
 
 func (self *Operations) SetContextReplicaSetId(setId *int) {

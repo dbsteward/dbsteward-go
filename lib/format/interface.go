@@ -16,13 +16,7 @@ type Operations interface {
 	SqlDiff(old, new []string, outputFile string)
 
 	SetContextReplicaSetId(*int)
-
-	GetQuoteChar() string
-	IsIllegalIdentifier(string) bool
-	IsReservedIdentifier(string) bool
-	GetQuotedName(name string, shouldQuote bool) string
-
-	output.Quoter
+	GetQuoter() output.Quoter
 }
 
 type XmlParser interface {

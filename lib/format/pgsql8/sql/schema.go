@@ -42,7 +42,7 @@ type SchemaSetComment struct {
 }
 
 func (self *SchemaSetComment) ToSql(q output.Quoter) string {
-	return fmt.Sprintf("COMMENT ON SCHEMA %s IS %s;", q.QuoteSchema(self.Schema), q.LiteralStringEscaped(self.Comment))
+	return fmt.Sprintf("COMMENT ON SCHEMA %s IS %s;", q.QuoteSchema(self.Schema), q.LiteralString(self.Comment))
 }
 
 type SchemaGrant struct {

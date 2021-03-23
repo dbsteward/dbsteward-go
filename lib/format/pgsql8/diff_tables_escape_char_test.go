@@ -47,8 +47,8 @@ func TestDiffTables_GetDataSql_EscapeCharacters(t *testing.T) {
 			Table:   sql.TableRef{"public", "i_test"},
 			Columns: []string{"pk", "col1"},
 			Values: []sql.ToSqlValue{
-				&sql.TypedValue{"int", "1"},
-				&sql.TypedValue{"char(10)", "hi"},
+				&sql.TypedValue{"int", "1", false},
+				&sql.TypedValue{"char(10)", "hi", false},
 			},
 		},
 	}, ddl)

@@ -355,9 +355,9 @@ func TestDiffTables_GetDeleteCreateDataSql_AddSerialColumn(t *testing.T) {
 		&sql.DataUpdate{
 			Table:          sql.TableRef{"test", "serial_test"},
 			UpdatedColumns: []string{"test_serial"},
-			UpdatedValues:  []sql.ToSqlValue{&sql.TypedValue{"serial", "1"}},
+			UpdatedValues:  []sql.ToSqlValue{&sql.TypedValue{"serial", "1", false}},
 			KeyColumns:     []string{"test_string"},
-			KeyValues:      []sql.ToSqlValue{&sql.TypedValue{"text", "testtest"}},
+			KeyValues:      []sql.ToSqlValue{&sql.TypedValue{"text", "testtest", false}},
 		},
 	}, addddl)
 }

@@ -78,11 +78,17 @@ func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataT
 			}
 		}
 
+		// TODO(feat) how do we distinguish between DEFAULT '' and no default?
+		var def sql.ToSqlValue
+		if datatype.DomainType.Default != "" {
+			def = sql.NewValue(datatype.DomainType.BaseType, datatype.DomainType.Default, datatype.DomainType.Nullable)
+		}
+
 		return []output.ToSql{
 			&sql.TypeDomainCreate{
 				Type:        sql.TypeRef{schema.Name, datatype.Name},
-				BaseType:    strings.TrimSpace(datatype.DomainType.BaseType),
-				Default:     strings.TrimSpace(datatype.DomainType.Default),
+				BaseType:    datatype.DomainType.BaseType,
+				Default:     def,
 				Nullable:    datatype.DomainType.Nullable,
 				Constraints: constraints,
 			},

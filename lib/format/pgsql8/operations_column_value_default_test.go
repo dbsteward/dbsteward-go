@@ -116,5 +116,5 @@ func getColumnValueDefault(def *model.Column, data *model.DataCol) string {
 
 	// TODO(go,nth) can we do this without also testing GetValueSql?
 	toVal := ops.ColumnValueDefault(schema, table, def.Name, data)
-	return toVal.GetValueSql(ops)
+	return toVal.GetValueSql(ops.GetQuoter())
 }

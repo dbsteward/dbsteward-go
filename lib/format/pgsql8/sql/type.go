@@ -48,7 +48,7 @@ func (self *TypeDrop) ToSql(q output.Quoter) string {
 type TypeDomainCreate struct {
 	Type        TypeRef
 	BaseType    string
-	Default     string
+	Default     ToSqlValue
 	Nullable    bool
 	Constraints []TypeDomainCreateConstraint
 }
@@ -60,8 +60,8 @@ type TypeDomainCreateConstraint struct {
 func (self *TypeDomainCreate) ToSql(q output.Quoter) string {
 	// TODO(feat) quote the basetype?
 	ddl := fmt.Sprintf("CREATE DOMAIN %s AS %s", self.Type.Qualified(q), self.BaseType)
-	if self.Default != "" {
-		ddl += "\n  DEFAULT " + q.LiteralValue(self.BaseType, self.Default)
+	if self.Default != nil {
+		ddl += "\n  DEFAULT " + self.Default.GetValueSql(q)
 	}
 	if !self.Nullable {
 		ddl += "\n  NOT NULL"

@@ -76,7 +76,7 @@ func TestType_Domain_GetCreationSql_DefaultNotNull(t *testing.T) {
 		&sql.TypeDomainCreate{
 			Type:        sql.TypeRef{"domains", "my_domain"},
 			BaseType:    "int",
-			Default:     "5",
+			Default:     &sql.TypedValue{"int", "5", false},
 			Nullable:    false,
 			Constraints: []sql.TypeDomainCreateConstraint{},
 		},
@@ -186,7 +186,7 @@ func TestType_Domain_GetCreationSql_QuotedDefault(t *testing.T) {
 		&sql.TypeDomainCreate{
 			Type:        sql.TypeRef{"domains", "my_domain"},
 			BaseType:    "varchar(20)",
-			Default:     "abc",
+			Default:     &sql.TypedValue{"varchar(20)", "abc", false},
 			Constraints: []sql.TypeDomainCreateConstraint{},
 		},
 	}, ddl)

@@ -1,5 +1,5 @@
 -- someapp_extracted_upgrade_stage3_schema1.sql
--- DBSteward stage 3 structure changes, constraints, and removals - generated Mon, 08 Mar 2021 22:00:30 +0000
+-- DBSteward stage 3 structure changes, constraints, and removals - generated Tue, 23 Mar 2021 16:09:50 +0000
 -- Old definition: someapp_v2_composite.xml
 -- New definition someapp_extracted_composite.xml
 

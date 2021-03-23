@@ -116,7 +116,14 @@ func (self *DiffTypes) diffDomain(ofs output.OutputFileSegmenter, oldSchema *mod
 		// TODO(feat) what about recursively resolving this in the case that the base type is another user defined type?
 		ofs.WriteSql(&sql.Annotated{
 			Annotation: "domain default changed from " + oldInfo.Default,
-			Wrapped:    &sql.TypeDomainAlterSetDefault{ref, &sql.TypedValue{newInfo.BaseType, newInfo.Default}},
+			Wrapped: &sql.TypeDomainAlterSetDefault{
+				Type: ref,
+				Value: &sql.TypedValue{
+					Type:   newInfo.BaseType,
+					Value:  newInfo.Default,
+					IsNull: false, // TODO(feat) how do we distinguish default="NULL" meaning 'NULL' or NULL, and default="" meaning '' or NULL?
+				},
+			},
 		})
 	}
 

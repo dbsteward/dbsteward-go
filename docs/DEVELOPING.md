@@ -282,6 +282,49 @@ func DoSomethingWithTable() []output.ToSql {
 }
 ```
 
+### Minor Changes to internal structure
+
+Most of these are consequences of the above changes, but some of them are technically unnecessary, and just make our lives easier. None of these should affect DBSteward output, but they do mean there's aspects that aren't a straight port from v1.
+
+#### SQL Value Formatting
+
+In v1, `format::value_escape($type, $value, $doc)` and a few other methods are used to format a sql value in its string representation for use in sql.
+
+In v2, `format::value_escape` and friends have been moved to, or reimplemented using, the `<format>/sql.ToSqlValue` family of structs, to better align with the above change of placing all sql-related manipulation and logic in a dedicated package. It's still format-specific, but it defers logic around deciding how to encode values until later in the process.
+
+`ToSqlValue` is a simple interface that is intended to capture anything that can be used anywhere you can use a value in SQL - `DEFAULT` keywords in `INSERT`/`UPDATE` statements, `NULL` values, literal strings, function calls, etc.
+
+#### Quoting
+
+In v1, quoting of SQL identifiers occurs inline during DDL generation, as methods on the main `format` class.
+
+In v2, as part of the SQL generation changes discussed above, all quoting has been moved to the SQL package
+
+#### DBX Getters
+
+`dbx::get_schema($db, $name)`, `dbx::get_table($schema, $name)`, etc have been removed in favor of direct getters on the object model discussed above: `db.TryGetSchema(name)`, `schema.TryGetTable(name)`, etc.
+
+The `dbx` functions were necessary in v1 because everything directly manipulated a SimpleXML DOM, which only understands direct traversal and xpath, meaning we'd have to repeat a lot of logic around things like "find table with name = 'x'".
+
+Now that we moved to a native structure, we can directly do these searches and traversals in methods of that structure.
+
+#### DBXML Compositing
+
+v1 uses `xml_parser::xml_composite_children` to recursively merge two DBXML trees.
+
+In v2, because we've switched to using a non-generic structure (as discussed above), we cannot use a generic approach. Instead, we've moved all the functionality out of `xml_composite_children` and into `Merge` methods on the object model.
+
+This comes with the added benefit that compositing is much much easier to reason about and maintain, as the rules for compositing any given object are self-contained in the appropriate structs.
+
+#### DBXML Validation
+
+v1 relies primarily on DTD validation to establish validity of an XML document, as well as some basic validation strewn throughout `xml_parser`, `dbx`, and format-specific classes.
+
+In v2, we try to keep to the same validation where possible, however, 1) we don't have an equivalent for DTD validation (yet?) and 2) because some of that validation occurred during the compositing step and that was changed (see above), we need to reimplement validation elsewhere.
+
+To that end, structures have a `Validate(...)` method that is intended to validate issues in the DB schema that the user defined. Most notably is duplicate object validation (e.g. two functions with the same name, parameters, and sql format definition).
+
+
 ### New Features & Bugfixes
 
 v2 and v3's goals are to be as minimally different behavior-wise from v1 as possible, even including bugs.

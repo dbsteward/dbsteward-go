@@ -83,7 +83,7 @@ func TestDiffTypes_Domain_ChangeDefault(t *testing.T) {
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainAlterSetDefault{
 			Type:  sql.TypeRef{"domains", "my_domain"},
-			Value: &sql.TypedValue{"int", "10"},
+			Value: &sql.TypedValue{"int", "10", false},
 		},
 	}, ddl)
 }

@@ -1,4 +1,4 @@
-# Thoughts for the Future
+# Thoughts for the future
 
 ## General Architecture
 
@@ -76,6 +76,7 @@ As noted at the top, any API changes (that is, a change to the DTD, interpretati
 - Have all model objects contain backref to parent objects
 - Move all XmlParser/DBX functionality into strategy + model objects
 - Create dedicated "expansion" step to resolve references, etc
+- Promote data types to a first-class thing instead of string/regex matching everywhere
 
 ## Off the wall features
 

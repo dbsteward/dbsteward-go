@@ -30,29 +30,30 @@ func (self *Diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *model.Definit
 	oldSetNewSet := fmt.Sprintf("-- Old definition: %s\n-- New definition %s\n", oldFile, newFile)
 
 	var stage1, stage2, stage3, stage4 output.OutputFileSegmenter
+	quoter := self.lookup.Operations.GetQuoter()
 
 	if dbsteward.SingleStageUpgrade {
 		fileName := upgradePrefix + "_single_stage.sql"
 		file, err := os.Create(fileName)
 		dbsteward.FatalIfError(err, "failed to open single stage output file %s for write", fileName)
 
-		stage1 = output.NewOutputFileSegmenterToFile(dbsteward, self.lookup.Operations, fileName, 1, file, fileName, dbsteward.OutputFileStatementLimit)
+		stage1 = output.NewOutputFileSegmenterToFile(dbsteward, quoter, fileName, 1, file, fileName, dbsteward.OutputFileStatementLimit)
 		stage1.SetHeader("-- DBsteward single stage upgrade changes - generated %s\n%s", timestamp, oldSetNewSet)
 		defer stage1.Close()
 		stage2 = stage1
 		stage3 = stage1
 		stage4 = stage1
 	} else {
-		stage1 = output.NewOutputFileSegmenter(dbsteward, self.lookup.Operations, upgradePrefix+"_stage1_schema", 1, dbsteward.OutputFileStatementLimit)
+		stage1 = output.NewOutputFileSegmenter(dbsteward, quoter, upgradePrefix+"_stage1_schema", 1, dbsteward.OutputFileStatementLimit)
 		stage1.SetHeader("-- DBSteward stage 1 structure additions and modifications - generated %s\n%s", timestamp, oldSetNewSet)
 		defer stage1.Close()
-		stage2 = output.NewOutputFileSegmenter(dbsteward, self.lookup.Operations, upgradePrefix+"_stage2_data", 1, dbsteward.OutputFileStatementLimit)
+		stage2 = output.NewOutputFileSegmenter(dbsteward, quoter, upgradePrefix+"_stage2_data", 1, dbsteward.OutputFileStatementLimit)
 		stage2.SetHeader("-- DBSteward stage 2 data definitions removed - generated %s\n%s", timestamp, oldSetNewSet)
 		defer stage2.Close()
-		stage3 = output.NewOutputFileSegmenter(dbsteward, self.lookup.Operations, upgradePrefix+"_stage3_schema", 1, dbsteward.OutputFileStatementLimit)
+		stage3 = output.NewOutputFileSegmenter(dbsteward, quoter, upgradePrefix+"_stage3_schema", 1, dbsteward.OutputFileStatementLimit)
 		stage3.SetHeader("-- DBSteward stage 3 structure changes, constraints, and removals - generated %s\n%s", timestamp, oldSetNewSet)
 		defer stage3.Close()
-		stage4 = output.NewOutputFileSegmenter(dbsteward, self.lookup.Operations, upgradePrefix+"_stage4_data", 1, dbsteward.OutputFileStatementLimit)
+		stage4 = output.NewOutputFileSegmenter(dbsteward, quoter, upgradePrefix+"_stage4_data", 1, dbsteward.OutputFileStatementLimit)
 		stage4.SetHeader("-- DBSteward stage 4 data definition changes and additions - generated %s\n%s", timestamp, oldSetNewSet)
 		defer stage4.Close()
 	}

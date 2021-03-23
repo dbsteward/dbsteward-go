@@ -23,12 +23,11 @@ type Quoter interface {
 	QuoteColumn(column string) string
 	QuoteRole(role string) string
 	QuoteObject(obj string) string
-	QualifyTable(schema string, table string) string
-	QualifyObject(schema string, obj string) string
-	QualifyColumn(schema string, table string, column string) string
-	LiteralValue(typeName string, value string) string
-	LiteralString(str string) string
-	LiteralStringEscaped(str string) string
+	QualifyTable(schema, table string) string
+	QualifyObject(schema, obj string) string
+	QualifyColumn(schema, table, column string) string
+	LiteralString(value string) string
+	LiteralValue(datatype, value string, isNull bool) string
 }
 
 type OutputFileSegmenter interface {
