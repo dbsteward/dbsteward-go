@@ -284,25 +284,19 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		}
 
 		dbsteward.Info("Analyze table columns %s.%s", schema.Name, table.Name)
-		columnDescriptions := map[string]string{}
-		for _, desc := range row.ColumnDescriptions {
-			indexDesc := strings.Split(desc, ";") // see the array_agg in the main query
-			columnDescriptions[indexDesc[0]] = indexDesc[1]
-		}
-
 		// hasindexes | hasrules | hastriggers handled later
 		// get columns for the table
 		colRows, err := introspector.GetColumns(schema.Name, table.Name)
 		dbsteward.FatalIfError(err, "Error with column query")
 		for _, colRow := range colRows {
 			column := &model.Column{
-				Name:        colRow["column_name"],
-				Description: columnDescriptions[colRow["ordinal_position"]],
-				Type:        colRow["attribute_data_type"],
+				Name:        colRow.Name,
+				Description: colRow.Description, // note that column numbers are 1-indexed
+				Type:        colRow.AttrType,
 				// TODO(go,nth) legacy logic only ever sets nullable to false (pgsql8.php:1638) but that really doesn't seem correct to me. validate this
-				Nullable: !util.IsFalsey(colRow["is_nullable"]),
+				Nullable: colRow.Nullable,
 				// TODO(go,nth) how does this handle expression defaults?
-				Default: colRow["column_default"],
+				Default: colRow.Default,
 			}
 			table.AddColumn(column)
 

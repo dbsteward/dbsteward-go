@@ -1,5 +1,5 @@
 -- someapp_v1_build.sql
--- full database definition file generated Thu, 25 Mar 2021 15:47:21 +0000
+-- full database definition file generated Thu, 25 Mar 2021 16:59:24 +0000
 BEGIN;
 
 
@@ -35,6 +35,8 @@ CREATE TABLE public.sql_user(
 );
 
 COMMENT ON TABLE public.sql_user IS 'user table comment';
+
+COMMENT ON COLUMN public.sql_user.import_id IS 'id from external system';
 
 ALTER TABLE public.sql_user
   OWNER TO pgsql;

@@ -324,6 +324,14 @@ In v2, we try to keep to the same validation where possible, however, 1) we don'
 
 To that end, structures have a `Validate(...)` method that is intended to validate issues in the DB schema that the user defined. Most notably is duplicate object validation (e.g. two functions with the same name, parameters, and sql format definition).
 
+#### Extraction
+
+In v1, `pgsql8::extract_schema()` directly connected to the database and executed queries. In v2, we've pushed the database connectivity aspects into the `sqlformat/pgsql8/live` package, and use the `Introspector` interface (primarily implemented by the `LiveIntrospector` struct) to make structured queries against the database.
+
+Not only does this make individual parts of extraction easier to understand in isolation, but it makes `Operations.ExtractSchema` easy to test without needed to connect to a live database.
+
+There have also been minor changes to query structure to be clearer and easier to work with (e.g. moving column descriptions from the top level table query to the column query).
+
 
 ### New Features & Bugfixes
 

@@ -21,7 +21,7 @@ type Introspector interface {
 	GetTableList() ([]TableEntry, error)
 	GetSchemaOwner(schema string) (string, error)
 	GetTableStorageOptions(schema, table string) (map[string]string, error)
-	GetColumns(schema, table string) (StringMapList, error)
+	GetColumns(schema, table string) ([]ColumnEntry, error)
 	GetIndexes(schema, table string) (StringMapList, error)
 	GetSequenceRelList(schema string, sequenceCols []string) (StringMapList, error)
 	GetSequencesForRel(schema, rel string) (StringMapList, error)
@@ -55,13 +55,12 @@ func NewIntrospector(conn *Connection) (*LiveIntrospector, error) {
 
 func (self *LiveIntrospector) GetTableList() ([]TableEntry, error) {
 	// TODO(go,3) move column description to column query
+	// Note that old versions of postgres don't support array_agg(description ORDER BY objsubid)
+	// so we need to use subquery to do ordering
 	res, err := self.conn.QueryRaw(`
 		SELECT
 			t.schemaname, t.tablename, t.tableowner, t.tablespace,
 			sd.description as schema_description, td.description as table_description,
-			( SELECT array_agg(cd.objsubid::text || ';' ||cd.description)
-				FROM pg_catalog.pg_description cd
-				WHERE cd.objoid = c.oid AND cd.classoid = c.tableoid AND cd.objsubid > 0 ) AS column_descriptions,
 			( SELECT array_agg(pn.nspname || '.' || pc.relname)
 				FROM pg_catalog.pg_inherits i
 				LEFT JOIN pg_catalog.pg_class pc ON (i.inhparent = pc.oid)
@@ -85,7 +84,7 @@ func (self *LiveIntrospector) GetTableList() ([]TableEntry, error) {
 		err := res.Scan(
 			&entry.Schema, &entry.Table, &entry.Owner, &entry.Tablespace,
 			&maybeStr{&entry.SchemaDescription}, &maybeStr{&entry.TableDescription},
-			&entry.ColumnDescriptions, &entry.ParentTables,
+			&entry.ParentTables,
 		)
 		if err != nil {
 			return nil, errors.Wrap(err, "while scanning result")
@@ -156,21 +155,41 @@ func (self *LiveIntrospector) GetTableStorageOptions(schema, table string) (map[
 	return params, nil
 }
 
-func (self *LiveIntrospector) GetColumns(schema, table string) (StringMapList, error) {
-	return self.conn.Query(`
+func (self *LiveIntrospector) GetColumns(schema, table string) ([]ColumnEntry, error) {
+	res, err := self.conn.QueryRaw(`
 		SELECT
-			column_name, data_type,
-			column_default, is_nullable,
-			ordinal_position, numeric_precision,
-			format_type(atttypid, atttypmod) as attribute_data_type
+			column_name, column_default, is_nullable = 'YES', pgd.description,
+			ordinal_position, format_type(atttypid, atttypmod) as attribute_data_type
 		FROM information_schema.columns
 			JOIN pg_class pgc ON (pgc.relname = table_name AND pgc.relkind='r')
 			JOIN pg_namespace nsp ON (nsp.nspname = table_schema AND nsp.oid = pgc.relnamespace)
 			JOIN pg_attribute pga ON (pga.attrelid = pgc.oid AND columns.column_name = pga.attname)
+			LEFT JOIN pg_description pgd ON (pgd.objoid = pgc.oid AND pgd.classoid = pgc.tableoid AND pgd.objsubid = ordinal_position)
 		WHERE table_schema=$1 AND table_name=$2
 			AND attnum > 0
 			AND NOT attisdropped
+		ORDER BY ordinal_position ASC
 	`, schema, table)
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []ColumnEntry{}
+	for res.Next() {
+		entry := ColumnEntry{}
+		err := res.Scan(
+			&entry.Name, &maybeStr{&entry.Default}, &entry.Nullable,
+			&maybeStr{&entry.Description}, &entry.Position, &entry.AttrType,
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }
 
 func (self *LiveIntrospector) GetIndexes(schema, table string) (StringMapList, error) {

@@ -128,7 +128,9 @@ func (self *Column) IdentityMatches(other *Column) bool {
 }
 
 // Returns true if this column appears to match the other for inheritance
-// Very similar to normal Equals, but foreign key names are allowed to be different
+// Very similar to normal Equals, but with a few exceptions:
+// - Foreign key names may be different
+// - Descriptions may be different
 func (self *Column) EqualsInherited(other *Column) bool {
 	if self == nil || other == nil {
 		return false
@@ -137,7 +139,6 @@ func (self *Column) EqualsInherited(other *Column) bool {
 		strings.EqualFold(self.Type, other.Type) &&
 		self.Nullable == other.Nullable &&
 		self.Default == other.Default &&
-		self.Description == other.Description &&
 		self.SerialStart == other.SerialStart &&
 		strings.EqualFold(self.ForeignSchema, other.ForeignSchema) &&
 		strings.EqualFold(self.ForeignTable, other.ForeignTable) &&
