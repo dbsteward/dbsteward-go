@@ -6,23 +6,53 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-type Introspector struct {
+type IntrospectorFactory interface {
+	NewIntrospector(*Connection) (Introspector, error)
+}
+
+type LiveIntrospectorFactory struct{}
+
+func (*LiveIntrospectorFactory) NewIntrospector(conn *Connection) (Introspector, error) {
+	return NewIntrospector(conn)
+}
+
+type Introspector interface {
+	GetTableList() (StringMapList, error)
+	GetSchemaOwner(schema string) (string, error)
+	GetTableStorageOptions(schema, table string) (map[string]string, error)
+	GetColumns(schema, table string) (StringMapList, error)
+	GetIndexes(schema, table string) (StringMapList, error)
+	GetSequenceRelList(schema string, sequenceCols []string) (StringMapList, error)
+	GetSequencesForRel(schema, rel string) (StringMapList, error)
+	GetViews() (StringMapList, error)
+	GetConstraints() (StringMapList, error)
+	GetForeignKeys() (StringMapList, error)
+	GetFunctions() (StringMapList, error)
+	GetFunctionArgs(fnOid string) (StringMapList, error)
+	GetTriggers() (StringMapList, error)
+	GetTablePerms() (StringMapList, error)
+	GetSequencePerms(seq string) (StringMapList, error)
+}
+
+type LiveIntrospector struct {
 	conn *Connection
 	vers int
 }
 
+var _ Introspector = &LiveIntrospector{}
+
 // TODO(go,3) can we elevate this to an engine-agnostic interface?
 // TODO(go,3) can we defer this to model operations entirely?
 
-func NewIntrospector(conn *Connection) (*Introspector, error) {
+func NewIntrospector(conn *Connection) (*LiveIntrospector, error) {
 	vers, err := conn.Version()
 	if err != nil {
 		return nil, err
 	}
-	return &Introspector{conn, vers}, nil
+	return &LiveIntrospector{conn, vers}, nil
 }
 
-func (self *Introspector) GetTableList() (StringMapList, error) {
+func (self *LiveIntrospector) GetTableList() (StringMapList, error) {
 	// TODO(go,nth) move this into a dedicated function returning structs
 	// TODO(go,3) move column description to column query
 	return self.conn.Query(`
@@ -47,13 +77,13 @@ func (self *Introspector) GetTableList() (StringMapList, error) {
 	`)
 }
 
-func (self *Introspector) GetSchemaOwner(schema string) (string, error) {
+func (self *LiveIntrospector) GetSchemaOwner(schema string) (string, error) {
 	var owner string
 	err := self.conn.QueryVal(&owner, `SELECT schema_owner FROM information_schema.schemata WHERE schema_name = $1`, schema)
 	return owner, err
 }
 
-func (self *Introspector) GetTableStorageOptions(schema, table string) (map[string]string, error) {
+func (self *LiveIntrospector) GetTableStorageOptions(schema, table string) (map[string]string, error) {
 	// TODO(feat) can we just add this to the main query?
 	// NOTE: pg 11.0 dropped support for "with oids" or "oids=true" in DDL
 	//       pg 12.0 drops the relhasoids column from pg_class
@@ -105,7 +135,7 @@ func (self *Introspector) GetTableStorageOptions(schema, table string) (map[stri
 	return params, nil
 }
 
-func (self *Introspector) GetColumns(schema, table string) (StringMapList, error) {
+func (self *LiveIntrospector) GetColumns(schema, table string) (StringMapList, error) {
 	return self.conn.Query(`
 		SELECT
 			column_name, data_type,
@@ -122,7 +152,7 @@ func (self *Introspector) GetColumns(schema, table string) (StringMapList, error
 	`, schema, table)
 }
 
-func (self *Introspector) GetIndexes(schema, table string) (StringMapList, error) {
+func (self *LiveIntrospector) GetIndexes(schema, table string) (StringMapList, error) {
 	return self.conn.Query(`
 		SELECT
 			ic.relname, i.indisunique,
@@ -146,7 +176,7 @@ func (self *Introspector) GetIndexes(schema, table string) (StringMapList, error
 	`, schema, table)
 }
 
-func (self *Introspector) GetSequenceRelList(schema string, sequenceCols []string) (StringMapList, error) {
+func (self *LiveIntrospector) GetSequenceRelList(schema string, sequenceCols []string) (StringMapList, error) {
 	sql := `
 		SELECT s.relname, r.rolname
 		FROM pg_statio_all_sequences s
@@ -163,14 +193,14 @@ func (self *Introspector) GetSequenceRelList(schema string, sequenceCols []strin
 	return self.conn.Query(sql, params...)
 }
 
-func (self *Introspector) GetSequencesForRel(schema, rel string) (StringMapList, error) {
+func (self *LiveIntrospector) GetSequencesForRel(schema, rel string) (StringMapList, error) {
 	return self.conn.Query(fmt.Sprintf(`
 		SELECT cache_value, start_value, min_value, max_value, increment_by, is_cycled
 		FROM "%s"."%s"
 	`, schema, rel))
 }
 
-func (self *Introspector) GetViews() (StringMapList, error) {
+func (self *LiveIntrospector) GetViews() (StringMapList, error) {
 	return self.conn.Query(`
 		SELECT *
       FROM pg_catalog.pg_views
@@ -179,7 +209,7 @@ func (self *Introspector) GetViews() (StringMapList, error) {
 	`)
 }
 
-func (self *Introspector) GetConstraints() (StringMapList, error) {
+func (self *LiveIntrospector) GetConstraints() (StringMapList, error) {
 	return self.conn.Query(`
 		SELECT
 			nspname AS table_schema,
@@ -201,7 +231,7 @@ func (self *Introspector) GetConstraints() (StringMapList, error) {
 	`)
 }
 
-func (self *Introspector) GetForeignKeys() (StringMapList, error) {
+func (self *LiveIntrospector) GetForeignKeys() (StringMapList, error) {
 	// We cannot accurately retrieve FOREIGN KEYs via information_schema
 	// We must rely on getting them from pg_catalog instead
 	// See http://stackoverflow.com/questions/1152260/postgres-sql-to-list-table-foreign-keys
@@ -232,7 +262,7 @@ func (self *Introspector) GetForeignKeys() (StringMapList, error) {
 	`)
 }
 
-func (self *Introspector) GetFunctions() (StringMapList, error) {
+func (self *LiveIntrospector) GetFunctions() (StringMapList, error) {
 	return self.conn.Query(`
 		SELECT
 			p.oid as oid, n.nspname as schema, p.proname as name,
@@ -259,7 +289,7 @@ func (self *Introspector) GetFunctions() (StringMapList, error) {
 	`)
 }
 
-func (self *Introspector) GetFunctionArgs(fnOid string) (StringMapList, error) {
+func (self *LiveIntrospector) GetFunctionArgs(fnOid string) (StringMapList, error) {
 	// unnest the proargtypes (which are in ordinal order) and get the correct format for them.
 	// information_schema.parameters does not contain enough information to get correct type (e.g. ARRAY)
 	//   Note: * proargnames can be empty (not null) if there are no parameters names
@@ -284,7 +314,7 @@ func (self *Introspector) GetFunctionArgs(fnOid string) (StringMapList, error) {
 	`, fnOid)
 }
 
-func (self *Introspector) GetTriggers() (StringMapList, error) {
+func (self *LiveIntrospector) GetTriggers() (StringMapList, error) {
 	return self.conn.Query(`
 		SELECT *
 		FROM information_schema.triggers
@@ -292,7 +322,7 @@ func (self *Introspector) GetTriggers() (StringMapList, error) {
 	`)
 }
 
-func (self *Introspector) GetTablePerms() (StringMapList, error) {
+func (self *LiveIntrospector) GetTablePerms() (StringMapList, error) {
 	return self.conn.Query(`
 		SELECT table_schema, table_name, grantee, privilege_type, is_grantable
 		FROM information_schema.table_privileges
@@ -300,6 +330,6 @@ func (self *Introspector) GetTablePerms() (StringMapList, error) {
 	`)
 }
 
-func (self *Introspector) GetSequencePerms(seq string) (StringMapList, error) {
+func (self *LiveIntrospector) GetSequencePerms(seq string) (StringMapList, error) {
 	return self.conn.Query(`SELECT relacl FROM pg_class WHERE relname = $1`, seq)
 }

@@ -20,7 +20,8 @@ import (
 type Operations struct {
 	*sql99.Operations
 
-	EscapeStringValues bool
+	EscapeStringValues  bool
+	IntrospectorFactory live.IntrospectorFactory
 
 	contextReplicaSetId int
 	quoter              output.Quoter
@@ -28,8 +29,9 @@ type Operations struct {
 
 func NewOperations() *Operations {
 	pgsql := &Operations{
-		Operations:         sql99.NewOperations(),
-		EscapeStringValues: false,
+		Operations:          sql99.NewOperations(),
+		EscapeStringValues:  false,
+		IntrospectorFactory: &live.LiveIntrospectorFactory{},
 	}
 	pgsql.Operations.Operations = pgsql
 	return pgsql
@@ -176,7 +178,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	// TODO(go,pgsql) this is deadlocking during a panic
 	defer conn.Disconnect()
 
-	introspector, err := live.NewIntrospector(conn)
+	introspector, err := self.IntrospectorFactory.NewIntrospector(conn)
 	dbsteward.FatalIfError(err, "could not create schema introspector")
 
 	doc := &model.Definition{
