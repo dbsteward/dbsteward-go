@@ -415,36 +415,34 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	constraintRows, err := introspector.GetConstraints()
 	dbsteward.FatalIfError(err, "Error with constraint query")
 	for _, constraintRow := range constraintRows {
-		dbsteward.Info("Analyze table constraints %s.%s", constraintRow["table_schema"], constraintRow["table_name"])
+		dbsteward.Info("Analyze table constraints %s.%s", constraintRow.Schema, constraintRow.Table)
 
-		schema := doc.TryGetSchemaNamed(constraintRow["table_schema"])
-		util.Assert(schema != nil, "failed to find schema %s for constraint in table %s", constraintRow["table_schema"], constraintRow["table_name"])
+		schema := doc.TryGetSchemaNamed(constraintRow.Schema)
+		util.Assert(schema != nil, "failed to find schema %s for constraint in table %s", constraintRow.Schema, constraintRow.Table)
 
-		table := schema.TryGetTableNamed(constraintRow["table_name"])
-		util.Assert(table != nil, "failed to find table %s.%s for constraint", constraintRow["table_schema"], constraintRow["table_name"])
+		table := schema.TryGetTableNamed(constraintRow.Table)
+		util.Assert(table != nil, "failed to find table %s.%s for constraint", constraintRow.Schema, constraintRow.Table)
 
-		columns := self.parseSqlArray(constraintRow["columns"])
-
-		switch strings.ToLower(constraintRow["constraint_type"]) {
+		switch strings.ToLower(constraintRow.Type) {
 		case "p": // primary key
-			table.PrimaryKey = columns
-			table.PrimaryKeyName = constraintRow["constraint_name"]
+			table.PrimaryKey = constraintRow.Columns
+			table.PrimaryKeyName = constraintRow.Name
 		case "u": // unique
 			table.AddConstraint(&model.Constraint{
-				Name:       constraintRow["constraint_name"],
+				Name:       constraintRow.Name,
 				Type:       model.ConstraintTypeUnique,
-				Definition: fmt.Sprintf(`("%s")`, strings.Join(columns, `", "`)),
+				Definition: fmt.Sprintf(`("%s")`, strings.Join(constraintRow.Columns, `", "`)),
 			})
 		case "c": // check
 			// NEW(2) implementing CHECK constraint extraction
 			// TODO(go,4) we have access to the columns affected by the constraint... can we utilize that somehow?
 			table.AddConstraint(&model.Constraint{
-				Name:       constraintRow["constraint_name"],
+				Name:       constraintRow.Name,
 				Type:       model.ConstraintTypeCheck,
-				Definition: constraintRow["check_src"],
+				Definition: *constraintRow.CheckDef,
 			})
 		default:
-			dbsteward.Fatal("Unknown constraint_type %s", constraintRow["constraint_type"])
+			dbsteward.Fatal("Unknown constraint_type %s", constraintRow.Type)
 		}
 	}
 

@@ -45,3 +45,12 @@ type ViewEntry struct {
 	Owner      string
 	Definition string
 }
+
+type ConstraintEntry struct {
+	Schema   string
+	Table    string
+	Name     string
+	Type     string
+	CheckDef *string
+	Columns  []string
+}

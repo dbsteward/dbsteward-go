@@ -26,7 +26,7 @@ type Introspector interface {
 	GetSequenceRelList(schema string, sequenceCols []string) ([]SequenceRelEntry, error)
 	GetSequencesForRel(schema, rel string) ([]SequenceEntry, error)
 	GetViews() ([]ViewEntry, error)
-	GetConstraints() (StringMapList, error)
+	GetConstraints() ([]ConstraintEntry, error)
 	GetForeignKeys() (StringMapList, error)
 	GetFunctions() (StringMapList, error)
 	GetFunctionArgs(fnOid string) (StringMapList, error)
@@ -319,19 +319,19 @@ func (self *LiveIntrospector) GetViews() ([]ViewEntry, error) {
 	return out, nil
 }
 
-func (self *LiveIntrospector) GetConstraints() (StringMapList, error) {
-	return self.conn.Query(`
+func (self *LiveIntrospector) GetConstraints() ([]ConstraintEntry, error) {
+	res, err := self.conn.QueryRaw(`
 		SELECT
 			nspname AS table_schema,
 			relname AS table_name,
 			conname AS constraint_name,
 			contype AS constraint_type,
 			consrc AS check_src,
-			ARRAY(
-				SELECT attname
+			(
+				SELECT array_agg(attname)
 				FROM unnest(conkey) num
 				INNER JOIN pg_catalog.pg_attribute pga ON pga.attrelid = pgt.oid AND pga.attnum = num
-			) AS columns
+		 	)::text[] AS columns
 		FROM pg_catalog.pg_constraint pgc
 		LEFT JOIN pg_catalog.pg_class pgt ON pgc.conrelid = pgt.oid
 		LEFT JOIN pg_catalog.pg_namespace pgn ON pgc.connamespace = pgn.oid
@@ -339,6 +339,23 @@ func (self *LiveIntrospector) GetConstraints() (StringMapList, error) {
 			AND contype != 'f' -- ignore foreign keys here
 		ORDER BY pgn.nspname, pgt.relname
 	`)
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []ConstraintEntry{}
+	for res.Next() {
+		entry := ConstraintEntry{}
+		err := res.Scan(&entry.Schema, &entry.Table, &entry.Name, &char2str{&entry.Type}, &entry.CheckDef, &entry.Columns)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }
 
 func (self *LiveIntrospector) GetForeignKeys() (StringMapList, error) {
