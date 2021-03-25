@@ -18,3 +18,9 @@ type ColumnEntry struct {
 	Position    int
 	AttrType    string
 }
+
+type IndexEntry struct {
+	Name       string
+	Unique     bool
+	Dimensions []string
+}

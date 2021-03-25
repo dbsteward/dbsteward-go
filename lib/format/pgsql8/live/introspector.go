@@ -22,7 +22,7 @@ type Introspector interface {
 	GetSchemaOwner(schema string) (string, error)
 	GetTableStorageOptions(schema, table string) (map[string]string, error)
 	GetColumns(schema, table string) ([]ColumnEntry, error)
-	GetIndexes(schema, table string) (StringMapList, error)
+	GetIndexes(schema, table string) ([]IndexEntry, error)
 	GetSequenceRelList(schema string, sequenceCols []string) (StringMapList, error)
 	GetSequencesForRel(schema, rel string) (StringMapList, error)
 	GetViews() (StringMapList, error)
@@ -192,8 +192,9 @@ func (self *LiveIntrospector) GetColumns(schema, table string) ([]ColumnEntry, e
 	return out, nil
 }
 
-func (self *LiveIntrospector) GetIndexes(schema, table string) (StringMapList, error) {
-	return self.conn.Query(`
+func (self *LiveIntrospector) GetIndexes(schema, table string) ([]IndexEntry, error) {
+	// TODO(go,nth) double check the `relname NOT IN` clause, it smells fishy to me
+	res, err := self.conn.QueryRaw(`
 		SELECT
 			ic.relname, i.indisunique,
 			(
@@ -214,6 +215,23 @@ func (self *LiveIntrospector) GetIndexes(schema, table string) (StringMapList, e
 				WHERE table_schema = $1
 					AND table_name = $2);
 	`, schema, table)
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []IndexEntry{}
+	for res.Next() {
+		entry := IndexEntry{}
+		err := res.Scan(&entry.Name, &entry.Unique, &entry.Dimensions)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }
 
 func (self *LiveIntrospector) GetSequenceRelList(schema string, sequenceCols []string) (StringMapList, error) {

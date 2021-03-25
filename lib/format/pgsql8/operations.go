@@ -336,13 +336,13 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		for _, indexRow := range indexRows {
 			// only add a unique index if the column was unique
 			index := &model.Index{
-				Name:   indexRow["relname"],
+				Name:   indexRow.Name,
 				Using:  "btree", // TODO(go,pgsql) this is definitely incorrect, need to fix before release
-				Unique: util.IsTruthy(indexRow["indisunique"]),
+				Unique: indexRow.Unique,
 			}
 			table.AddIndex(index)
 
-			for _, dim := range self.parseSqlArray(indexRow["dimensions"]) {
+			for _, dim := range indexRow.Dimensions {
 				index.AddDimension(dim)
 			}
 		}
