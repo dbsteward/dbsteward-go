@@ -25,7 +25,7 @@ type Introspector interface {
 	GetIndexes(schema, table string) ([]IndexEntry, error)
 	GetSequenceRelList(schema string, sequenceCols []string) ([]SequenceRelEntry, error)
 	GetSequencesForRel(schema, rel string) ([]SequenceEntry, error)
-	GetViews() (StringMapList, error)
+	GetViews() ([]ViewEntry, error)
 	GetConstraints() (StringMapList, error)
 	GetForeignKeys() (StringMapList, error)
 	GetFunctions() (StringMapList, error)
@@ -293,13 +293,30 @@ func (self *LiveIntrospector) GetSequencesForRel(schema, rel string) ([]Sequence
 	return out, nil
 }
 
-func (self *LiveIntrospector) GetViews() (StringMapList, error) {
-	return self.conn.Query(`
-		SELECT *
+func (self *LiveIntrospector) GetViews() ([]ViewEntry, error) {
+	res, err := self.conn.QueryRaw(`
+		SELECT schemaname, viewname, viewowner, definition
       FROM pg_catalog.pg_views
       WHERE schemaname NOT IN ('information_schema', 'pg_catalog')
       ORDER BY schemaname, viewname;
 	`)
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []ViewEntry{}
+	for res.Next() {
+		entry := ViewEntry{}
+		err := res.Scan(&entry.Schema, &entry.Name, &entry.Owner, &entry.Definition)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }
 
 func (self *LiveIntrospector) GetConstraints() (StringMapList, error) {

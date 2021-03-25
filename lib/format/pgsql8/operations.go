@@ -380,12 +380,12 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	viewRows, err := introspector.GetViews()
 	dbsteward.FatalIfError(err, "Error with view query")
 	for _, viewRow := range viewRows {
-		dbsteward.Info("Analyze view %s.%s", viewRow["schemaname"], viewRow["viewname"])
+		dbsteward.Info("Analyze view %s.%s", viewRow.Schema, viewRow.Name)
 
-		schema := doc.TryGetSchemaNamed(viewRow["schemaname"])
+		schema := doc.TryGetSchemaNamed(viewRow.Schema)
 		if schema == nil {
 			schema = &model.Schema{
-				Name: viewRow["schemaname"],
+				Name: viewRow.Schema,
 			}
 			doc.AddSchema(schema)
 
@@ -395,16 +395,16 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			schema.Owner = registerRole(roleContextOwner, owner)
 		}
 
-		view := schema.TryGetViewNamed(viewRow["viewname"])
-		util.Assert(view == nil, "view %s.%s already defined in XML object -- unexpected", schema.Name, viewRow["viewname"])
+		view := schema.TryGetViewNamed(viewRow.Name)
+		util.Assert(view == nil, "view %s.%s already defined in XML object -- unexpected", schema.Name, viewRow.Name)
 
 		schema.AddView(&model.View{
-			Name:  viewRow["viewname"],
-			Owner: registerRole(roleContextOwner, viewRow["viewowner"]),
+			Name:  viewRow.Name,
+			Owner: registerRole(roleContextOwner, viewRow.Owner),
 			Queries: []*model.ViewQuery{
 				&model.ViewQuery{
 					SqlFormat: model.SqlFormatPgsql8,
-					Text:      viewRow["definition"],
+					Text:      viewRow.Definition,
 				},
 			},
 		})

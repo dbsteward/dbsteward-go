@@ -38,3 +38,10 @@ type SequenceEntry struct {
 	Increment *int
 	Cycled    bool
 }
+
+type ViewEntry struct {
+	Schema     string
+	Name       string
+	Owner      string
+	Definition string
+}
