@@ -23,8 +23,8 @@ type Introspector interface {
 	GetTableStorageOptions(schema, table string) (map[string]string, error)
 	GetColumns(schema, table string) ([]ColumnEntry, error)
 	GetIndexes(schema, table string) ([]IndexEntry, error)
-	GetSequenceRelList(schema string, sequenceCols []string) (StringMapList, error)
-	GetSequencesForRel(schema, rel string) (StringMapList, error)
+	GetSequenceRelList(schema string, sequenceCols []string) ([]SequenceRelEntry, error)
+	GetSequencesForRel(schema, rel string) ([]SequenceEntry, error)
 	GetViews() (StringMapList, error)
 	GetConstraints() (StringMapList, error)
 	GetForeignKeys() (StringMapList, error)
@@ -234,7 +234,7 @@ func (self *LiveIntrospector) GetIndexes(schema, table string) ([]IndexEntry, er
 	return out, nil
 }
 
-func (self *LiveIntrospector) GetSequenceRelList(schema string, sequenceCols []string) (StringMapList, error) {
+func (self *LiveIntrospector) GetSequenceRelList(schema string, sequenceCols []string) ([]SequenceRelEntry, error) {
 	sql := `
 		SELECT s.relname, r.rolname
 		FROM pg_statio_all_sequences s
@@ -248,14 +248,49 @@ func (self *LiveIntrospector) GetSequenceRelList(schema string, sequenceCols []s
 		params = append(params, sequenceCols)
 	}
 	sql += `GROUP BY s.relname, r.rolname`
-	return self.conn.Query(sql, params...)
+	res, err := self.conn.QueryRaw(sql, params...)
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []SequenceRelEntry{}
+	for res.Next() {
+		entry := SequenceRelEntry{}
+		err := res.Scan(&entry.Name, &entry.Owner)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }
 
-func (self *LiveIntrospector) GetSequencesForRel(schema, rel string) (StringMapList, error) {
-	return self.conn.Query(fmt.Sprintf(`
+func (self *LiveIntrospector) GetSequencesForRel(schema, rel string) ([]SequenceEntry, error) {
+	// TODO(feat) should this read from a catalog instead? can we do away with the dynamic sql? can we merge into GetSequenceRelList()?
+	res, err := self.conn.QueryRaw(fmt.Sprintf(`
 		SELECT cache_value, start_value, min_value, max_value, increment_by, is_cycled
 		FROM "%s"."%s"
 	`, schema, rel))
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []SequenceEntry{}
+	for res.Next() {
+		entry := SequenceEntry{}
+		err := res.Scan(&entry.Cache, &entry.Start, &entry.Min, &entry.Max, &entry.Increment, &entry.Cycled)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }
 
 func (self *LiveIntrospector) GetViews() (StringMapList, error) {

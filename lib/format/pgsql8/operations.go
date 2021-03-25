@@ -356,20 +356,21 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		dbsteward.FatalIfError(err, "Error with sequence list query")
 		for _, seqListRow := range seqListRows {
 			// TODO(feat) can we do away with the N+1 here?
-			seqRows, err := introspector.GetSequencesForRel(schema.Name, seqListRow["relname"])
+			seqRows, err := introspector.GetSequencesForRel(schema.Name, seqListRow.Name)
 			dbsteward.FatalIfError(err, "Error with sequence query")
 			for _, seqRow := range seqRows {
-				seq := schema.TryGetSequenceNamed(seqListRow["relname"])
+				// TODO(feat) what does it even mean to have multiple sequence definitions here? is this correct??
+				seq := schema.TryGetSequenceNamed(seqListRow.Name)
 				if seq != nil {
 					schema.AddSequence(&model.Sequence{
-						Name:      seqListRow["relname"],
-						Owner:     seqListRow["rolname"], // TODO(feat) should this have a translateRoleName call?
-						Cache:     util.Intp(util.MustParseInt(seqRow["cache_value"])),
-						Start:     util.Intp(util.MustParseInt(seqRow["start_value"])),
-						Min:       util.Intp(util.MustParseInt(seqRow["min_value"])),
-						Max:       util.Intp(util.MustParseInt(seqRow["max_value"])),
-						Increment: util.Intp(util.MustParseInt(seqRow["increment_by"])),
-						Cycle:     util.IsTruthy(seqRow["is_cycled"]),
+						Name:      seqListRow.Name,
+						Owner:     seqListRow.Owner, // TODO(feat) should this have a translateRoleName call?
+						Cache:     seqRow.Cache,
+						Start:     seqRow.Start,
+						Min:       seqRow.Min,
+						Max:       seqRow.Max,
+						Increment: seqRow.Increment,
+						Cycle:     seqRow.Cycled,
 					})
 				}
 			}

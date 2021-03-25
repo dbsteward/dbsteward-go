@@ -24,3 +24,17 @@ type IndexEntry struct {
 	Unique     bool
 	Dimensions []string
 }
+
+type SequenceRelEntry struct {
+	Name  string
+	Owner string
+}
+
+type SequenceEntry struct {
+	Cache     *int
+	Start     *int
+	Min       *int
+	Max       *int
+	Increment *int
+	Cycled    bool
+}
