@@ -1,5 +1,9 @@
 package live
 
+import (
+	"github.com/jackc/pgtype"
+)
+
 type TableEntry struct {
 	Schema            string
 	Table             string
@@ -65,4 +69,26 @@ type ForeignKeyEntry struct {
 	ForeignSchema  string
 	ForeignTable   string
 	ForeignColumns []string
+}
+
+type Oid struct {
+	pgtype.OID
+}
+
+type FunctionEntry struct {
+	Oid         Oid
+	Schema      string
+	Name        string
+	Return      string
+	Type        string
+	Volatility  string
+	Owner       string
+	Language    string
+	Source      string
+	Description string
+}
+
+type FunctionArgEntry struct {
+	Name string
+	Type string
 }

@@ -28,8 +28,8 @@ type Introspector interface {
 	GetViews() ([]ViewEntry, error)
 	GetConstraints() ([]ConstraintEntry, error)
 	GetForeignKeys() ([]ForeignKeyEntry, error)
-	GetFunctions() (StringMapList, error)
-	GetFunctionArgs(fnOid string) (StringMapList, error)
+	GetFunctions() ([]FunctionEntry, error)
+	GetFunctionArgs(Oid) ([]FunctionArgEntry, error)
 	GetTriggers() (StringMapList, error)
 	GetTablePerms() (StringMapList, error)
 	GetSequencePerms(seq string) (StringMapList, error)
@@ -410,8 +410,8 @@ func (self *LiveIntrospector) GetForeignKeys() ([]ForeignKeyEntry, error) {
 	return out, nil
 }
 
-func (self *LiveIntrospector) GetFunctions() (StringMapList, error) {
-	return self.conn.Query(`
+func (self *LiveIntrospector) GetFunctions() ([]FunctionEntry, error) {
+	res, err := self.conn.QueryRaw(`
 		SELECT
 			p.oid as oid, n.nspname as schema, p.proname as name,
 			pg_catalog.pg_get_function_result(p.oid) as return_type,
@@ -435,9 +435,30 @@ func (self *LiveIntrospector) GetFunctions() (StringMapList, error) {
 			LEFT JOIN pg_catalog.pg_language l ON l.oid = p.prolang
 		WHERE n.nspname NOT IN ('pg_catalog', 'information_schema');
 	`)
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []FunctionEntry{}
+	for res.Next() {
+		entry := FunctionEntry{}
+		err := res.Scan(
+			&entry.Oid, &entry.Schema, &entry.Name, &entry.Return,
+			&entry.Type, &entry.Volatility, &entry.Owner,
+			&entry.Language, &entry.Source, &entry.Description,
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }
 
-func (self *LiveIntrospector) GetFunctionArgs(fnOid string) (StringMapList, error) {
+func (self *LiveIntrospector) GetFunctionArgs(fnOid Oid) ([]FunctionArgEntry, error) {
 	// unnest the proargtypes (which are in ordinal order) and get the correct format for them.
 	// information_schema.parameters does not contain enough information to get correct type (e.g. ARRAY)
 	//   Note: * proargnames can be empty (not null) if there are no parameters names
@@ -446,8 +467,8 @@ func (self *LiveIntrospector) GetFunctionArgs(fnOid string) (StringMapList, erro
 	//         * proargtypes is an oidvector, enjoy the hackery to deal with NULL proargnames
 	//         * proallargtypes is NULL when all arguments are IN.
 	// TODO(go,3) use something besides oid
-
-	return self.conn.Query(`
+	// TODO(feat) support directionality
+	res, err := self.conn.QueryRaw(`
 		SELECT
 			unnest(coalesce(
 				proargnames,
@@ -460,6 +481,23 @@ func (self *LiveIntrospector) GetFunctionArgs(fnOid string) (StringMapList, erro
 		FROM pg_proc pr
 		WHERE oid = $1
 	`, fnOid)
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []FunctionArgEntry{}
+	for res.Next() {
+		entry := FunctionArgEntry{}
+		err := res.Scan(&entry.Name, &entry.Type)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }
 
 func (self *LiveIntrospector) GetTriggers() (StringMapList, error) {

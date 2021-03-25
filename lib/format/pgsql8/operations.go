@@ -503,20 +503,20 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	fnRows, err := introspector.GetFunctions()
 	dbsteward.FatalIfError(err, "Error with function query")
 	for _, fnRow := range fnRows {
-		if fnRow["type"] == "window" || fnRow["type"] == "aggregate" {
-			dbsteward.Warning("Ignoring %s function %s.%s, this is not currently supported by DBSteward", fnRow["type"], fnRow["schema"], fnRow["name"])
+		if fnRow.Type == "window" || fnRow.Type == "aggregate" {
+			dbsteward.Warning("Ignoring %s function %s.%s, this is not currently supported by DBSteward", fnRow.Type, fnRow.Schema, fnRow.Name)
 			continue
 		}
-		if fnRow["language"] == "c" {
-			dbsteward.Warning("Ignoring native (c) function %s.%s, this is not currently supported by DBSteward", fnRow["schema"], fnRow["name"])
+		if fnRow.Language == "c" {
+			dbsteward.Warning("Ignoring native (c) function %s.%s, this is not currently supported by DBSteward", fnRow.Schema, fnRow.Name)
 			continue
 		}
-		dbsteward.Info("Analyze function %s.%s", fnRow["schema"], fnRow["name"])
+		dbsteward.Info("Analyze function %s.%s", fnRow.Schema, fnRow.Name)
 
-		schema := doc.TryGetSchemaNamed(fnRow["schema"])
+		schema := doc.TryGetSchemaNamed(fnRow.Schema)
 		if schema == nil {
 			schema = &model.Schema{
-				Name: fnRow["schema"],
+				Name: fnRow.Schema,
 			}
 			doc.AddSchema(schema)
 
@@ -528,27 +528,27 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		// TODO(feat) should we see if there's another function by this name already? that'd probably be unexpected, but would likely indicate a bug in our query
 		function := &model.Function{
-			Name:        fnRow["name"],
-			Returns:     fnRow["return_type"],
-			CachePolicy: fnRow["volatility"],
-			Owner:       registerRole(roleContextOwner, fnRow["owner"]),
-			Description: fnRow["description"],
+			Name:        fnRow.Name,
+			Returns:     fnRow.Return,
+			CachePolicy: fnRow.Volatility,
+			Owner:       registerRole(roleContextOwner, fnRow.Owner),
+			Description: fnRow.Description,
 			// TODO(feat): how is / figure out how to express securityDefiner attribute in the functions query
 			Definitions: []*model.FunctionDefinition{
 				&model.FunctionDefinition{
 					SqlFormat: model.SqlFormatPgsql8,
-					Language:  fnRow["language"],
-					Text:      fnRow["source"],
+					Language:  fnRow.Language,
+					Text:      fnRow.Source,
 				},
 			},
 		}
 		schema.AddFunction(function)
 
-		argsRows, err := introspector.GetFunctionArgs(fnRow["oid"])
+		argsRows, err := introspector.GetFunctionArgs(fnRow.Oid)
 		dbsteward.FatalIfError(err, "Error with function args query")
 		for _, argsRow := range argsRows {
 			// TODO(feat) param direction?
-			function.AddParameter(argsRow["parameter_name"], argsRow["data_type"])
+			function.AddParameter(argsRow.Name, argsRow.Type)
 		}
 	}
 

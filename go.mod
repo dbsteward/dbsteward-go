@@ -6,6 +6,7 @@ require (
 	github.com/alexflint/go-arg v1.3.0
 	github.com/golang/mock v1.4.4
 	github.com/hashicorp/go-multierror v1.1.0
+	github.com/jackc/pgtype v1.6.2
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jackc/pgx/v4 v4.10.1
 	github.com/pkg/errors v0.8.1
