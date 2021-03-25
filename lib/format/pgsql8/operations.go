@@ -456,46 +456,43 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	fkRows, err := introspector.GetForeignKeys()
 	dbsteward.FatalIfError(err, "Error with foreign key query")
 	for _, fkRow := range fkRows {
-		localCols := strings.Split(fkRow["local_columns"], " ")
-		foreignCols := strings.Split(fkRow["foreign_columns"], " ")
-
-		if len(localCols) != len(foreignCols) {
+		if len(fkRow.LocalColumns) != len(fkRow.ForeignColumns) {
 			dbsteward.Fatal(
 				"Unexpected: Foreign key columns (%v) on %s.%s are mismatched with columns (%v) on %s.%s",
-				localCols, fkRow["local_schema"], fkRow["local_table"],
-				foreignCols, fkRow["foreign_schema"], fkRow["foreign_table"],
+				fkRow.LocalColumns, fkRow.LocalSchema, fkRow.LocalTable,
+				fkRow.ForeignColumns, fkRow.ForeignSchema, fkRow.ForeignTable,
 			)
 		}
 
-		schema := doc.TryGetSchemaNamed(fkRow["local_schema"])
-		util.Assert(schema != nil, "failed to find schema %s for foreign key in table %s", fkRow["local_schema"], fkRow["local_table"])
+		schema := doc.TryGetSchemaNamed(fkRow.LocalSchema)
+		util.Assert(schema != nil, "failed to find schema %s for foreign key in table %s", fkRow.LocalSchema, fkRow.LocalTable)
 
-		table := schema.TryGetTableNamed(fkRow["local_table"])
-		util.Assert(table != nil, "failed to find table %s.%s for foreign key", fkRow["local_schema"], fkRow["local_table"])
+		table := schema.TryGetTableNamed(fkRow.LocalTable)
+		util.Assert(table != nil, "failed to find table %s.%s for foreign key", fkRow.LocalSchema, fkRow.LocalTable)
 
-		if len(localCols) == 1 {
+		if len(fkRow.LocalColumns) == 1 {
 			// add inline on the column
-			column := table.TryGetColumnNamed(localCols[0])
-			util.Assert(column != nil, "failed to find column %s.%s.%s for foreign key", fkRow["local_schema"], fkRow["local_table"], localCols[0])
+			column := table.TryGetColumnNamed(fkRow.LocalColumns[0])
+			util.Assert(column != nil, "failed to find column %s.%s.%s for foreign key", fkRow.LocalSchema, fkRow.LocalTable, fkRow.LocalColumns[0])
 
-			column.ForeignSchema = fkRow["foreign_schema"]
-			column.ForeignTable = fkRow["foreign_table"]
-			column.ForeignColumn = foreignCols[0]
-			column.ForeignKeyName = fkRow["constraint_name"]
-			column.ForeignOnUpdate = fkRules[fkRow["update_rule"]]
-			column.ForeignOnDelete = fkRules[fkRow["delete_rule"]]
+			column.ForeignSchema = fkRow.ForeignSchema
+			column.ForeignTable = fkRow.ForeignTable
+			column.ForeignColumn = fkRow.ForeignColumns[0]
+			column.ForeignKeyName = fkRow.ConstraintName
+			column.ForeignOnUpdate = fkRules[fkRow.UpdateRule]
+			column.ForeignOnDelete = fkRules[fkRow.DeleteRule]
 
 			// dbsteward fk columns aren't supposed to specify a type, they get it from the referenced column
 			column.Type = ""
-		} else if len(localCols) > 1 {
+		} else if len(fkRow.LocalColumns) > 1 {
 			table.AddForeignKey(&model.ForeignKey{
-				Columns:        localCols,
-				ForeignSchema:  fkRow["foreign_schema"],
-				ForeignTable:   fkRow["foreign_table"],
-				ForeignColumns: foreignCols,
-				ConstraintName: fkRow["constraint_name"],
-				OnUpdate:       fkRules[fkRow["update_rule"]],
-				OnDelete:       fkRules[fkRow["delete_rule"]],
+				Columns:        fkRow.LocalColumns,
+				ForeignSchema:  fkRow.ForeignSchema,
+				ForeignTable:   fkRow.ForeignTable,
+				ForeignColumns: fkRow.ForeignColumns,
+				ConstraintName: fkRow.ConstraintName,
+				OnUpdate:       fkRules[fkRow.UpdateRule],
+				OnDelete:       fkRules[fkRow.DeleteRule],
 			})
 		}
 	}

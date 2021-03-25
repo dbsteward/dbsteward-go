@@ -54,3 +54,15 @@ type ConstraintEntry struct {
 	CheckDef *string
 	Columns  []string
 }
+
+type ForeignKeyEntry struct {
+	ConstraintName string
+	UpdateRule     string
+	DeleteRule     string
+	LocalSchema    string
+	LocalTable     string
+	LocalColumns   []string
+	ForeignSchema  string
+	ForeignTable   string
+	ForeignColumns []string
+}

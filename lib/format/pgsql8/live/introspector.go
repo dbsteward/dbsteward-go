@@ -27,7 +27,7 @@ type Introspector interface {
 	GetSequencesForRel(schema, rel string) ([]SequenceEntry, error)
 	GetViews() ([]ViewEntry, error)
 	GetConstraints() ([]ConstraintEntry, error)
-	GetForeignKeys() (StringMapList, error)
+	GetForeignKeys() ([]ForeignKeyEntry, error)
 	GetFunctions() (StringMapList, error)
 	GetFunctionArgs(fnOid string) (StringMapList, error)
 	GetTriggers() (StringMapList, error)
@@ -358,15 +358,15 @@ func (self *LiveIntrospector) GetConstraints() ([]ConstraintEntry, error) {
 	return out, nil
 }
 
-func (self *LiveIntrospector) GetForeignKeys() (StringMapList, error) {
+func (self *LiveIntrospector) GetForeignKeys() ([]ForeignKeyEntry, error) {
 	// We cannot accurately retrieve FOREIGN KEYs via information_schema
 	// We must rely on getting them from pg_catalog instead
 	// See http://stackoverflow.com/questions/1152260/postgres-sql-to-list-table-foreign-keys
-	return self.conn.Query(`
+	res, err := self.conn.QueryRaw(`
 		SELECT
 			con.constraint_name, con.update_rule, con.delete_rule,
-			lns.nspname AS local_schema, lt_cl.relname AS local_table, array_to_string(array_agg(lc_att.attname), ' ') AS local_columns,
-			fns.nspname AS foreign_schema, ft_cl.relname AS foreign_table, array_to_string(array_agg(fc_att.attname), ' ') AS foreign_columns
+			lns.nspname AS local_schema, lt_cl.relname AS local_table, array_agg(lc_att.attname)::text[] AS local_columns,
+			fns.nspname AS foreign_schema, ft_cl.relname AS foreign_table, array_agg(fc_att.attname)::text[] AS foreign_columns
 		FROM (
 			-- get column mappings
 			SELECT
@@ -387,6 +387,27 @@ func (self *LiveIntrospector) GetForeignKeys() (StringMapList, error) {
 			INNER JOIN pg_attribute fc_att ON fc_att.attrelid = con.foreign_table AND fc_att.attnum = con.foreign_col
 		GROUP BY con.constraint_name, lns.nspname, lt_cl.relname, fns.nspname, ft_cl.relname, con.update_rule, con.delete_rule;
 	`)
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []ForeignKeyEntry{}
+	for res.Next() {
+		entry := ForeignKeyEntry{}
+		err := res.Scan(
+			&entry.ConstraintName, &char2str{&entry.UpdateRule}, &char2str{&entry.DeleteRule},
+			&entry.LocalSchema, &entry.LocalTable, &entry.LocalColumns,
+			&entry.ForeignSchema, &entry.ForeignTable, &entry.ForeignColumns,
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }
 
 func (self *LiveIntrospector) GetFunctions() (StringMapList, error) {
