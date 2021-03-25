@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dbsteward/dbsteward/lib/util"
+	"github.com/pkg/errors"
 )
 
 type IntrospectorFactory interface {
@@ -17,7 +18,7 @@ func (*LiveIntrospectorFactory) NewIntrospector(conn *Connection) (Introspector,
 }
 
 type Introspector interface {
-	GetTableList() (StringMapList, error)
+	GetTableList() ([]TableEntry, error)
 	GetSchemaOwner(schema string) (string, error)
 	GetTableStorageOptions(schema, table string) (map[string]string, error)
 	GetColumns(schema, table string) (StringMapList, error)
@@ -52,10 +53,9 @@ func NewIntrospector(conn *Connection) (*LiveIntrospector, error) {
 	return &LiveIntrospector{conn, vers}, nil
 }
 
-func (self *LiveIntrospector) GetTableList() (StringMapList, error) {
-	// TODO(go,nth) move this into a dedicated function returning structs
+func (self *LiveIntrospector) GetTableList() ([]TableEntry, error) {
 	// TODO(go,3) move column description to column query
-	return self.conn.Query(`
+	res, err := self.conn.QueryRaw(`
 		SELECT
 			t.schemaname, t.tablename, t.tableowner, t.tablespace,
 			sd.description as schema_description, td.description as table_description,
@@ -75,6 +75,27 @@ func (self *LiveIntrospector) GetTableList() (StringMapList, error) {
 		WHERE schemaname NOT IN ('information_schema', 'pg_catalog')
 		ORDER BY schemaname, tablename;
 	`)
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []TableEntry{}
+	for res.Next() {
+		entry := TableEntry{}
+		err := res.Scan(
+			&entry.Schema, &entry.Table, &entry.Owner, &entry.Tablespace,
+			&maybeStr{&entry.SchemaDescription}, &maybeStr{&entry.TableDescription},
+			&entry.ColumnDescriptions, &entry.ParentTables,
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }
 
 func (self *LiveIntrospector) GetSchemaOwner(schema string) (string, error) {

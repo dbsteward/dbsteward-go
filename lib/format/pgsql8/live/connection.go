@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/jackc/pgx/v4"
+
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 )
@@ -42,6 +44,10 @@ func (self *Connection) Version() (int, error) {
 
 func (self *Connection) Disconnect() {
 	self.conn.Close()
+}
+
+func (self *Connection) QueryRaw(query string, params ...interface{}) (pgx.Rows, error) {
+	return self.conn.Query(context.TODO(), query, params...)
 }
 
 func (self *Connection) Query(query string, params ...interface{}) (StringMapList, error) {

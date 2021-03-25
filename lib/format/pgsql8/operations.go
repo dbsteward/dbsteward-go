@@ -230,17 +230,17 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	sequenceCols := []string{}
 	tableSerials := []string{}
 	for _, row := range tableRows {
-		schemaName := row["schemaname"]
-		tableName := row["tablename"]
+		schemaName := row.Schema
+		tableName := row.Table
 
-		dbsteward.Info("Analyze table options %s.%s", row["schemaname"], row["tablename"])
+		dbsteward.Info("Analyze table options %s.%s", row.Schema, row.Table)
 		// schemaname | tablename | tableowner | tablespace | hasindexes | hasrules | hastriggers
 		// create the schema if it is missing
 		schema := doc.TryGetSchemaNamed(schemaName)
 		if schema == nil {
 			schema = &model.Schema{
 				Name:        schemaName,
-				Description: row["schema_description"],
+				Description: row.SchemaDescription,
 			}
 			doc.AddSchema(schema)
 
@@ -255,14 +255,14 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		util.Assert(table == nil, "table %s.%s already defined in xml object - unexpected", schema.Name, tableName)
 		table = &model.Table{
 			Name:        tableName,
-			Owner:       registerRole(roleContextOwner, row["tableowner"]),
-			Description: row["table_description"],
+			Owner:       registerRole(roleContextOwner, row.Owner),
+			Description: row.TableDescription,
 		}
 		schema.AddTable(table)
 
 		// extract tablespace as a tableOption
-		if len(row["tablespace"]) > 0 {
-			table.SetTableOption(model.SqlFormatPgsql8, "tablespace", row["tablespace"])
+		if row.Tablespace != nil {
+			table.SetTableOption(model.SqlFormatPgsql8, "tablespace", *row.Tablespace)
 		}
 
 		// extract storage parameters as a tableOption
@@ -273,20 +273,19 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		}
 
 		// NEW(2): extract table inheritance. need this to complete example diffing validation
-		parents := self.parseSqlArray(row["parent_tables"])
-		if len(parents) > 1 {
-			// TODO(go,3) remove this restriction
-			dbsteward.Fatal("Unsupported: Table %s.%s inherits from more than one table: %v", schema.Name, table.Name, parents)
+		if len(row.ParentTables) > 1 {
+			// TODO(go,4) remove this restriction
+			dbsteward.Fatal("Unsupported: Table %s.%s inherits from more than one table: %v", schema.Name, table.Name, row.ParentTables)
 		}
-		if len(parents) == 1 {
-			parts := strings.Split(parents[0], ".")
+		if len(row.ParentTables) == 1 {
+			parts := strings.Split(row.ParentTables[0], ".")
 			table.InheritsSchema = parts[0]
 			table.InheritsTable = parts[1]
 		}
 
 		dbsteward.Info("Analyze table columns %s.%s", schema.Name, table.Name)
 		columnDescriptions := map[string]string{}
-		for _, desc := range self.parseSqlArray(row["column_descriptions"]) {
+		for _, desc := range row.ColumnDescriptions {
 			indexDesc := strings.Split(desc, ";") // see the array_agg in the main query
 			columnDescriptions[indexDesc[0]] = indexDesc[1]
 		}
