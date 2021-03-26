@@ -50,6 +50,9 @@ func (self *Connection) Disconnect() {
 func (self *Connection) QueryRaw(query string, params ...interface{}) (pgx.Rows, error) {
 	return self.conn.Query(context.TODO(), query, params...)
 }
+func (self *Connection) QueryRawRow(query string, params ...interface{}) pgx.Row {
+	return self.conn.QueryRow(context.TODO(), query, params...)
+}
 
 func (self *Connection) Query(query string, params ...interface{}) (StringMapList, error) {
 	out := StringMapList{}
@@ -88,15 +91,4 @@ func (self *Connection) Query(query string, params ...interface{}) (StringMapLis
 
 func (self *Connection) QueryVal(val interface{}, sql string, params ...interface{}) error {
 	return self.conn.QueryRow(context.TODO(), sql, params...).Scan(val)
-}
-
-func (self *Connection) QueryStringMap(sql string, params ...interface{}) (StringMap, error) {
-	recs, err := self.Query(sql, params...)
-	if err != nil {
-		return nil, err
-	}
-	if len(recs) == 0 {
-		return nil, errors.New("No rows returned")
-	}
-	return recs[0], nil
 }

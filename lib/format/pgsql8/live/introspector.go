@@ -107,48 +107,37 @@ func (self *LiveIntrospector) GetTableStorageOptions(schema, table string) (map[
 	// TODO(feat) can we just add this to the main query?
 	// NOTE: pg 11.0 dropped support for "with oids" or "oids=true" in DDL
 	//       pg 12.0 drops the relhasoids column from pg_class
-	relhasoids := "false"
-	reloptions := ""
-	if self.vers.IsOlderThan(12, 0) {
-		paramsRow, err := self.conn.QueryStringMap(`
-			SELECT reloptions, relhasoids
-			FROM pg_catalog.pg_class
-			WHERE relname = $1
-				AND relnamespace = (
-					SELECT oid
-					FROM pg_catalog.pg_namespace
-					WHERE nspname = $2
-				)
-		`, table, schema)
-		if err != nil {
-			return nil, err
-		}
-		reloptions = paramsRow["reloptions"]
-		relhasoids = paramsRow["relhasoids"]
-	} else {
-		paramsRow, err := self.conn.QueryStringMap(`
-			SELECT reloptions
-			FROM pg_catalog.pg_class
-			WHERE relname = $1
-				AND relnamespace = (
-					SELECT oid
-					FROM pg_catalog.pg_namespace
-					WHERE nspname = $2
-				)
-		`, table, schema)
-		if err != nil {
-			return nil, err
-		}
-		reloptions = paramsRow["reloptions"]
+	var opts struct {
+		Options []string
+		HasOids bool
 	}
 
-	// reloptions is formatted as {name=value,name=value}
-	params := map[string]string{}
-	if len(reloptions) > 2 {
-		params = util.ParseKV(reloptions[1:len(reloptions)-1], ",", "=")
+	relhasoidsCol := "false as relhasoids"
+	if self.vers.IsOlderThan(12, 0) {
+		relhasoidsCol = "relhasoids"
 	}
+
+	res := self.conn.QueryRawRow(fmt.Sprintf(`
+		SELECT reloptions, %s
+		FROM pg_catalog.pg_class
+		WHERE relname = $1
+			AND relnamespace = (
+				SELECT oid
+				FROM pg_catalog.pg_namespace
+				WHERE nspname = $2
+			)
+	`, relhasoidsCol), table, schema)
+
+	err := res.Scan(&opts.Options, &opts.HasOids)
+	if err != nil {
+		return nil, err
+	}
+
+	// Options[i] is formatted as key=value
+	params := util.CollectKV(opts.Options, "=")
+
 	// dbsteward/dbsteward#97: with oids=false is the default
-	if hasoids := util.IsTruthy(relhasoids); hasoids {
+	if opts.HasOids {
 		params["oids"] = "true"
 	}
 
@@ -501,9 +490,9 @@ func (self *LiveIntrospector) GetFunctionArgs(fnOid Oid) ([]FunctionArgEntry, er
 }
 
 func (self *LiveIntrospector) GetTriggers() ([]TriggerEntry, error) {
-	timing_col := "action_timing"
+	timingCol := "action_timing"
 	if self.vers.IsOlderThan(9, 1) {
-		timing_col = "condition_timing"
+		timingCol = "condition_timing"
 	}
 	res, err := self.conn.QueryRaw(fmt.Sprintf(`
 		SELECT
@@ -512,7 +501,7 @@ func (self *LiveIntrospector) GetTriggers() ([]TriggerEntry, error) {
 			action_orientation, action_statement
 		FROM information_schema.triggers
 		WHERE trigger_schema NOT IN ('pg_catalog', 'information_schema')
-	`, timing_col))
+	`, timingCol))
 	if err != nil {
 		return nil, errors.Wrap(err, "while running query")
 	}

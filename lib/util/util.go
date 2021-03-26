@@ -87,17 +87,25 @@ func CoalesceStr(strs ...string) string {
 	return ""
 }
 
-func ParseKV(str, fieldSep, keySep string) map[string]string {
-	out := map[string]string{}
-	for _, field := range strings.Split(str, fieldSep) {
-		kv := strings.Split(field, keySep)
-		if len(kv) == 1 {
-			out[kv[0]] = ""
-		} else {
-			out[kv[0]] = kv[1]
-		}
+func SplitKV(str, sep string) (string, string) {
+	kv := strings.Split(str, sep)
+	if len(kv) == 1 {
+		return kv[0], ""
+	}
+	return kv[0], kv[1]
+}
+
+func CollectKV(kv []string, sep string) map[string]string {
+	out := make(map[string]string, len(kv))
+	for _, kv := range kv {
+		k, v := SplitKV(kv, sep)
+		out[k] = v
 	}
 	return out
+}
+
+func ParseKV(str, fieldSep, keySep string) map[string]string {
+	return CollectKV(strings.Split(str, fieldSep), keySep)
 }
 
 func EncodeKV(kv map[string]string, fieldSep, keySep string) string {
