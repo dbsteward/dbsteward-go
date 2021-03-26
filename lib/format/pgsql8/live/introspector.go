@@ -57,7 +57,7 @@ func (self *LiveIntrospector) GetTableList() ([]TableEntry, error) {
 	// TODO(go,3) move column description to column query
 	// Note that old versions of postgres don't support array_agg(description ORDER BY objsubid)
 	// so we need to use subquery to do ordering
-	res, err := self.conn.QueryRaw(`
+	res, err := self.conn.Query(`
 		SELECT
 			t.schemaname, t.tablename, t.tableowner, t.tablespace,
 			sd.description as schema_description, td.description as table_description,
@@ -117,7 +117,7 @@ func (self *LiveIntrospector) GetTableStorageOptions(schema, table string) (map[
 		relhasoidsCol = "relhasoids"
 	}
 
-	res := self.conn.QueryRawRow(fmt.Sprintf(`
+	res := self.conn.QueryRow(fmt.Sprintf(`
 		SELECT reloptions, %s
 		FROM pg_catalog.pg_class
 		WHERE relname = $1
@@ -145,7 +145,7 @@ func (self *LiveIntrospector) GetTableStorageOptions(schema, table string) (map[
 }
 
 func (self *LiveIntrospector) GetColumns(schema, table string) ([]ColumnEntry, error) {
-	res, err := self.conn.QueryRaw(`
+	res, err := self.conn.Query(`
 		SELECT
 			column_name, column_default, is_nullable = 'YES', pgd.description,
 			ordinal_position, format_type(atttypid, atttypmod) as attribute_data_type
@@ -183,7 +183,7 @@ func (self *LiveIntrospector) GetColumns(schema, table string) ([]ColumnEntry, e
 
 func (self *LiveIntrospector) GetIndexes(schema, table string) ([]IndexEntry, error) {
 	// TODO(go,nth) double check the `relname NOT IN` clause, it smells fishy to me
-	res, err := self.conn.QueryRaw(`
+	res, err := self.conn.Query(`
 		SELECT
 			ic.relname, i.indisunique,
 			(
@@ -237,7 +237,7 @@ func (self *LiveIntrospector) GetSequenceRelList(schema string, sequenceCols []s
 		params = append(params, sequenceCols)
 	}
 	sql += `GROUP BY s.relname, r.rolname`
-	res, err := self.conn.QueryRaw(sql, params...)
+	res, err := self.conn.Query(sql, params...)
 	if err != nil {
 		return nil, errors.Wrap(err, "while running query")
 	}
@@ -259,7 +259,7 @@ func (self *LiveIntrospector) GetSequenceRelList(schema string, sequenceCols []s
 
 func (self *LiveIntrospector) GetSequencesForRel(schema, rel string) ([]SequenceEntry, error) {
 	// TODO(feat) should this read from a catalog instead? can we do away with the dynamic sql? can we merge into GetSequenceRelList()?
-	res, err := self.conn.QueryRaw(fmt.Sprintf(`
+	res, err := self.conn.Query(fmt.Sprintf(`
 		SELECT cache_value, start_value, min_value, max_value, increment_by, is_cycled
 		FROM "%s"."%s"
 	`, schema, rel))
@@ -283,7 +283,7 @@ func (self *LiveIntrospector) GetSequencesForRel(schema, rel string) ([]Sequence
 }
 
 func (self *LiveIntrospector) GetViews() ([]ViewEntry, error) {
-	res, err := self.conn.QueryRaw(`
+	res, err := self.conn.Query(`
 		SELECT schemaname, viewname, viewowner, definition
       FROM pg_catalog.pg_views
       WHERE schemaname NOT IN ('information_schema', 'pg_catalog')
@@ -309,7 +309,7 @@ func (self *LiveIntrospector) GetViews() ([]ViewEntry, error) {
 }
 
 func (self *LiveIntrospector) GetConstraints() ([]ConstraintEntry, error) {
-	res, err := self.conn.QueryRaw(`
+	res, err := self.conn.Query(`
 		SELECT
 			nspname AS table_schema,
 			relname AS table_name,
@@ -351,7 +351,7 @@ func (self *LiveIntrospector) GetForeignKeys() ([]ForeignKeyEntry, error) {
 	// We cannot accurately retrieve FOREIGN KEYs via information_schema
 	// We must rely on getting them from pg_catalog instead
 	// See http://stackoverflow.com/questions/1152260/postgres-sql-to-list-table-foreign-keys
-	res, err := self.conn.QueryRaw(`
+	res, err := self.conn.Query(`
 		SELECT
 			con.constraint_name, con.update_rule, con.delete_rule,
 			lns.nspname AS local_schema, lt_cl.relname AS local_table, array_agg(lc_att.attname)::text[] AS local_columns,
@@ -400,7 +400,7 @@ func (self *LiveIntrospector) GetForeignKeys() ([]ForeignKeyEntry, error) {
 }
 
 func (self *LiveIntrospector) GetFunctions() ([]FunctionEntry, error) {
-	res, err := self.conn.QueryRaw(`
+	res, err := self.conn.Query(`
 		SELECT
 			p.oid as oid, n.nspname as schema, p.proname as name,
 			pg_catalog.pg_get_function_result(p.oid) as return_type,
@@ -457,7 +457,7 @@ func (self *LiveIntrospector) GetFunctionArgs(fnOid Oid) ([]FunctionArgEntry, er
 	//         * proallargtypes is NULL when all arguments are IN.
 	// TODO(go,3) use something besides oid
 	// TODO(feat) support directionality
-	res, err := self.conn.QueryRaw(`
+	res, err := self.conn.Query(`
 		SELECT
 			unnest(coalesce(
 				proargnames,
@@ -494,7 +494,7 @@ func (self *LiveIntrospector) GetTriggers() ([]TriggerEntry, error) {
 	if self.vers.IsOlderThan(9, 1) {
 		timingCol = "condition_timing"
 	}
-	res, err := self.conn.QueryRaw(fmt.Sprintf(`
+	res, err := self.conn.Query(fmt.Sprintf(`
 		SELECT
 			event_object_schema, event_object_table, trigger_name,
 			event_manipulation, %s,
@@ -525,7 +525,7 @@ func (self *LiveIntrospector) GetTriggers() ([]TriggerEntry, error) {
 }
 
 func (self *LiveIntrospector) GetTablePerms() ([]TablePermEntry, error) {
-	res, err := self.conn.QueryRaw(`
+	res, err := self.conn.Query(`
 		SELECT table_schema, table_name, grantee, privilege_type, is_grantable = 'YES'
 		FROM information_schema.table_privileges
 		WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
@@ -550,7 +550,7 @@ func (self *LiveIntrospector) GetTablePerms() ([]TablePermEntry, error) {
 }
 
 func (self *LiveIntrospector) GetSequencePerms(seq string) ([]SequencePermEntry, error) {
-	res, err := self.conn.QueryRaw(`SELECT relacl FROM pg_class WHERE relname = $1`, seq)
+	res, err := self.conn.Query(`SELECT relacl FROM pg_class WHERE relname = $1`, seq)
 	if err != nil {
 		return nil, errors.Wrap(err, "while running query")
 	}

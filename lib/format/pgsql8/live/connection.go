@@ -47,14 +47,14 @@ func (self *Connection) Disconnect() {
 	self.conn.Close()
 }
 
-func (self *Connection) QueryRaw(query string, params ...interface{}) (pgx.Rows, error) {
+func (self *Connection) Query(query string, params ...interface{}) (pgx.Rows, error) {
 	return self.conn.Query(context.TODO(), query, params...)
 }
-func (self *Connection) QueryRawRow(query string, params ...interface{}) pgx.Row {
+func (self *Connection) QueryRow(query string, params ...interface{}) pgx.Row {
 	return self.conn.QueryRow(context.TODO(), query, params...)
 }
 
-func (self *Connection) Query(query string, params ...interface{}) (StringMapList, error) {
+func (self *Connection) QueryMap(query string, params ...interface{}) (StringMapList, error) {
 	out := StringMapList{}
 	rows, err := self.conn.Query(context.TODO(), query, params...)
 	if err != nil {

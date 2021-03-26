@@ -775,7 +775,7 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 
 					// TODO(go,nth) use parameterized queries
 					sql := fmt.Sprintf(`SELECT * FROM %s WHERE %s`, tableName, pkExpr)
-					rows, err := conn.Query(sql)
+					rows, err := conn.QueryMap(sql)
 					dbsteward.FatalIfError(err, "Error with data query")
 
 					if row.Delete {
