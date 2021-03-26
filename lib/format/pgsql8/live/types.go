@@ -92,3 +92,13 @@ type FunctionArgEntry struct {
 	Name string
 	Type string
 }
+
+type TriggerEntry struct {
+	Schema      string
+	Table       string
+	Name        string
+	Event       string
+	Timing      string
+	Orientation string
+	Statement   string
+}

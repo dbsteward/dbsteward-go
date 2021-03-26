@@ -33,13 +33,14 @@ func NewConnection(host string, port uint, name, user, pass string) (*Connection
 	return &Connection{conn}, nil
 }
 
-func (self *Connection) Version() (int, error) {
-	var v string
+func (self *Connection) Version() (VersionNum, error) {
+	var v string // for reasons unknown, this won't scan to int, only string
 	err := self.QueryVal(&v, "SHOW server_version_num;")
 	if err != nil {
 		return 0, err
 	}
-	return strconv.Atoi(v)
+	i, err := strconv.Atoi(v)
+	return VersionNum(i), err
 }
 
 func (self *Connection) Disconnect() {

@@ -30,14 +30,14 @@ type Introspector interface {
 	GetForeignKeys() ([]ForeignKeyEntry, error)
 	GetFunctions() ([]FunctionEntry, error)
 	GetFunctionArgs(Oid) ([]FunctionArgEntry, error)
-	GetTriggers() (StringMapList, error)
+	GetTriggers() ([]TriggerEntry, error)
 	GetTablePerms() (StringMapList, error)
 	GetSequencePerms(seq string) (StringMapList, error)
 }
 
 type LiveIntrospector struct {
 	conn *Connection
-	vers int
+	vers VersionNum
 }
 
 var _ Introspector = &LiveIntrospector{}
@@ -109,7 +109,7 @@ func (self *LiveIntrospector) GetTableStorageOptions(schema, table string) (map[
 	//       pg 12.0 drops the relhasoids column from pg_class
 	relhasoids := "false"
 	reloptions := ""
-	if self.vers < Version12_0 {
+	if self.vers.IsOlderThan(12, 0) {
 		paramsRow, err := self.conn.QueryStringMap(`
 			SELECT reloptions, relhasoids
 			FROM pg_catalog.pg_class
@@ -500,12 +500,39 @@ func (self *LiveIntrospector) GetFunctionArgs(fnOid Oid) ([]FunctionArgEntry, er
 	return out, nil
 }
 
-func (self *LiveIntrospector) GetTriggers() (StringMapList, error) {
-	return self.conn.Query(`
-		SELECT *
+func (self *LiveIntrospector) GetTriggers() ([]TriggerEntry, error) {
+	timing_col := "action_timing"
+	if self.vers.IsOlderThan(9, 1) {
+		timing_col = "condition_timing"
+	}
+	res, err := self.conn.QueryRaw(fmt.Sprintf(`
+		SELECT
+			event_object_schema, event_object_table, trigger_name,
+			event_manipulation, %s,
+			action_orientation, action_statement
 		FROM information_schema.triggers
 		WHERE trigger_schema NOT IN ('pg_catalog', 'information_schema')
-	`)
+	`, timing_col))
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []TriggerEntry{}
+	for res.Next() {
+		entry := TriggerEntry{}
+		err := res.Scan(
+			&entry.Schema, &entry.Table, &entry.Name, &entry.Event,
+			&entry.Timing, &entry.Orientation, &entry.Statement,
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }
 
 func (self *LiveIntrospector) GetTablePerms() (StringMapList, error) {

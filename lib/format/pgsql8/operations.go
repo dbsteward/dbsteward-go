@@ -556,20 +556,20 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	triggerRows, err := introspector.GetTriggers()
 	dbsteward.FatalIfError(err, "Error with trigger query")
 	for _, triggerRow := range triggerRows {
-		dbsteward.Info("Analyze trigger %s.%s", triggerRow["event_object_schema"], triggerRow["trigger_name"])
+		dbsteward.Info("Analyze trigger %s.%s", triggerRow.Schema, triggerRow.Name)
 
-		schema := doc.TryGetSchemaNamed(triggerRow["event_object_schema"])
-		util.Assert(schema != nil, "failed to find schema %s for trigger on table %s", triggerRow["event_object_schema"], triggerRow["event_object_table"])
+		schema := doc.TryGetSchemaNamed(triggerRow.Schema)
+		util.Assert(schema != nil, "failed to find schema %s for trigger on table %s", triggerRow.Schema, triggerRow.Table)
 
-		table := schema.TryGetTableNamed(triggerRow["event_object_table"])
-		util.Assert(table != nil, "failed to find table %s.%s for trigger", triggerRow["event_object_schema"], triggerRow["event_object_table"])
+		table := schema.TryGetTableNamed(triggerRow.Table)
+		util.Assert(table != nil, "failed to find table %s.%s for trigger", triggerRow.Schema, triggerRow.Table)
 
 		// there is a row for each event_manipulation, so we need to aggregate them, see if the trigger already exists
 		// TODO(go,nth) can we simplify this by adding a groupby in the query?
-		trigger := schema.TryGetTriggerNamedForTable(triggerRow["trigger_name"], triggerRow["event_object_table"])
+		trigger := schema.TryGetTriggerNamedForTable(triggerRow.Name, triggerRow.Table)
 		if trigger == nil {
 			trigger = &model.Trigger{
-				Name:      triggerRow["trigger_name"],
+				Name:      triggerRow.Name,
 				SqlFormat: model.SqlFormatPgsql8,
 			}
 			schema.AddTrigger(trigger)
@@ -577,11 +577,11 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		// TODO(feat) what should happen if we have two events with different settings??
 		// TODO(go,nth) validate string constant casts
-		trigger.AddEvent(triggerRow["event_manipulation"])
-		trigger.Timing = model.TriggerTiming(util.CoalesceStr(triggerRow["condition_timing"], triggerRow["action_timing"]))
-		trigger.Table = triggerRow["event_object_table"]
-		trigger.ForEach = model.TriggerForEach(triggerRow["action_orientation"])
-		trigger.Function = strings.TrimSpace(util.IReplaceAll(triggerRow["action_statement"], "EXECUTE PROCEDURE", ""))
+		trigger.AddEvent(triggerRow.Event)
+		trigger.Timing = model.TriggerTiming(triggerRow.Timing)
+		trigger.Table = triggerRow.Table
+		trigger.ForEach = model.TriggerForEach(triggerRow.Orientation)
+		trigger.Function = strings.TrimSpace(util.IReplaceAll(triggerRow.Statement, "EXECUTE PROCEDURE", ""))
 	}
 
 	// Find table/view grants and save them in the xml document
