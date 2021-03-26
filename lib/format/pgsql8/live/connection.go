@@ -12,6 +12,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+//go:generate $PWD/run _mockgen lib/format/pgsql8/live Connection
+
 type Connection interface {
 	Version() (VersionNum, error)
 	Disconnect()
@@ -40,6 +42,22 @@ func (*LiveConnectionFactory) NewConnection(host string, port uint, name, user, 
 
 	return &LiveConnection{conn}, nil
 }
+
+type ConstantConnectionFactory struct {
+	Connection Connection
+}
+
+var _ ConnectionFactory = &ConstantConnectionFactory{}
+
+func (self *ConstantConnectionFactory) NewConnection(string, uint, string, string, string) (Connection, error) {
+	return self.Connection, nil
+}
+
+type NullConnection struct {
+	Connection
+}
+
+func (*NullConnection) Disconnect() {}
 
 type LiveConnection struct {
 	conn *pgxpool.Pool

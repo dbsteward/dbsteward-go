@@ -7,6 +7,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+//go:generate $PWD/run _mockgen lib/format/pgsql8/live Introspector
+
 type IntrospectorFactory interface {
 	NewIntrospector(Connection) (Introspector, error)
 }
@@ -21,6 +23,16 @@ func (*LiveIntrospectorFactory) NewIntrospector(conn Connection) (Introspector, 
 		return nil, err
 	}
 	return &LiveIntrospector{conn, vers}, nil
+}
+
+type ConstantIntrospectorFactory struct {
+	Introspector Introspector
+}
+
+var _ IntrospectorFactory = &ConstantIntrospectorFactory{}
+
+func (self *ConstantIntrospectorFactory) NewIntrospector(Connection) (Introspector, error) {
+	return self.Introspector, nil
 }
 
 type Introspector interface {
