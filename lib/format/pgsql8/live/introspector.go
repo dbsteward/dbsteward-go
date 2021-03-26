@@ -8,13 +8,19 @@ import (
 )
 
 type IntrospectorFactory interface {
-	NewIntrospector(*Connection) (Introspector, error)
+	NewIntrospector(Connection) (Introspector, error)
 }
 
 type LiveIntrospectorFactory struct{}
 
-func (*LiveIntrospectorFactory) NewIntrospector(conn *Connection) (Introspector, error) {
-	return NewIntrospector(conn)
+var _ IntrospectorFactory = &LiveIntrospectorFactory{}
+
+func (*LiveIntrospectorFactory) NewIntrospector(conn Connection) (Introspector, error) {
+	vers, err := conn.Version()
+	if err != nil {
+		return nil, err
+	}
+	return &LiveIntrospector{conn, vers}, nil
 }
 
 type Introspector interface {
@@ -36,7 +42,7 @@ type Introspector interface {
 }
 
 type LiveIntrospector struct {
-	conn *Connection
+	conn Connection
 	vers VersionNum
 }
 
@@ -44,14 +50,6 @@ var _ Introspector = &LiveIntrospector{}
 
 // TODO(go,3) can we elevate this to an engine-agnostic interface?
 // TODO(go,3) can we defer this to model operations entirely?
-
-func NewIntrospector(conn *Connection) (*LiveIntrospector, error) {
-	vers, err := conn.Version()
-	if err != nil {
-		return nil, err
-	}
-	return &LiveIntrospector{conn, vers}, nil
-}
 
 func (self *LiveIntrospector) GetTableList() ([]TableEntry, error) {
 	// TODO(go,3) move column description to column query

@@ -22,6 +22,7 @@ type Operations struct {
 
 	EscapeStringValues  bool
 	IntrospectorFactory live.IntrospectorFactory
+	ConnectionFactory   live.ConnectionFactory
 
 	contextReplicaSetId int
 	quoter              output.Quoter
@@ -32,6 +33,7 @@ func NewOperations() *Operations {
 		Operations:          sql99.NewOperations(),
 		EscapeStringValues:  false,
 		IntrospectorFactory: &live.LiveIntrospectorFactory{},
+		ConnectionFactory:   &live.LiveConnectionFactory{},
 	}
 	pgsql.Operations.Operations = pgsql
 	return pgsql
@@ -173,8 +175,8 @@ func (self *Operations) BuildUpgrade(
 func (self *Operations) ExtractSchema(host string, port uint, name, user, pass string) *model.Definition {
 	dbsteward := lib.GlobalDBSteward
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as %s", host, port, name, user)
-	conn, err := live.NewConnection(host, port, name, user, pass)
-	dbsteward.FatalIfError(err, "Could not extract schema")
+	conn, err := self.ConnectionFactory.NewConnection(host, port, name, user, pass)
+	dbsteward.FatalIfError(err, "could not connect to database")
 	// TODO(go,pgsql) this is deadlocking during a panic
 	defer conn.Disconnect()
 
@@ -716,7 +718,7 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 	dbsteward := lib.GlobalDBSteward
 
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as user %s", host, port, name, user)
-	conn, err := live.NewConnection(host, port, name, user, pass)
+	conn, err := self.ConnectionFactory.NewConnection(host, port, name, user, pass)
 	dbsteward.FatalIfError(err, "Could not compare db data")
 	defer conn.Disconnect()
 
@@ -806,7 +808,7 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 	}
 	return doc
 }
-func (self *Operations) compareDbDataRow(conn *live.Connection, colType, xmlValue, dbValue string) (bool, string, string) {
+func (self *Operations) compareDbDataRow(conn live.Connection, colType, xmlValue, dbValue string) (bool, string, string) {
 	colType = strings.ToLower(colType)
 	xmlValue = self.pgdataHomogenize(colType, xmlValue)
 	dbValue = self.pgdataHomogenize(colType, dbValue)

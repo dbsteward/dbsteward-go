@@ -12,14 +12,22 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Connection struct {
-	conn *pgxpool.Pool
+type Connection interface {
+	Version() (VersionNum, error)
+	Disconnect()
+	Query(query string, params ...interface{}) (pgx.Rows, error)
+	QueryRow(query string, params ...interface{}) pgx.Row
+	QueryMap(query string, params ...interface{}) (StringMapList, error)
+	QueryVal(val interface{}, sql string, params ...interface{}) error
 }
 
-type StringMap map[string]string
-type StringMapList []StringMap
+type ConnectionFactory interface {
+	NewConnection(host string, port uint, name, user, pass string) (Connection, error)
+}
 
-func NewConnection(host string, port uint, name, user, pass string) (*Connection, error) {
+type LiveConnectionFactory struct{}
+
+func (*LiveConnectionFactory) NewConnection(host string, port uint, name, user, pass string) (Connection, error) {
 	// TODO(go,3) sslmode?
 	// TODO(go,3) just have the user pass the entire DSN
 	// TODO(feat) support envvar password
@@ -30,10 +38,17 @@ func NewConnection(host string, port uint, name, user, pass string) (*Connection
 		return nil, errors.Wrap(err, "Could not connect to postgres database")
 	}
 
-	return &Connection{conn}, nil
+	return &LiveConnection{conn}, nil
 }
 
-func (self *Connection) Version() (VersionNum, error) {
+type LiveConnection struct {
+	conn *pgxpool.Pool
+}
+
+type StringMap map[string]string
+type StringMapList []StringMap
+
+func (self *LiveConnection) Version() (VersionNum, error) {
 	var v string // for reasons unknown, this won't scan to int, only string
 	err := self.QueryVal(&v, "SHOW server_version_num;")
 	if err != nil {
@@ -43,18 +58,18 @@ func (self *Connection) Version() (VersionNum, error) {
 	return VersionNum(i), err
 }
 
-func (self *Connection) Disconnect() {
+func (self *LiveConnection) Disconnect() {
 	self.conn.Close()
 }
 
-func (self *Connection) Query(query string, params ...interface{}) (pgx.Rows, error) {
+func (self *LiveConnection) Query(query string, params ...interface{}) (pgx.Rows, error) {
 	return self.conn.Query(context.TODO(), query, params...)
 }
-func (self *Connection) QueryRow(query string, params ...interface{}) pgx.Row {
+func (self *LiveConnection) QueryRow(query string, params ...interface{}) pgx.Row {
 	return self.conn.QueryRow(context.TODO(), query, params...)
 }
 
-func (self *Connection) QueryMap(query string, params ...interface{}) (StringMapList, error) {
+func (self *LiveConnection) QueryMap(query string, params ...interface{}) (StringMapList, error) {
 	out := StringMapList{}
 	rows, err := self.conn.Query(context.TODO(), query, params...)
 	if err != nil {
@@ -89,6 +104,6 @@ func (self *Connection) QueryMap(query string, params ...interface{}) (StringMap
 	return out, nil
 }
 
-func (self *Connection) QueryVal(val interface{}, sql string, params ...interface{}) error {
+func (self *LiveConnection) QueryVal(val interface{}, sql string, params ...interface{}) error {
 	return self.conn.QueryRow(context.TODO(), sql, params...).Scan(val)
 }
