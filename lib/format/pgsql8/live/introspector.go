@@ -31,8 +31,8 @@ type Introspector interface {
 	GetFunctions() ([]FunctionEntry, error)
 	GetFunctionArgs(Oid) ([]FunctionArgEntry, error)
 	GetTriggers() ([]TriggerEntry, error)
-	GetTablePerms() (StringMapList, error)
-	GetSequencePerms(seq string) (StringMapList, error)
+	GetTablePerms() ([]TablePermEntry, error)
+	GetSequencePerms(seq string) ([]SequencePermEntry, error)
 }
 
 type LiveIntrospector struct {
@@ -535,14 +535,48 @@ func (self *LiveIntrospector) GetTriggers() ([]TriggerEntry, error) {
 	return out, nil
 }
 
-func (self *LiveIntrospector) GetTablePerms() (StringMapList, error) {
-	return self.conn.Query(`
-		SELECT table_schema, table_name, grantee, privilege_type, is_grantable
+func (self *LiveIntrospector) GetTablePerms() ([]TablePermEntry, error) {
+	res, err := self.conn.QueryRaw(`
+		SELECT table_schema, table_name, grantee, privilege_type, is_grantable = 'YES'
 		FROM information_schema.table_privileges
 		WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
 	`)
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []TablePermEntry{}
+	for res.Next() {
+		entry := TablePermEntry{}
+		err := res.Scan(&entry.Schema, &entry.Table, &entry.Grantee, &entry.Type, &entry.Grantable)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }
 
-func (self *LiveIntrospector) GetSequencePerms(seq string) (StringMapList, error) {
-	return self.conn.Query(`SELECT relacl FROM pg_class WHERE relname = $1`, seq)
+func (self *LiveIntrospector) GetSequencePerms(seq string) ([]SequencePermEntry, error) {
+	res, err := self.conn.QueryRaw(`SELECT relacl FROM pg_class WHERE relname = $1`, seq)
+	if err != nil {
+		return nil, errors.Wrap(err, "while running query")
+	}
+
+	out := []SequencePermEntry{}
+	for res.Next() {
+		entry := SequencePermEntry{}
+		err := res.Scan(&entry.Acl)
+		if err != nil {
+			return nil, errors.Wrap(err, "while scanning result")
+		}
+		out = append(out, entry)
+	}
+	if err := res.Err(); err != nil {
+		return nil, errors.Wrap(err, "while iterating results")
+	}
+	return out, nil
 }

@@ -102,3 +102,15 @@ type TriggerEntry struct {
 	Orientation string
 	Statement   string
 }
+
+type TablePermEntry struct {
+	Schema    string
+	Table     string
+	Grantee   string
+	Type      string
+	Grantable bool
+}
+
+type SequencePermEntry struct {
+	Acl string
+}

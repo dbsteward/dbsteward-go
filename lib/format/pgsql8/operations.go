@@ -590,19 +590,19 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	grantRows, err := introspector.GetTablePerms()
 	dbsteward.FatalIfError(err, "Error with grant query")
 	for _, grantRow := range grantRows {
-		schema := doc.TryGetSchemaNamed(grantRow["table_schema"])
-		util.Assert(schema != nil, "failed to find schema %s for trigger on table %s", grantRow["table_schema"], grantRow["table_name"])
+		schema := doc.TryGetSchemaNamed(grantRow.Schema)
+		util.Assert(schema != nil, "failed to find schema %s for trigger on table %s", grantRow.Schema, grantRow.Table)
 
-		relation := schema.TryGetRelationNamed(grantRow["table_name"]) // relation = table|view
-		util.Assert(relation != nil, "failed to find relation %s.%s for trigger", grantRow["table_schema"], grantRow["table_name"])
+		relation := schema.TryGetRelationNamed(grantRow.Table) // relation = table|view
+		util.Assert(relation != nil, "failed to find relation %s.%s for trigger", grantRow.Schema, grantRow.Table)
 
 		// ignore owner roles; those permissions are implicitly assigned by ALTER ... OWNER
-		if strings.EqualFold(relation.GetOwner(), grantRow["grantee"]) {
+		if strings.EqualFold(relation.GetOwner(), grantRow.Grantee) {
 			continue
 		}
 
 		// aggregate privileges by role
-		grantee := registerRole(roleContextGrant, grantRow["grantee"])
+		grantee := registerRole(roleContextGrant, grantRow.Grantee)
 		docGrants := relation.GetGrantsForRole(grantee)
 		var grant *model.Grant
 		if len(docGrants) == 0 {
@@ -613,10 +613,10 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		} else {
 			grant = docGrants[0]
 		}
-		grant.AddPermission(grantRow["privilege_type"])
+		grant.AddPermission(grantRow.Type)
 		// TODO(feat) what should happen if two grants for the same role have different is_grantable?
 		// TODO(feat) what about other WITH flags?
-		grant.SetCanGrant(util.IsTruthy(grantRow["is_grantable"]))
+		grant.SetCanGrant(grantRow.Grantable)
 	}
 
 	// analyze sequence grants and assign those to the xml document as well
@@ -629,10 +629,10 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				// privileges for unassociated sequences are not listed in
 				// information_schema.sequences; i think this is probably the most
 				// accurate way to get sequence-level grants
-				if grantRow["relacl"] == "" {
+				if grantRow.Acl == "" {
 					continue
 				}
-				grantPerms := self.parseSequenceRelAcl(grantRow["relacl"])
+				grantPerms := self.parseSequenceRelAcl(grantRow.Acl)
 				for user, perms := range grantPerms {
 					grantee := registerRole(roleContextGrant, user)
 					for _, perm := range perms {
