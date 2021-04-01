@@ -480,6 +480,78 @@ func TestOperations_ExtractSchema_DoNotExtractSequenceFromSerial(t *testing.T) {
 	assert.Len(t, schema.Sequences, 0)
 }
 
+func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	introspector := live.NewMockIntrospector(ctrl)
+
+	// CREATE TABLE dummy (foo int, bar varchar(32), PRIMARY KEY (foo, bar));
+	// CREATE TABLE test (
+	// 	id int PRIMARY KEY,
+	// 	foo int,
+	// 	bar varchar(32),
+	// 	FOREIGN KEY (foo, bar) REFERENCES dummy (foo, bar)
+	// 		ON UPDATE NO ACTION
+	// 		ON DELETE SET NULL
+	// );
+
+	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
+		{Schema: "public", Table:"dummy"},
+		{Schema: "public", Table:"test"},
+	}, nil)
+	introspector.EXPECT().GetColumns("public", "dummy").Return([]live.ColumnEntry{
+		{Name:"feux", AttrType:"integer"},
+		{Name:"barf", AttrType:"character varying(32)"},
+	}, nil)
+	introspector.EXPECT().GetColumns("public", "test").Return([]live.ColumnEntry{
+		{Name:"id", AttrType:"integer"},
+		{Name:"foo", AttrType:"integer"},
+		{Name:"bar", AttrType:"character varying(32)"},
+	}, nil)
+	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
+		{Schema:"public", Table:"dummy", Name:"dummy_pkey", Type:"p", Columns:[]string{"foo","bar"}},
+		{Schema:"public", Table:"test", Name:"test_pkey", Type:"p", Columns:[]string{"id"}},
+	}, nil)
+	introspector.EXPECT().GetForeignKeys().Return([]live.ForeignKeyEntry{
+		live.ForeignKeyEntry{
+			ConstraintName: "test_foo_fkey",
+			UpdateRule: "a",
+			DeleteRule: "n",
+			LocalSchema: "public",
+			LocalTable: "test",
+			LocalColumns: []string{"foo", "bar"},
+			ForeignSchema: "public",
+			ForeignTable: "dummy",
+			ForeignColumns: []string{"feux", "barf"},
+		},
+	}, nil)
+	introspector.EXPECT().GetFunctions().AnyTimes()
+	introspector.EXPECT().GetFunctionArgs(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTriggers().AnyTimes()
+	introspector.EXPECT().GetViews().AnyTimes()
+	introspector.EXPECT().GetTablePerms().AnyTimes()
+	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
+
+	schema := commonExtract(introspector)
+	assert.Equal(t, []*model.ForeignKey{
+		&model.ForeignKey{
+			ConstraintName: "test_foo_fkey",
+			Columns: model.DelimitedList{"foo","bar"},
+			ForeignSchema: "public",
+			ForeignTable: "dummy",
+			ForeignColumns: model.DelimitedList{"feux", "barf"},
+			OnUpdate: model.ForeignKeyActionNoAction,
+			OnDelete: model.ForeignKeyActionSetNull,
+		},
+	}, schema.Tables[1].ForeignKeys)
+	// these should _not_ be omitted in this case, because it's a separate element
+	assert.Equal(t, "integer", schema.Tables[1].Columns[1].Type)
+	assert.Equal(t, "character varying(32)", schema.Tables[1].Columns[2].Type)
+}
+
 func commonExtract(introspector *live.MockIntrospector) *model.Schema {
 	ops := pgsql8.GlobalOperations
 	origCF := ops.ConnectionFactory
