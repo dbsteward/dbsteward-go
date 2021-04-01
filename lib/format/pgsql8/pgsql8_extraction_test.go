@@ -17,6 +17,27 @@ import (
 //                but this only tests ExtractSchema. We still should test the other layers, and come up with a story
 //                around e2e testing with a real db connection.
 
+/* Copy+paste and change for each test:
+	ctrl := gomock.NewController(t)
+	introspector := live.NewMockIntrospector(ctrl)
+
+	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTableList().AnyTimes()
+	introspector.EXPECT().GetColumns(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetConstraints().AnyTimes()
+	introspector.EXPECT().GetForeignKeys().AnyTimes()
+	introspector.EXPECT().GetFunctions().AnyTimes()
+	introspector.EXPECT().GetTriggers().AnyTimes()
+	introspector.EXPECT().GetViews().AnyTimes()
+	introspector.EXPECT().GetTablePerms().AnyTimes()
+	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
+
+	schema := commonExtract(introspector)
+*/
+
 func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	introspector := live.NewMockIntrospector(ctrl)
@@ -189,6 +210,50 @@ func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
 	assert.Equal(t, []*model.Constraint{
 		{Name: "test_constraint", Type: model.ConstraintTypeUnique, Definition: `("col2", "col3", "col4")`},
 	}, schema.Tables[0].Constraints)
+}
+
+func TestOperations_ExtractSchema_TableComments(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	introspector := live.NewMockIntrospector(ctrl)
+
+	schemaDesc := "A description of the public schema"
+	tableDesc := "A description of the test table"
+	colDesc := "A description of col1 on the test table"
+
+	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
+		live.TableEntry{
+			Schema: "public",
+			SchemaDescription: schemaDesc,
+			Table: "test",
+			TableDescription: tableDesc,
+		},
+	}, nil)
+	introspector.EXPECT().GetColumns(gomock.Any(), gomock.Any()).Return([]live.ColumnEntry{
+		live.ColumnEntry{
+			Name: "col1",
+			AttrType: "text",
+			Description: colDesc,
+		},
+	}, nil)
+	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
+		{Schema: "public", Table: "test", Name: "test_col1_pkey", Type: "p", Columns: []string{"col1"}},
+	}, nil)
+	introspector.EXPECT().GetForeignKeys().AnyTimes()
+	introspector.EXPECT().GetFunctions().AnyTimes()
+	introspector.EXPECT().GetTriggers().AnyTimes()
+	introspector.EXPECT().GetViews().AnyTimes()
+	introspector.EXPECT().GetTablePerms().AnyTimes()
+	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
+
+	schema := commonExtract(introspector)
+
+	assert.Equal(t, schemaDesc, schema.Description)
+	assert.Equal(t, tableDesc, schema.Tables[0].Description)
+	assert.Equal(t, colDesc, schema.Tables[0].Columns[0].Description)
 }
 
 func commonExtract(introspector *live.MockIntrospector) *model.Schema {
