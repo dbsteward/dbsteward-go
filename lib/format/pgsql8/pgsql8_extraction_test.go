@@ -13,8 +13,11 @@ import (
 )
 
 // TODO(go,3) is there a way to make this set of tests a whole lot less annoying?
+// TODO(go,pgsql) the v1 ExtractionTest tested what is now ExtractSchema, Introspector, Connection, _and_ postgres
+//                but this only tests ExtractSchema. We still should test the other layers, and come up with a story
+//                around e2e testing with a real db connection.
 
-func TestOperations_ExtractSchema_FunctionalIndex(t *testing.T) {
+func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	introspector := live.NewMockIntrospector(ctrl)
 
@@ -52,7 +55,9 @@ func TestOperations_ExtractSchema_FunctionalIndex(t *testing.T) {
 			Position: 3,
 		},
 	}, nil)
+
 	introspector.EXPECT().GetIndexes("public", "test").Return([]live.IndexEntry{
+		// test that both column and functional expressions work as expected
 		live.IndexEntry{
 			Name: "testidx",
 			Dimensions: []string{
@@ -63,6 +68,15 @@ func TestOperations_ExtractSchema_FunctionalIndex(t *testing.T) {
 				"\"overlay\"(btrim(col2), 'x'::text, 2)",
 			},
 		},
+		// test that index column order is extracted correctly
+		live.IndexEntry{
+			Name: "testidx2",
+			Dimensions: []string{"col1", "col2", "col3"},
+		},
+		live.IndexEntry{
+			Name: "testidx3",
+			Dimensions: []string{"col2", "col1", "col3"},
+		},
 	}, nil)
 
 	schema := commonExtract(introspector)
@@ -71,19 +85,39 @@ func TestOperations_ExtractSchema_FunctionalIndex(t *testing.T) {
 	// TODO(feat) test conditional index
 	// TODO(feat) test unique index
 	// TODO(feat) assert that .Sql = true
-	expected := &model.Index{
-		Name:  "testidx",
-		Using: "btree",
-		Dimensions: []*model.IndexDim{
-			{Name: "testidx_1", Value: "lower(col1)"},
-			{Name: "testidx_2", Value: "col2"},
-			{Name: "testidx_3", Value: "(col1 || ';;'::text)"},
-			{Name: "testidx_4", Value: "col3"},
-			{Name: "testidx_5", Value: "\"overlay\"(btrim(col2), 'x'::text, 2)"},
+	expected := []*model.Index{
+		&model.Index{
+			Name:  "testidx",
+			Using: "btree",
+			Dimensions: []*model.IndexDim{
+				{Name: "testidx_1", Value: "lower(col1)"},
+				{Name: "testidx_2", Value: "col2"},
+				{Name: "testidx_3", Value: "(col1 || ';;'::text)"},
+				{Name: "testidx_4", Value: "col3"},
+				{Name: "testidx_5", Value: "\"overlay\"(btrim(col2), 'x'::text, 2)"},
+			},
+		},
+		&model.Index{
+			Name:  "testidx2",
+			Using: "btree",
+			Dimensions: []*model.IndexDim{
+				{Name: "testidx2_1", Value: "col1"},
+				{Name: "testidx2_2", Value: "col2"},
+				{Name: "testidx2_3", Value: "col3"},
+			},
+		},
+		&model.Index{
+			Name:  "testidx3",
+			Using: "btree",
+			Dimensions: []*model.IndexDim{
+				{Name: "testidx3_1", Value: "col2"},
+				{Name: "testidx3_2", Value: "col1"},
+				{Name: "testidx3_3", Value: "col3"},
+			},
 		},
 	}
 	// test the full slice of indexes to ensure we don't do something weird like duplicate/split the index
-	assert.Equal(t, []*model.Index{expected}, schema.Tables[0].Indexes)
+	assert.Equal(t, expected, schema.Tables[0].Indexes)
 }
 
 func commonExtract(introspector *live.MockIntrospector) *model.Schema {
