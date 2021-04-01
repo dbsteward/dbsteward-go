@@ -120,6 +120,77 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 	assert.Equal(t, expected, schema.Tables[0].Indexes)
 }
 
+func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	introspector := live.NewMockIntrospector(ctrl)
+
+	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetViews().AnyTimes()
+	introspector.EXPECT().GetForeignKeys().AnyTimes()
+	introspector.EXPECT().GetFunctions().AnyTimes()
+	introspector.EXPECT().GetTriggers().AnyTimes()
+	introspector.EXPECT().GetTablePerms().AnyTimes()
+	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetIndexes("public", "test").AnyTimes()
+
+	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
+		live.TableEntry{
+			Schema: "public",
+			Table:  "test",
+		},
+	}, nil)
+	introspector.EXPECT().GetColumns("public", "test").Return([]live.ColumnEntry{
+		live.ColumnEntry{
+			Name:     "col1",
+			AttrType: "bigint",
+			Nullable: false,
+			Position: 1,
+		},
+		live.ColumnEntry{
+			Name:     "col2",
+			AttrType: "bigint",
+			Nullable: false,
+			Position: 2,
+		},
+		live.ColumnEntry{
+			Name:     "col3",
+			AttrType: "character varying(20)",
+			Nullable: false,
+			Position: 3,
+		},
+		live.ColumnEntry{
+			Name:     "col4",
+			AttrType: "character varying(20)",
+			Nullable: true,
+			Position: 3,
+		},
+	}, nil)
+
+	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
+		live.ConstraintEntry{
+			Schema: "public",
+			Table: "test",
+			Name: "test_constraint",
+			Type: "u",
+			Columns: []string{"col2", "col3", "col4"},
+		},
+	}, nil)
+
+	schema := commonExtract(introspector)
+
+	// compound constraints should not set individual column uniqueness
+	assert.False(t, schema.Tables[0].Columns[1].Unique)
+	assert.False(t, schema.Tables[0].Columns[2].Unique)
+	assert.False(t, schema.Tables[0].Columns[3].Unique)
+
+	// TODO(go,pgsql) why is this quoted, it shouldn't be quoted unless we turn it on.... right?
+	assert.Equal(t, []*model.Constraint{
+		{Name: "test_constraint", Type: model.ConstraintTypeUnique, Definition: `("col2", "col3", "col4")`},
+	}, schema.Tables[0].Constraints)
+}
+
 func commonExtract(introspector *live.MockIntrospector) *model.Schema {
 	ops := pgsql8.GlobalOperations
 	origCF := ops.ConnectionFactory
