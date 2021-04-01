@@ -420,6 +420,33 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 	assert.Equal(t, "uuid[]", schema.Functions[3].Parameters[1].Type)
 }
 
+func TestOperations_ExtractSchema_TableArrayType(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	introspector := live.NewMockIntrospector(ctrl)
+
+	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
+		{Schema: "public", Table: "test"},
+	}, nil)
+	introspector.EXPECT().GetColumns("public", "test").Return([]live.ColumnEntry{
+		{Name: "name", AttrType: "text[]"},
+	}, nil)
+	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetConstraints().AnyTimes()
+	introspector.EXPECT().GetForeignKeys().AnyTimes()
+	introspector.EXPECT().GetFunctions().AnyTimes()
+	introspector.EXPECT().GetFunctionArgs(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTriggers().AnyTimes()
+	introspector.EXPECT().GetViews().AnyTimes()
+	introspector.EXPECT().GetTablePerms().AnyTimes()
+	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
+
+	schema := commonExtract(introspector)
+	assert.Equal(t, "text[]", schema.Tables[0].Columns[0].Type)
+}
+
 func commonExtract(introspector *live.MockIntrospector) *model.Schema {
 	ops := pgsql8.GlobalOperations
 	origCF := ops.ConnectionFactory
