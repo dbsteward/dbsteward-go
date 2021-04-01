@@ -2,6 +2,7 @@ package util
 
 // TODO(go,nth) see if there's places in the code we can trivially upgrade to use a Set
 // instead of the assortment of util set union/diff/intersect functions
+// TODO(go,nth) make this threadsafe
 
 type Set struct {
 	m  map[interface{}]interface{}

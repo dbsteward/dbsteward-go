@@ -78,25 +78,27 @@ func (self *DiffTables) updateTableOptions(stage1 output.OutputFileSegmenter, ol
 	newOpts := newTable.GetTableOptionStrMap(model.SqlFormatPgsql8)
 
 	// dropped options are those present in old table but not new
-	deleteOpts := util.IDifferenceStrMapKeys(oldOpts, newOpts)
+	deleteOpts := oldOpts.DifferenceIStr(newOpts)
 
 	// added options are those present in new table but not old
-	createOpts := util.IDifferenceStrMapKeys(newOpts, oldOpts)
+	createOpts := newOpts.DifferenceIStr(oldOpts)
 
 	// changed options are those present in both tables but with different values
-	updateOpts := util.IntersectStrMapFunc(newOpts, oldOpts, func(newKey, oldKey string) bool {
-		return strings.EqualFold(newKey, oldKey) && !strings.EqualFold(newOpts[newKey], oldOpts[oldKey])
+	updateOpts := newOpts.IntersectFunc(oldOpts, func(newKey, oldKey interface{}) bool {
+		return util.IStrEqual(newKey, oldKey) && !util.IStrEqual(newOpts.Get(newKey), oldOpts.Get(newKey))
 	})
 
 	return self.applyTableOptionsDiff(stage1, newSchema, newTable, updateOpts, createOpts, deleteOpts)
 }
 
-func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *model.Schema, table *model.Table, updateOpts, createOpts, deleteOpts map[string]string) error {
+func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *model.Schema, table *model.Table, updateOpts, createOpts, deleteOpts *util.OrderedMap) error {
 	alters := []sql.TableAlterPart{}
 	ref := sql.TableRef{schema.Name, table.Name}
 
 	// in pgsql create and alter have the same syntax
-	for name, value := range util.IUnionStrMapKeys(createOpts, updateOpts) {
+	for _, kv := range createOpts.UnionIStr(updateOpts).Entries() {
+		name := kv[0].(string)
+		value := kv[1].(string)
 		if strings.EqualFold(name, "with") {
 			// ALTER TABLE ... SET (params) doesn't accept oids=true/false unlike CREATE TABLE
 			// only WITH OIDS or WITHOUT OIDS
@@ -127,7 +129,9 @@ func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter,
 		}
 	}
 
-	for name, value := range deleteOpts {
+	for _, kv := range deleteOpts.Entries() {
+		name := kv[0].(string)
+		value := kv[1].(string)
 		if strings.EqualFold(name, "with") {
 			params := GlobalTable.ParseStorageParams(value)
 			// handle oids separately since pgsql doesn't recognize it as a storage parameter in an ALTER TABLE

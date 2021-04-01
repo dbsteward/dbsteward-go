@@ -66,10 +66,11 @@ func (self *Table) GetTableOptions(sqlFormat SqlFormat) []*TableOption {
 	return out
 }
 
-func (self *Table) GetTableOptionStrMap(sqlFormat SqlFormat) map[string]string {
-	out := map[string]string{}
-	for _, opt := range self.GetTableOptions(sqlFormat) {
-		out[opt.Name] = opt.Value
+func (self *Table) GetTableOptionStrMap(sqlFormat SqlFormat) *util.OrderedMap {
+	opts := self.GetTableOptions(sqlFormat)
+	out := util.NewOrderedMapOfSize(len(opts))
+	for _, opt := range opts {
+		out.Insert(opt.Name, opt.Value)
 	}
 	return out
 }
