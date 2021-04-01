@@ -322,6 +322,104 @@ END;
 	}, schema.Functions)
 }
 
+func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	introspector := live.NewMockIntrospector(ctrl)
+
+	body := `BEGIN RETURN 1; END;`
+
+	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTableList().AnyTimes()
+	introspector.EXPECT().GetColumns(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetConstraints().AnyTimes()
+	introspector.EXPECT().GetForeignKeys().AnyTimes()
+	introspector.EXPECT().GetFunctions().Return([]live.FunctionEntry{
+		live.FunctionEntry{
+			Oid: live.Oid{1},
+			Schema: "public",
+			Name: "increment1",
+			Return: "integer",
+			Type: "normal",
+			Language: "plpgsql",
+			Source: body,
+		},
+		live.FunctionEntry{
+			Oid: live.Oid{2},
+			Schema: "public",
+			Name: "increment2",
+			Return: "integer",
+			Type: "normal",
+			Language: "plpgsql",
+			Source: body,
+		},
+		live.FunctionEntry{
+			Oid: live.Oid{3},
+			Schema: "public",
+			Name: "increment3",
+			Return: "integer",
+			Type: "normal",
+			Language: "plpgsql",
+			Source: body,
+		},
+		live.FunctionEntry{
+			Oid: live.Oid{4},
+			Schema: "public",
+			Name: "increment4",
+			Return: "integer",
+			Type: "normal",
+			Language: "plpgsql",
+			Source: body,
+		},
+	}, nil)
+	// array type and argument names
+	introspector.EXPECT().GetFunctionArgs(live.Oid{1}).Return([]live.FunctionArgEntry{
+		{"arg1", "integer[]"},
+		{"arg2", "uuid[]"},
+	}, nil)
+	// array type and no argument names
+	introspector.EXPECT().GetFunctionArgs(live.Oid{2}).Return([]live.FunctionArgEntry{
+		{"", "integer[]"},
+		{"", "uuid[]"},
+	}, nil)
+	// array type and mixed argument names
+	introspector.EXPECT().GetFunctionArgs(live.Oid{3}).Return([]live.FunctionArgEntry{
+		{"arg1", "integer[]"},
+		{"", "uuid[]"},
+	}, nil)
+	introspector.EXPECT().GetFunctionArgs(live.Oid{4}).Return([]live.FunctionArgEntry{
+		{"", "integer[]"},
+		{"arg1", "uuid[]"},
+	}, nil)
+	introspector.EXPECT().GetTriggers().AnyTimes()
+	introspector.EXPECT().GetViews().AnyTimes()
+	introspector.EXPECT().GetTablePerms().AnyTimes()
+	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
+
+	schema := commonExtract(introspector)
+	assert.Equal(t, "arg1", schema.Functions[0].Parameters[0].Name)
+	assert.Equal(t, "integer[]", schema.Functions[0].Parameters[0].Type)
+	assert.Equal(t, "arg2", schema.Functions[0].Parameters[1].Name)
+	assert.Equal(t, "uuid[]", schema.Functions[0].Parameters[1].Type)
+
+	assert.Equal(t, "", schema.Functions[1].Parameters[0].Name)
+	assert.Equal(t, "integer[]", schema.Functions[1].Parameters[0].Type)
+	assert.Equal(t, "", schema.Functions[1].Parameters[1].Name)
+	assert.Equal(t, "uuid[]", schema.Functions[1].Parameters[1].Type)
+
+	assert.Equal(t, "arg1", schema.Functions[2].Parameters[0].Name)
+	assert.Equal(t, "integer[]", schema.Functions[2].Parameters[0].Type)
+	assert.Equal(t, "", schema.Functions[2].Parameters[1].Name)
+	assert.Equal(t, "uuid[]", schema.Functions[2].Parameters[1].Type)
+
+	assert.Equal(t, "", schema.Functions[3].Parameters[0].Name)
+	assert.Equal(t, "integer[]", schema.Functions[3].Parameters[0].Type)
+	assert.Equal(t, "arg1", schema.Functions[3].Parameters[1].Name)
+	assert.Equal(t, "uuid[]", schema.Functions[3].Parameters[1].Type)
+}
+
 func commonExtract(introspector *live.MockIntrospector) *model.Schema {
 	ops := pgsql8.GlobalOperations
 	origCF := ops.ConnectionFactory
