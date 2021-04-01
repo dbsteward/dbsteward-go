@@ -447,6 +447,39 @@ func TestOperations_ExtractSchema_TableArrayType(t *testing.T) {
 	assert.Equal(t, "text[]", schema.Tables[0].Columns[0].Type)
 }
 
+func TestOperations_ExtractSchema_DoNotExtractSequenceFromSerial(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	introspector := live.NewMockIntrospector(ctrl)
+
+	// CREATE TABLE test(id serial, blah serial);
+
+	// note that postgres reports serial cols as integer with a special default
+
+	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
+		{Schema: "public", Table: "test"},
+	}, nil)
+	introspector.EXPECT().GetColumns("public", "test").Return([]live.ColumnEntry{
+		{Name: "id", AttrType: "integer", Default: "nextval('test_id_seq'::regclass)"},
+		{Name: "blah", AttrType: "integer", Default: "nextval('test_blah_seq'::regclass)"},
+	}, nil)
+	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
+	// should not return any sequences because they're excluded by the second argument
+	introspector.EXPECT().GetSequenceRelList("public", []string{"test_id_seq", "test_blah_seq"}).Return([]live.SequenceRelEntry{}, nil)
+	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetConstraints().AnyTimes()
+	introspector.EXPECT().GetForeignKeys().AnyTimes()
+	introspector.EXPECT().GetFunctions().AnyTimes()
+	introspector.EXPECT().GetFunctionArgs(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTriggers().AnyTimes()
+	introspector.EXPECT().GetViews().AnyTimes()
+	introspector.EXPECT().GetTablePerms().AnyTimes()
+	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
+
+	schema := commonExtract(introspector)
+	assert.Len(t, schema.Sequences, 0)
+}
+
 func commonExtract(introspector *live.MockIntrospector) *model.Schema {
 	ops := pgsql8.GlobalOperations
 	origCF := ops.ConnectionFactory

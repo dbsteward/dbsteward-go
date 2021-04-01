@@ -305,7 +305,8 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			// look for serial columns that are primary keys and collapse them down from integers with sequence defualts into serials
 			// type int or bigint
 			// is_nullable = NO
-			// column_default starts with nextval and contains iq_seq
+			// column_default starts with nextval and contains _seq
+			// default will look like:    nextval('test_blah_seq'::regclass)
 			// TODO(feat) this list of conditions is probably not sufficient to check for serials in all cases
 			// TODO(go,nth) is there a better way to test this?
 			// TODO(go,core) this is absolutely broken, need to fix; switch to prefix test for types, suffix test for seq, look at that column_default equalfold
@@ -322,9 +323,10 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				identName := schema.Name + "." + self.BuildSequenceName(schema.Name, table.Name, column.Name)
 				tableSerials = append(tableSerials, identName)
 
-				// TODO(go,nth) explain this logic, see pgsql8.php:1631, :1691
+				// column.Default is: "nextval('test_blah_seq'::regclass)"
+				// splitting gives {"nextval(", "test_blah_seq", "::regclass)"}
 				seqName := strings.Split(column.Default, "'")
-				sequenceCols = append(sequenceCols, fmt.Sprintf("'%s'", seqName[1]))
+				sequenceCols = append(sequenceCols, seqName[1])
 
 				// TODO(feat) legacy logic doesn't set default or nullable for serial types... is that correct?
 				column.Nullable = false
@@ -364,6 +366,10 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				// TODO(feat) what does it even mean to have multiple sequence definitions here? is this correct??
 				seq := schema.TryGetSequenceNamed(seqListRow.Name)
 				if seq != nil {
+					// is sequence being implicity generated? if so, skip it
+					if util.IndexOfStr(fmt.Sprintf("%s.%s", schema.Name, seqListRow.Name), tableSerials) >= 0 {
+						continue
+					}
 					schema.AddSequence(&model.Sequence{
 						Name:      seqListRow.Name,
 						Owner:     seqListRow.Owner, // TODO(feat) should this have a translateRoleName call?
