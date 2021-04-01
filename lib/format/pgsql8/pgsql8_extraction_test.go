@@ -1,6 +1,7 @@
 package pgsql8_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
@@ -18,6 +19,7 @@ import (
 //                around e2e testing with a real db connection.
 
 /* Copy+paste and change for each test:
+func TestOperations_ExtractSchema_Something(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	introspector := live.NewMockIntrospector(ctrl)
 
@@ -30,12 +32,15 @@ import (
 	introspector.EXPECT().GetConstraints().AnyTimes()
 	introspector.EXPECT().GetForeignKeys().AnyTimes()
 	introspector.EXPECT().GetFunctions().AnyTimes()
+	introspector.EXPECT().GetFunctionArgs(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTriggers().AnyTimes()
 	introspector.EXPECT().GetViews().AnyTimes()
 	introspector.EXPECT().GetTablePerms().AnyTimes()
 	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
 
 	schema := commonExtract(introspector)
+	assert.Equal(t, ...)
+}
 */
 
 func TestOperations_ExtractSchema_Indexes(t *testing.T) {
@@ -254,6 +259,67 @@ func TestOperations_ExtractSchema_TableComments(t *testing.T) {
 	assert.Equal(t, schemaDesc, schema.Description)
 	assert.Equal(t, tableDesc, schema.Tables[0].Description)
 	assert.Equal(t, colDesc, schema.Tables[0].Columns[0].Description)
+}
+
+func TestOperations_ExtractSchema_FunctionAmpersands(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	introspector := live.NewMockIntrospector(ctrl)
+
+	body := strings.TrimSpace(`
+DECLARE
+	overlap boolean;
+BEGIN
+	overlap := $1 && $2;
+	RETURN overlap;
+END;
+`)
+
+	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTableList().AnyTimes()
+	introspector.EXPECT().GetColumns(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetConstraints().AnyTimes()
+	introspector.EXPECT().GetForeignKeys().AnyTimes()
+	introspector.EXPECT().GetFunctions().Return([]live.FunctionEntry{
+		live.FunctionEntry{
+			Oid: live.Oid{1},
+			Schema: "public",
+			Name: "rates_overlap",
+			Return: "boolean",
+			Type: "normal",
+			Volatility: "VOLATILE",
+			Owner: "app",
+			Language: "plpgsql",
+			Source: body,
+		},
+	}, nil)
+	introspector.EXPECT().GetFunctionArgs(live.Oid{1}).Return([]live.FunctionArgEntry{
+		{"rates_a", "money"},
+		{"rates_b", "money"},
+	}, nil)
+	introspector.EXPECT().GetTriggers().AnyTimes()
+	introspector.EXPECT().GetViews().AnyTimes()
+	introspector.EXPECT().GetTablePerms().AnyTimes()
+	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
+
+	schema := commonExtract(introspector)
+	assert.Equal(t, []*model.Function{
+		&model.Function{
+			Name: "rates_overlap",
+			Owner: "app",
+			Returns: "boolean",
+			CachePolicy: "VOLATILE",
+			Parameters: []*model.FunctionParameter{
+				{Name: "rates_a", Type: "money"},
+				{Name: "rates_b", Type: "money"},
+			},
+			Definitions: []*model.FunctionDefinition{
+				{SqlFormat: model.SqlFormatPgsql8, Language: "plpgsql", Text: body},
+			},
+		},
+	}, schema.Functions)
 }
 
 func commonExtract(introspector *live.MockIntrospector) *model.Schema {
