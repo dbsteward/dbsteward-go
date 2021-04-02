@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dbsteward/dbsteward/lib/util"
+
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 
 	"github.com/golang/mock/gomock"
@@ -96,11 +98,11 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 		},
 		// test that index column order is extracted correctly
 		live.IndexEntry{
-			Name: "testidx2",
+			Name:       "testidx2",
 			Dimensions: []string{"col1", "col2", "col3"},
 		},
 		live.IndexEntry{
-			Name: "testidx3",
+			Name:       "testidx3",
 			Dimensions: []string{"col2", "col1", "col3"},
 		},
 	}, nil)
@@ -196,10 +198,10 @@ func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
 
 	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
 		live.ConstraintEntry{
-			Schema: "public",
-			Table: "test",
-			Name: "test_constraint",
-			Type: "u",
+			Schema:  "public",
+			Table:   "test",
+			Name:    "test_constraint",
+			Type:    "u",
 			Columns: []string{"col2", "col3", "col4"},
 		},
 	}, nil)
@@ -228,16 +230,16 @@ func TestOperations_ExtractSchema_TableComments(t *testing.T) {
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
 		live.TableEntry{
-			Schema: "public",
+			Schema:            "public",
 			SchemaDescription: schemaDesc,
-			Table: "test",
-			TableDescription: tableDesc,
+			Table:             "test",
+			TableDescription:  tableDesc,
 		},
 	}, nil)
 	introspector.EXPECT().GetColumns(gomock.Any(), gomock.Any()).Return([]live.ColumnEntry{
 		live.ColumnEntry{
-			Name: "col1",
-			AttrType: "text",
+			Name:        "col1",
+			AttrType:    "text",
 			Description: colDesc,
 		},
 	}, nil)
@@ -284,15 +286,15 @@ END;
 	introspector.EXPECT().GetForeignKeys().AnyTimes()
 	introspector.EXPECT().GetFunctions().Return([]live.FunctionEntry{
 		live.FunctionEntry{
-			Oid: live.Oid{1},
-			Schema: "public",
-			Name: "rates_overlap",
-			Return: "boolean",
-			Type: "normal",
+			Oid:        live.Oid{1},
+			Schema:     "public",
+			Name:       "rates_overlap",
+			Return:     "boolean",
+			Type:       "normal",
 			Volatility: "VOLATILE",
-			Owner: "app",
-			Language: "plpgsql",
-			Source: body,
+			Owner:      "app",
+			Language:   "plpgsql",
+			Source:     body,
 		},
 	}, nil)
 	introspector.EXPECT().GetFunctionArgs(live.Oid{1}).Return([]live.FunctionArgEntry{
@@ -307,9 +309,9 @@ END;
 	schema := commonExtract(introspector)
 	assert.Equal(t, []*model.Function{
 		&model.Function{
-			Name: "rates_overlap",
-			Owner: "app",
-			Returns: "boolean",
+			Name:        "rates_overlap",
+			Owner:       "app",
+			Returns:     "boolean",
 			CachePolicy: "VOLATILE",
 			Parameters: []*model.FunctionParameter{
 				{Name: "rates_a", Type: "money"},
@@ -338,40 +340,40 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 	introspector.EXPECT().GetForeignKeys().AnyTimes()
 	introspector.EXPECT().GetFunctions().Return([]live.FunctionEntry{
 		live.FunctionEntry{
-			Oid: live.Oid{1},
-			Schema: "public",
-			Name: "increment1",
-			Return: "integer",
-			Type: "normal",
+			Oid:      live.Oid{1},
+			Schema:   "public",
+			Name:     "increment1",
+			Return:   "integer",
+			Type:     "normal",
 			Language: "plpgsql",
-			Source: body,
+			Source:   body,
 		},
 		live.FunctionEntry{
-			Oid: live.Oid{2},
-			Schema: "public",
-			Name: "increment2",
-			Return: "integer",
-			Type: "normal",
+			Oid:      live.Oid{2},
+			Schema:   "public",
+			Name:     "increment2",
+			Return:   "integer",
+			Type:     "normal",
 			Language: "plpgsql",
-			Source: body,
+			Source:   body,
 		},
 		live.FunctionEntry{
-			Oid: live.Oid{3},
-			Schema: "public",
-			Name: "increment3",
-			Return: "integer",
-			Type: "normal",
+			Oid:      live.Oid{3},
+			Schema:   "public",
+			Name:     "increment3",
+			Return:   "integer",
+			Type:     "normal",
 			Language: "plpgsql",
-			Source: body,
+			Source:   body,
 		},
 		live.FunctionEntry{
-			Oid: live.Oid{4},
-			Schema: "public",
-			Name: "increment4",
-			Return: "integer",
-			Type: "normal",
+			Oid:      live.Oid{4},
+			Schema:   "public",
+			Name:     "increment4",
+			Return:   "integer",
+			Type:     "normal",
 			Language: "plpgsql",
-			Source: body,
+			Source:   body,
 		},
 	}, nil)
 	// array type and argument names
@@ -447,39 +449,6 @@ func TestOperations_ExtractSchema_TableArrayType(t *testing.T) {
 	assert.Equal(t, "text[]", schema.Tables[0].Columns[0].Type)
 }
 
-func TestOperations_ExtractSchema_DoNotExtractSequenceFromSerial(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	introspector := live.NewMockIntrospector(ctrl)
-
-	// CREATE TABLE test(id serial, blah serial);
-
-	// note that postgres reports serial cols as integer with a special default
-
-	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
-		{Schema: "public", Table: "test"},
-	}, nil)
-	introspector.EXPECT().GetColumns("public", "test").Return([]live.ColumnEntry{
-		{Name: "id", AttrType: "integer", Default: "nextval('test_id_seq'::regclass)"},
-		{Name: "blah", AttrType: "integer", Default: "nextval('test_blah_seq'::regclass)"},
-	}, nil)
-	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
-	// should not return any sequences because they're excluded by the second argument
-	introspector.EXPECT().GetSequenceRelList("public", []string{"test_id_seq", "test_blah_seq"}).Return([]live.SequenceRelEntry{}, nil)
-	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetConstraints().AnyTimes()
-	introspector.EXPECT().GetForeignKeys().AnyTimes()
-	introspector.EXPECT().GetFunctions().AnyTimes()
-	introspector.EXPECT().GetFunctionArgs(gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetTriggers().AnyTimes()
-	introspector.EXPECT().GetViews().AnyTimes()
-	introspector.EXPECT().GetTablePerms().AnyTimes()
-	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
-
-	schema := commonExtract(introspector)
-	assert.Len(t, schema.Sequences, 0)
-}
-
 func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	introspector := live.NewMockIntrospector(ctrl)
@@ -496,35 +465,35 @@ func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
-		{Schema: "public", Table:"dummy"},
-		{Schema: "public", Table:"test"},
+		{Schema: "public", Table: "dummy"},
+		{Schema: "public", Table: "test"},
 	}, nil)
 	introspector.EXPECT().GetColumns("public", "dummy").Return([]live.ColumnEntry{
-		{Name:"feux", AttrType:"integer"},
-		{Name:"barf", AttrType:"character varying(32)"},
+		{Name: "feux", AttrType: "integer"},
+		{Name: "barf", AttrType: "character varying(32)"},
 	}, nil)
 	introspector.EXPECT().GetColumns("public", "test").Return([]live.ColumnEntry{
-		{Name:"id", AttrType:"integer"},
-		{Name:"foo", AttrType:"integer"},
-		{Name:"bar", AttrType:"character varying(32)"},
+		{Name: "id", AttrType: "integer"},
+		{Name: "foo", AttrType: "integer"},
+		{Name: "bar", AttrType: "character varying(32)"},
 	}, nil)
 	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
-		{Schema:"public", Table:"dummy", Name:"dummy_pkey", Type:"p", Columns:[]string{"foo","bar"}},
-		{Schema:"public", Table:"test", Name:"test_pkey", Type:"p", Columns:[]string{"id"}},
+		{Schema: "public", Table: "dummy", Name: "dummy_pkey", Type: "p", Columns: []string{"foo", "bar"}},
+		{Schema: "public", Table: "test", Name: "test_pkey", Type: "p", Columns: []string{"id"}},
 	}, nil)
 	introspector.EXPECT().GetForeignKeys().Return([]live.ForeignKeyEntry{
 		live.ForeignKeyEntry{
 			ConstraintName: "test_foo_fkey",
-			UpdateRule: "a",
-			DeleteRule: "n",
-			LocalSchema: "public",
-			LocalTable: "test",
-			LocalColumns: []string{"foo", "bar"},
-			ForeignSchema: "public",
-			ForeignTable: "dummy",
+			UpdateRule:     "a",
+			DeleteRule:     "n",
+			LocalSchema:    "public",
+			LocalTable:     "test",
+			LocalColumns:   []string{"foo", "bar"},
+			ForeignSchema:  "public",
+			ForeignTable:   "dummy",
 			ForeignColumns: []string{"feux", "barf"},
 		},
 	}, nil)
@@ -539,17 +508,80 @@ func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 	assert.Equal(t, []*model.ForeignKey{
 		&model.ForeignKey{
 			ConstraintName: "test_foo_fkey",
-			Columns: model.DelimitedList{"foo","bar"},
-			ForeignSchema: "public",
-			ForeignTable: "dummy",
+			Columns:        model.DelimitedList{"foo", "bar"},
+			ForeignSchema:  "public",
+			ForeignTable:   "dummy",
 			ForeignColumns: model.DelimitedList{"feux", "barf"},
-			OnUpdate: model.ForeignKeyActionNoAction,
-			OnDelete: model.ForeignKeyActionSetNull,
+			OnUpdate:       model.ForeignKeyActionNoAction,
+			OnDelete:       model.ForeignKeyActionSetNull,
 		},
 	}, schema.Tables[1].ForeignKeys)
 	// these should _not_ be omitted in this case, because it's a separate element
 	assert.Equal(t, "integer", schema.Tables[1].Columns[1].Type)
 	assert.Equal(t, "character varying(32)", schema.Tables[1].Columns[2].Type)
+}
+
+func TestOperations_ExtractSchema_Sequences(t *testing.T) {
+	// Note: this one test covers the v1 tests:
+	// - IsolatedSequenceTest::testPublicSequencesBuildProperly (a)
+	// - IsolatedSequenceTest::testIsolatedSequencesBuildProperly (a)
+	// - IsolatedSequenceTest::testIntSequencesBecomeSerials (b)
+	// - IsolatedSequenceTest::testNoTableSequencesBuilds (a)
+	// - ExtractionTest::testDoNotExtractSequenceFromTable (b)
+	// the ones marked (a) test whether a seq which is not used as a default in a column is extracted as a sequence element
+	// the ones marked (b) test that sequences which are used as defaults in a column are extracted as a serial column instead
+
+	ctrl := gomock.NewController(t)
+	introspector := live.NewMockIntrospector(ctrl)
+
+	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
+		{Schema: "public", Table: "user"},
+	}, nil)
+	introspector.EXPECT().GetColumns("public", "user").Return([]live.ColumnEntry{
+		{Name: "user_id", AttrType: "integer", Default: "nextval('test_seq')"},
+		{Name: "user_name", AttrType: "varchar(100)"},
+	}, nil)
+	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetSequenceRelList("public", []string{"test_seq"}).Return([]live.SequenceRelEntry{
+		{Name: "blah", Owner: "owner"},
+	}, nil)
+	introspector.EXPECT().GetSequencesForRel("public", "test_seq").Return([]live.SequenceEntry{
+		{Start: util.Intp(1), Increment: util.Intp(1), Cache: util.Intp(1), Max: util.Intp(15)},
+	}, nil)
+	introspector.EXPECT().GetSequencesForRel("public", "blah").Return([]live.SequenceEntry{
+		{Cache: util.Intp(5), Min: util.Intp(3), Max: util.Intp(10)},
+	}, nil)
+	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
+		{Schema: "public", Table: "user", Name: "user_pkey", Type: "p", Columns: []string{"user_id"}},
+	}, nil)
+	introspector.EXPECT().GetForeignKeys().AnyTimes()
+	introspector.EXPECT().GetFunctions().AnyTimes()
+	introspector.EXPECT().GetFunctionArgs(gomock.Any()).AnyTimes()
+	introspector.EXPECT().GetTriggers().AnyTimes()
+	introspector.EXPECT().GetViews().AnyTimes()
+	introspector.EXPECT().GetTablePerms().AnyTimes()
+	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
+
+	schema := commonExtract(introspector)
+	// Test that int sequences become serials
+	// TODO(go,3) this doesn't feel right - does an int/nextval column have different semantics than a serial type?
+	//            It feels wrong that we simply don't extract the sequence. I'd rather extract it as-is and let the
+	//            user sort it all out. Will maintain v1 behavior for now though.
+
+	assert.Equal(t, "serial", schema.Tables[0].Columns[0].Type)
+	assert.Equal(t, []*model.Sequence{
+		// test_seq SHOULD NOT be extracted (see `TestOperations_ExtractSchema_DoNotExtractSequenceFromSerial`)
+		// blah SHOULD be extracted because it's not linked to
+		&model.Sequence{
+			Name:  "blah",
+			Owner: "owner",
+			Cache: util.Intp(5),
+			Min:   util.Intp(3),
+			Max:   util.Intp(10),
+		},
+	}, schema.Sequences)
 }
 
 func commonExtract(introspector *live.MockIntrospector) *model.Schema {

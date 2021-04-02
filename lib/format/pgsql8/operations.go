@@ -366,21 +366,22 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				// TODO(feat) what does it even mean to have multiple sequence definitions here? is this correct??
 				seq := schema.TryGetSequenceNamed(seqListRow.Name)
 				if seq != nil {
-					// is sequence being implicity generated? if so, skip it
-					if util.IndexOfStr(fmt.Sprintf("%s.%s", schema.Name, seqListRow.Name), tableSerials) >= 0 {
-						continue
-					}
-					schema.AddSequence(&model.Sequence{
-						Name:      seqListRow.Name,
-						Owner:     seqListRow.Owner, // TODO(feat) should this have a translateRoleName call?
-						Cache:     seqRow.Cache,
-						Start:     seqRow.Start,
-						Min:       seqRow.Min,
-						Max:       seqRow.Max,
-						Increment: seqRow.Increment,
-						Cycle:     seqRow.Cycled,
-					})
+					continue
 				}
+				// is sequence being implicity generated? if so, skip it
+				if util.IndexOfStr(fmt.Sprintf("%s.%s", schema.Name, seqListRow.Name), tableSerials) >= 0 {
+					continue
+				}
+				schema.AddSequence(&model.Sequence{
+					Name:      seqListRow.Name,
+					Owner:     seqListRow.Owner, // TODO(feat) should this have a translateRoleName call?
+					Cache:     seqRow.Cache,
+					Start:     seqRow.Start,
+					Min:       seqRow.Min,
+					Max:       seqRow.Max,
+					Increment: seqRow.Increment,
+					Cycle:     seqRow.Cycled,
+				})
 			}
 		}
 	}
