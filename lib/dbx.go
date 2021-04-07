@@ -147,7 +147,7 @@ func (self *DBX) TryGetTableFormerlyKnownAs(newDoc *model.Definition, oldSchema 
 
 // attempts to find, and sanity checks, the table pointed to by oldSchema/TableName attributes
 // this is the "backwards looking" version of TryGetTableFormerlyKnownAs
-// TODO(go,nth) rename this, clean it up, get rid of those damn gotos
+// TODO(go,nth) rename this, clean it up
 func (self *DBX) RenamedTableCheckPointer(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) (*model.Schema, *model.Table) {
 	if newSchema == nil || newTable == nil {
 		return oldSchema, oldTable
@@ -175,15 +175,7 @@ func (self *DBX) RenamedTableCheckPointer(oldSchema *model.Schema, oldTable *mod
 	return oldSchema, oldTable
 }
 
-func (self *DBX) EnumRegex(doc *model.Definition) string {
-	// TODO(go,core) dbx::enum_regex()
-	return ""
-}
-
 func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
-	// TODO(go,nth) make this output in a deterministic order. due to the map iteration
-	// it causes us to output sql in a different order every build
-
 	// first, build forward and reverse adjacency lists
 	// forwards: a mapping of local table => foreign tables that it references
 	// reverse: a mapping of foreign table => local tables that reference it
@@ -229,6 +221,7 @@ func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
 
 	// a quick helper to cut down on complexity below, see https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	// HACK: this is, IMHO, a really bullshit and footgunny method to do this efficiently
+	// TODO(go,nth) upgrade this to a generic helper in go 1.18
 	remove := func(slice []model.TableRef, target model.TableRef) []model.TableRef {
 		b := slice[:0]
 		for _, x := range slice {

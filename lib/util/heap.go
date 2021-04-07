@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+// TODO(go,core) upgrade to generics when go 1.18 comes out
+
 type IdFunc = func(interface{}) interface{}
 type LessFunc = func(l, r interface{}) bool
 

@@ -6,6 +6,8 @@ import (
 	"github.com/dbsteward/dbsteward/lib/model"
 )
 
+// TODO(go,pgsql) move this to pgsql8/sql
+
 type QualifiedTable struct {
 	Schema string
 	Table  string

@@ -23,6 +23,7 @@ func (self *Function) DefinitionReferencesTable(definition *model.FunctionDefini
 	// TODO(feat) a function could reference many tables, but this only returns the first; make it understand many tables
 	// TODO(feat) this won't detect quoted table names
 	// TODO(go,pgsql) test this
+	// TODO(go,3) upgrade this to properly parse the sql, check transitive deps (e.g. views, other functions)
 	validTableName := `[\w\.]+`
 	table := ""
 	if matches := util.IMatch(fmt.Sprintf(`SELECT\s+.+\s+FROM\s+(%s)`, validTableName), definition.Text); matches != nil {

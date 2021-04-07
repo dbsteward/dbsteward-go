@@ -1045,40 +1045,6 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 	lib.GlobalDBX.BuildStagedSql(doc, ofs, "")
 }
 
-// Implements output.Quoter
-// func (self *Operations) LiteralValue(datatype string, value string) string {
-// 	return self.ValueEscape(datatype, value, nil)
-// }
-
-// func (self *Operations) ValueEscape(datatype string, value string, doc *model.Definition) string {
-// 	// TODO(go,3) it'd be amazing to have a dedicated Value type that encapsulates this logic and is type-aware, instead of the mishmash of string parsing and type matching we do
-// 	if len(value) == 0 {
-// 		// TODO(feat) this can't distinguish between empty strings and null
-// 		return "NULL"
-// 	}
-
-// 	// complain when we require verbose interval notation but data uses a different format
-// 	if lib.GlobalDBSteward.RequireVerboseIntervalNotation && util.IMatch("interval", datatype) != nil && value[0] != '@' {
-// 		lib.GlobalDBSteward.Fatal("bad interval value: '%s' -- interval types must be postgresql verbose format: '@ 2 hours 30 minutes'", value)
-// 	}
-
-// 	// data types that should be quoted
-// 	enumRegex := lib.GlobalDBX.EnumRegex(doc)
-// 	if len(enumRegex) > 0 {
-// 		enumRegex = "|" + enumRegex
-// 	}
-// 	if util.IMatch(fmt.Sprintf(`^(bool.*|character.*|string|text|date|time.*|(var)?char.*|interval|money|inet|uuid|ltree%s)`, enumRegex), datatype) != nil {
-// 		// data types that should have E prefix to their quotes
-// 		if self.EscapeStringValues && util.IMatch(`^(character.*|string|text|(var)?char.*)`, datatype) != nil {
-// 			return self.LiteralStringEscaped(value)
-// 		} else {
-// 			return self.LiteralString(value)
-// 		}
-// 	}
-
-// 	return value
-// }
-
 func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Table, columnName string, dataCol *model.DataCol) sql.ToSqlValue {
 	// if the column represents NULL, return a NULL value
 	if dataCol.Null {
