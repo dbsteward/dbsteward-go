@@ -323,6 +323,13 @@ func IntMin(a, b int) int {
 	return b
 }
 
+func IntMax(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 func IntCeil(num, div int) int {
 	return int(math.Ceil(float64(num) / float64(div)))
 }
