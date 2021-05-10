@@ -2,6 +2,7 @@ package pgsql8
 
 import (
 	"github.com/dbsteward/dbsteward/lib"
+	"github.com/dbsteward/dbsteward/lib/format/pgsql8/parse"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/model"
@@ -157,7 +158,26 @@ func (self *Diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSe
 }
 
 func (self *Diff) DiffSql(old, new []string, upgradePrefix string) {
-	// TODO(go,sqldiff)
+	dbsteward := lib.GlobalDBSteward
+	xmlParser := lib.GlobalXmlParser
+
+	oldDoc, err := parse.FromFiles(old)
+	dbsteward.FatalIfError(err, "Could not parse old sql files")
+	oldDoc, err = xmlParser.SqlFormatConvert(oldDoc)
+	dbsteward.FatalIfError(err, "Could not make sql format-specific changes to old db structure")
+	dbsteward.OldDatabase = oldDoc
+	oldFile := upgradePrefix + "_old_sql.xml"
+	xmlParser.SaveDoc(oldFile, oldDoc)
+
+	newDoc, err := parse.FromFiles(new)
+	dbsteward.FatalIfError(err, "Could not parse new sql files")
+	newDoc, err = xmlParser.SqlFormatConvert(newDoc)
+	dbsteward.FatalIfError(err, "Could not make sql format-specific changes to new db structure")
+	dbsteward.NewDatabase = newDoc
+	newFile := upgradePrefix + "_new_sql.xml"
+	xmlParser.SaveDoc(newFile, newDoc)
+
+	self.DiffDoc(oldFile, newFile, oldDoc, newDoc, upgradePrefix)
 }
 
 func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {
