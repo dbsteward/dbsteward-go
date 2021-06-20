@@ -2,7 +2,7 @@
 # shellcheck disable=SC1090
 source "$(dirname "$0")/../dev/include.sh" #follow
 
-formats=(pgsql8 mysql5)
+formats=(pgsql8 mysql5 mssql10)
 
 function _help_post {
   echo "Valid formats: ${formats[*]}"
@@ -71,7 +71,7 @@ function reset { #: Restores the last committed version of all example files in 
 
 function all { # [...args]: Reruns the full example suite
   for format in "${formats[@]}"; do
-    all-format "$format"
+    all-format "$format" || true # TODO capture these errors
   done
 }
 

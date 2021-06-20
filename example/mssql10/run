@@ -1,0 +1,43 @@
+#!/bin/bash
+# shellcheck disable=SC1090
+source "$(dirname "$0")/../../dev/include.sh" #follow
+
+dbname="someapp"
+dbpass="secret"
+dbsargs=(--dbhost localhost --dbname "$dbname" --dbuser postgres --dbpassword "$dbpass")
+
+
+# "public" tasks here, for use with ../run
+
+function init-db { #: Initializes the database
+  # pgsql-start
+  # pgsql-reset
+  true # TODO
+}
+
+function load-file { # <file>: Loads the given sql file into the postgres database
+  info "Loading $1..."
+  # cmd_psql -f "$1"
+}
+
+function load-stages { # <prefix>: Loads <prefix>_upgrade_*.sql files into the postgres database in order
+  info "Loading $1 stage 1..."
+  # cmd_psql -f "$1_upgrade_stage1_schema1.sql"
+  info "Loading $1 stage 2..."
+  # cmd_psql -f "$1_upgrade_stage2_data1.sql"
+  info "Loading $1 stage 3..."
+  # cmd_psql -f "$1_upgrade_stage3_schema1.sql"
+  info "Loading $1 stage 4..."
+  # cmd_psql -f "$1_upgrade_stage4_data1.sql"
+}
+
+function extract { # <output> [...args]: Extracts the database to the output file
+  ../run extract "$1" "${dbsargs[@]}" "${@:2}"
+}
+
+function shell { #: Opens a psql shell to the postgres database
+  # psql "$@"
+  true # TODO
+}
+
+main "$@"
