@@ -2,25 +2,10 @@
 # shellcheck disable=SC1090
 source "$(dirname "$0")/../dev/include.sh" #follow
 
-pg_container="someapp"
-pg_version="8"
-dbname="someapp"
-dbpass="secret"
+formats=(pgsql8)
 
-dbsargs=(--dbhost localhost --dbname "$dbname" --dbuser postgres --dbpassword "$dbpass")
-psqlargs=(-h localhost -d "$dbname" -U postgres)
-psqlscriptargs=(--echo-all -v ON_ERROR_STOP=1)
-
-# version 8 becomes 80, version 12.3 becomes 123
-# used in version checks below
-pgversion=$((pg_version * 10))
-
-function cmd_psql {
-  PGPASSWORD=$dbpass cmd psql "${psqlargs[@]}" "${psqlscriptargs[@]}" "$@"
-}
-
-function _psql {
-  PGPASSWORD=$dbpass command psql "${psqlargs[@]}" "${psqlscriptargs[@]}" "$@"
+function _help_post {
+  echo "Valid formats: ${formats[*]}"
 }
 
 function build { # <file>: Generates a build of the given file
@@ -35,116 +20,48 @@ function diff { # <old> <new>: Generates a diff of <old> to <new>
 
 function extract { # <output> <conn args...>: Extracts the database at the given connection to the output file
   info "Extracting (${*:2}) to $1..."
-  cmd go run .. --dbschemadump --sqlformat pgsql8 --outputfile "$1" "${@:2}"
+  cmd go run .. --dbschemadump --outputfile "$1" "${@:2}"
 }
 
-function pgsql-start { #: Starts and initializes a postgres db
-  status="$(docker ps -a --format '{{.Status}}' -f "name=$pg_container")"
-  if [[ $status == Up* ]]; then
-    info "Example postgres db already running: ${dbsargs[*]}"
-  else
-    info "Starting example postgres db: ${dbsargs[*]}"
-    if [[ $status == Exited* ]]; then
-      cmd docker start $pg_container
-    else
-      cmd docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=$dbpass -e POSTGRES_DB=$dbname --name $pg_container postgres:"$pg_version"
-    fi
-
-    set +e
-    while ! _psql -c "SELECT 1" 2>/dev/null ; do
-      info "Waiting for docker..."
-      sleep 1
-    done
-    set -e
-
-    if [[ $status != Exited* ]]; then
-      pgsql-init
-    fi
-  fi
+function someapp-clean { #: Remove generated files 
+  for format in "${format[@]}"; do
+    someapp-clean-format "$format"
+  done
 }
 
-function pgsql-init { #: Initializes a postgres db
-  info "Initializing db"
-  psql -c '
-    CREATE ROLE someapp;
-    CREATE ROLE someapp_readonly;
-    CREATE ROLE pgsql;
-  '
+function someapp-clean-format { # <format>: Remove generated files
+  info "Cleaning dir $1"  
+  cmd rm -f "$1"/*_{composite,extracted}.xml "$1"/*.sql
 }
 
-function pgsql-reset { #: Resets the postgres db to a fresh state
-  info "Resetting db"
-  if [[ $pgversion -lt 92 ]]; then
-    psql -d postgres -c "
-      SELECT pg_terminate_backend(pg_stat_activity.procpid)
-      FROM pg_stat_activity
-      WHERE pg_stat_activity.datname = '$dbname'
-        AND procpid <> pg_backend_pid()
-    "
-  else
-    psql -d postgres -c "
-      SELECT pg_terminate_backend(pg_stat_activity.pid)
-      FROM pg_stat_activity
-      WHERE pg_stat_activity.datname = '$dbname'
-        AND pid <> pg_backend_pid();
-    "
-  fi
-  psql -d postgres -c "DROP DATABASE IF EXISTS $dbname;"
-  psql -d postgres -c "CREATE DATABASE $dbname;"
-  if [[ $pgversion -lt 110 ]]; then
-    psql -c '
-      CREATE TRUSTED PROCEDURAL LANGUAGE plpgsql;
-    '
-  fi
+function someapp-build { # <format> [...args]: Generates a build of someapp v1
+  build someapp_v1.xml --sqlformat="$1" --outputdir="$1" "${@:2}"
 }
 
-function pgsql-load { # <file>: Loads the given sql file into the postgres database
-  info "Loading $1..."
-  cmd_psql -f "$1"
+function someapp-diff { # <format> [...args]: Generates a diff of someapp v1 -> v2
+  diff someapp_v1.xml someapp_v2.xml --sqlformat="$1" --outputdir="$1" "${@:2}"
 }
 
-function pgsql-load-stages { # <prefix>: Loads <prefix>_upgrade_*.sql files into the postgres database in order
-  info "Loading $1 stage 1..."
-  cmd_psql -f "$1_upgrade_stage1_schema1.sql"
-  info "Loading $1 stage 2..."
-  cmd_psql -f "$1_upgrade_stage2_data1.sql"
-  info "Loading $1 stage 3..."
-  cmd_psql -f "$1_upgrade_stage3_schema1.sql"
-  info "Loading $1 stage 4..."
-  cmd_psql -f "$1_upgrade_stage4_data1.sql"
+function someapp-load-v1 { # <format>: Loads the v1 schema from someapp-build
+  "$1"/run load-file someapp_v1_build.sql
 }
 
-function psql { #: Opens a psql shell to the postgres database
-  PGPASSWORD="$dbpass" command psql "${psqlargs[@]}" "$@"
+function someapp-load-v2 { # <format>: Loads the v2 upgrade from someapp-diff
+  "$1"/run load-stages someapp_v2
 }
 
-function someapp-clean { #: Remove generated files
-  info "Cleaning dir"
-  cmd rm -f ./*_{composite,extracted}.xml ./*.sql
+function someapp-extract { # <format> [...args]: Extracts the current someapp schema from the postgres db
+  # delegate to $format/run so it can inject connection args
+  # TODO(core) it looks like we're not respecting --outputdir when a relative --outputfile is passed??
+  "$1"/run extract "$1"/someapp_extracted.xml --sqlformat="$1" --outputdir="$1" "${@:2}"
 }
 
-function someapp-build { #: Generates a build of someapp v1
-  build someapp_v1.xml "$@"
+function someapp-diff-extract { # <format> [...args]: Diffs the extracted someapp schema against v2
+  diff someapp_v2.xml "$1"/someapp_extracted.xml --sqlformat="$1" --outputdir="$1" "${@:2}"
 }
 
-function someapp-diff { #: Generates a diff of someapp v1 -> v2
-  diff someapp_v1.xml someapp_v2.xml "$@"
-}
-
-function someapp-load-v1 { #: Loads the v1 schema from someapp-build
-  pgsql-load someapp_v1_build.sql
-}
-
-function someapp-load-v2 { #: Loads the v2 upgrade from someapp-diff
-  pgsql-load-stages someapp_v2
-}
-
-function someapp-extract { #: Extracts the current someapp schema from the postgres db
-  extract someapp_extracted.xml "${dbsargs[@]}" "$@"
-}
-
-function someapp-diff-extract { #: Diffs the extracted someapp schema against v2
-  diff someapp_v2.xml someapp_extracted.xml "$@"
+function init-db { # <format>: Initializes the example database for the given format
+  "$1"/run init-db
 }
 
 function reset { #: Restores the last committed version of all example files in this directory (leaves git index, README, run)
@@ -152,23 +69,31 @@ function reset { #: Restores the last committed version of all example files in 
   cmd git clean -f 'someapp_*'
 }
 
-function all { #: Reruns the full example suite
-  someapp-clean
+function all { # [...args]: Reruns the full example suite
+  for format in "${formats[@]}"; do
+    all-format "$format"
+  done
+}
+
+function all-format { # <format> [...args]: Reruns the example suite for one sqlformat
+  someapp-clean-format "$1"
   someapp-build "$@"
   echo "------"
   someapp-diff "$@"
   echo "------"
-  pgsql-start
+  init-db "$1"
   echo "------"
-  pgsql-reset
+  someapp-load-v1 "$1"
   echo "------"
-  someapp-load-v1
-  echo "------"
-  someapp-load-v2
+  someapp-load-v2 "$1"
   echo "------"
   someapp-extract "$@"
   echo "------"
   someapp-diff-extract "$@"
+}
+
+function shell { # <format>: Opens a shell to the given example database
+  "$1"/run shell "${@:2}"
 }
 
 main "$@"

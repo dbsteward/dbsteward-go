@@ -18,13 +18,13 @@ rootdir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 cd "$( dirname "$scriptpath" )" >/dev/null 2>&1
 
 function cmd {
-  echo 
-  echo $'\e[1;37m>' "$*" $'\e[0m'
+  echo $'\e[0;37m>' "$*" $'\e[0m'
   command "$@"
+  echo
 }
 
 function info {
-  echo $'\e[0;37m•' "$*" $'\e[0m'
+  echo $'\e[1;37m•' "$*" $'\e[0m'
 }
 
 # To be invoked by callers like `main "$@"`
@@ -42,6 +42,10 @@ function main {
       echo
       echo "Environment Variables:"
       sed -En 's/^: "\$\{(.+):=(.+)\}"( #)?/  \1=\2\t/p' "$script" "${files[@]}"
+      if [[ "$(type -t _help_post)" == "function" ]]; then
+        echo
+        _help_post
+      fi
     fi
   else
     "$@"
@@ -62,6 +66,7 @@ function run-in-docker {
       --rm
       --network host
       -e USE_DEV_DOCKER=no
+      -e DEBUG_RUN
       -w /home/dev
       -v "$(pwd):/home/dev"
       -v /var/run/docker.sock:/var/run/docker.sock
