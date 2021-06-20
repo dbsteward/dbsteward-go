@@ -2,7 +2,7 @@
 # shellcheck disable=SC1090
 source "$(dirname "$0")/../dev/include.sh" #follow
 
-formats=(pgsql8)
+formats=(pgsql8 mysql5)
 
 function _help_post {
   echo "Valid formats: ${formats[*]}"

@@ -306,7 +306,9 @@ func (self *XmlParser) mysql5TypeConvert(typ, def string) (string, string) {
 }
 
 func (self *XmlParser) VendorParse(doc *model.Definition) {
-	GlobalDBSteward.Lookup().XmlParser.Process(doc)
+	if parser := GlobalDBSteward.Lookup().XmlParser; parser != nil {
+		parser.Process(doc)
+	}
 }
 
 func (self *XmlParser) SlonyIdNumber(doc *model.Definition) *model.Definition {
