@@ -38,6 +38,11 @@ type Table interface {
 	GetOldTable(*model.Schema, *model.Table) *model.Table
 }
 
+type Index interface {
+	BuildPrimaryKeyName(string) string
+	BuildForeignKeyName(string, string) string
+}
+
 type Diff interface {
 	DiffDoc(oldFile, newFile string, oldDoc, newDoc *model.Definition, upgradePrefix string)
 	DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegmenter)

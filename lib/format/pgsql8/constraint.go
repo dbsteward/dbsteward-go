@@ -5,46 +5,11 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
+	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
-
-type ConstraintType uint
-
-const (
-	ConstraintTypePrimaryKey ConstraintType = 1 << iota
-	ConstraintTypeForeign
-	ConstraintTypeOther
-
-	ConstraintTypeConstraint ConstraintType = ConstraintTypeOther | ConstraintTypeForeign
-	ConstraintTypeAll        ConstraintType = ConstraintTypeConstraint | ConstraintTypePrimaryKey
-)
-
-// Returns true if this constraint type is or includes the given type
-func (self ConstraintType) Includes(sub ConstraintType) bool {
-	return self&sub != 0
-}
-
-func (self ConstraintType) Equals(other ConstraintType) bool {
-	return self == other
-}
-
-type TableConstraint struct {
-	Schema           *model.Schema
-	Table            *model.Table
-	Columns          []*model.Column
-	Name             string
-	Type             ConstraintType
-	UnderlyingType   model.ConstraintType
-	TextDefinition   string
-	ForeignSchema    *model.Schema
-	ForeignTable     *model.Table
-	ForeignCols      []*model.Column
-	ForeignIndexName string
-	ForeignOnUpdate  model.ForeignKeyAction
-	ForeignOnDelete  model.ForeignKeyAction
-}
 
 type Constraint struct {
 }
@@ -56,16 +21,16 @@ func NewConstraint() *Constraint {
 // TODO(go,pgsql) make sure this is tested _thoroughly_
 // TODO(go,core) lift this to sql99
 // ConstraintTypeAll includes PrimaryKey,Constraint,Foreign
-// ConstraintType
-func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model.Schema, table *model.Table, ct ConstraintType) []*TableConstraint {
+// sql99.ConstraintType
+func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model.Schema, table *model.Table, ct sql99.ConstraintType) []*sql99.TableConstraint {
 	if table == nil {
 		return nil
 	}
 	// TODO(go,4) manifest explicit object node at compositing/expansion step instead of "hallucinating" them here
-	constraints := []*TableConstraint{}
+	constraints := []*sql99.TableConstraint{}
 
 	// look for <table primaryKey> constraints
-	if ct.Includes(ConstraintTypePrimaryKey) {
+	if ct.Includes(sql99.ConstraintTypePrimaryKey) {
 		// TODO(go,3) move validation elsewhere
 		if len(table.PrimaryKey) == 0 {
 			lib.GlobalDBSteward.Fatal("Table %s.%s does not have a primaryKey", schema.Name, table.Name)
@@ -75,9 +40,9 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 		if !ok {
 			lib.GlobalDBSteward.Fatal("Table %s.%s does not have all named primary keys %v", schema.Name, table.Name, table.PrimaryKey)
 		}
-		constraints = append(constraints, &TableConstraint{
+		constraints = append(constraints, &sql99.TableConstraint{
 			Name:    util.CoalesceStr(table.PrimaryKeyName, GlobalIndex.BuildPrimaryKeyName(table.Name)),
-			Type:    ConstraintTypePrimaryKey,
+			Type:    sql99.ConstraintTypePrimaryKey,
 			Schema:  schema,
 			Table:   table,
 			Columns: cols,
@@ -85,10 +50,10 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 	}
 
 	// look for <constraint> constraints
-	if ct.Includes(ConstraintTypeConstraint) {
+	if ct.Includes(sql99.ConstraintTypeConstraint) {
 		// TODO(go,3) move validation elsewhere
 		for _, constraint := range table.Constraints {
-			if ct.Includes(ConstraintTypeForeign) && constraint.Type.Equals(model.ConstraintTypeForeign) {
+			if ct.Includes(sql99.ConstraintTypeForeign) && constraint.Type.Equals(model.ConstraintTypeForeign) {
 				var fSchema *model.Schema
 				if constraint.ForeignSchema != "" {
 					fSchema = doc.TryGetSchemaNamed(constraint.ForeignSchema)
@@ -121,9 +86,9 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 					}
 				}
 
-				constraints = append(constraints, &TableConstraint{
+				constraints = append(constraints, &sql99.TableConstraint{
 					Name:             constraint.Name,
-					Type:             ConstraintTypeForeign,
+					Type:             sql99.ConstraintTypeForeign,
 					Schema:           schema,
 					Table:            table,
 					UnderlyingType:   constraint.Type,
@@ -132,10 +97,10 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 					ForeignSchema:    fSchema,
 					ForeignTable:     fTable,
 				})
-			} else if ct.Includes(ConstraintTypeConstraint) {
-				constraints = append(constraints, &TableConstraint{
+			} else if ct.Includes(sql99.ConstraintTypeConstraint) {
+				constraints = append(constraints, &sql99.TableConstraint{
 					Name:           constraint.Name,
-					Type:           ConstraintTypeConstraint,
+					Type:           sql99.ConstraintTypeConstraint,
 					Schema:         schema,
 					Table:          table,
 					UnderlyingType: constraint.Type,
@@ -146,7 +111,7 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 	}
 
 	// look for explicit <foreignKey> constraints
-	if ct.Includes(ConstraintTypeForeign) {
+	if ct.Includes(sql99.ConstraintTypeForeign) {
 		for _, fk := range table.ForeignKeys {
 			if fk.ConstraintName == "" {
 				// TODO(go,3) remove this restriction, generate a name
@@ -171,9 +136,9 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 			}
 
 			ref := lib.GlobalDBX.ResolveForeignKey(doc, localKey, fk.GetReferencedKey())
-			constraints = append(constraints, &TableConstraint{
+			constraints = append(constraints, &sql99.TableConstraint{
 				Name:             fk.ConstraintName,
-				Type:             ConstraintTypeForeign,
+				Type:             sql99.ConstraintTypeForeign,
 				Schema:           schema,
 				Table:            table,
 				Columns:          localCols,
@@ -188,13 +153,13 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 	}
 
 	// look for constraints in columns
-	if ct.Includes(ConstraintTypeConstraint) {
+	if ct.Includes(sql99.ConstraintTypeConstraint) {
 		for _, column := range table.Columns {
-			if ct.Includes(ConstraintTypeForeign) && column.HasForeignKey() {
+			if ct.Includes(sql99.ConstraintTypeForeign) && column.HasForeignKey() {
 				ref := lib.GlobalDBX.ResolveForeignKeyColumn(doc, schema, table, column)
-				constraints = append(constraints, &TableConstraint{
+				constraints = append(constraints, &sql99.TableConstraint{
 					Name:             util.CoalesceStr(column.ForeignKeyName, GlobalIndex.BuildForeignKeyName(table.Name, column.Name)),
-					Type:             ConstraintTypeForeign,
+					Type:             sql99.ConstraintTypeForeign,
 					Schema:           schema,
 					Table:            table,
 					Columns:          []*model.Column{column},
@@ -208,9 +173,9 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 			}
 
 			if column.Check != "" {
-				constraints = append(constraints, &TableConstraint{
+				constraints = append(constraints, &sql99.TableConstraint{
 					Name:           column.Name + "_check", // TODO(feat) is this correct?
-					Type:           ConstraintTypeConstraint,
+					Type:           sql99.ConstraintTypeConstraint,
 					Schema:         schema,
 					Table:          table,
 					Columns:        []*model.Column{column},
@@ -226,7 +191,7 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 	return constraints
 }
 
-func (self *Constraint) TryGetTableConstraintNamed(doc *model.Definition, schema *model.Schema, table *model.Table, name string, constraintType ConstraintType) *TableConstraint {
+func (self *Constraint) TryGetTableConstraintNamed(doc *model.Definition, schema *model.Schema, table *model.Table, name string, constraintType sql99.ConstraintType) *sql99.TableConstraint {
 	// TODO(feat) can make this a little more performant if we pass constraint type in
 	for _, constraint := range self.GetTableConstraints(doc, schema, table, constraintType) {
 		if strings.EqualFold(constraint.Name, name) {
@@ -236,7 +201,7 @@ func (self *Constraint) TryGetTableConstraintNamed(doc *model.Definition, schema
 	return nil
 }
 
-func (self *Constraint) GetDropSql(constraint *TableConstraint) []output.ToSql {
+func (self *Constraint) GetDropSql(constraint *sql99.TableConstraint) []output.ToSql {
 	return []output.ToSql{
 		&sql.ConstraintDrop{
 			Table:      sql.TableRef{constraint.Schema.Name, constraint.Table.Name},
@@ -245,12 +210,12 @@ func (self *Constraint) GetDropSql(constraint *TableConstraint) []output.ToSql {
 	}
 }
 
-func (self *Constraint) GetCreationSql(constraint *TableConstraint) []output.ToSql {
+func (self *Constraint) GetCreationSql(constraint *sql99.TableConstraint) []output.ToSql {
 	table := sql.TableRef{constraint.Schema.Name, constraint.Table.Name}
 
 	// if there's a text definition, prefer that; it should have come verbatim from the xml
 	if constraint.TextDefinition != "" {
-		util.Assert(constraint.UnderlyingType != "", "TableConstraint should not have a TextDefinition but no UnderlyingType")
+		util.Assert(constraint.UnderlyingType != "", "sql99.TableConstraint should not have a TextDefinition but no UnderlyingType")
 		return []output.ToSql{
 			&sql.ConstraintCreateRaw{
 				Table:          table,
@@ -261,7 +226,7 @@ func (self *Constraint) GetCreationSql(constraint *TableConstraint) []output.ToS
 		}
 	}
 
-	if constraint.Type == ConstraintTypePrimaryKey {
+	if constraint.Type == sql99.ConstraintTypePrimaryKey {
 		cols := make([]string, len(constraint.Columns))
 		for i, col := range constraint.Columns {
 			cols[i] = col.Name
@@ -275,7 +240,7 @@ func (self *Constraint) GetCreationSql(constraint *TableConstraint) []output.ToS
 		}
 	}
 
-	if constraint.Type == ConstraintTypeForeign {
+	if constraint.Type == sql99.ConstraintTypeForeign {
 		localCols := make([]string, len(constraint.Columns))
 		for i, col := range constraint.Columns {
 			localCols[i] = col.Name
@@ -297,82 +262,30 @@ func (self *Constraint) GetCreationSql(constraint *TableConstraint) []output.ToS
 		}
 	}
 
-	util.Assert(false, "This should be unreachable, check that TableConstraint is constructed correctly or Constraint.GetTableConstraints is correct: %#v", constraint)
+	util.Assert(false, "This should be unreachable, check that sql99.TableConstraint is constructed correctly or Constraint.GetTableConstraints is correct: %#v", constraint)
 	return nil
 }
 
-func (self *TableConstraint) Equals(other *TableConstraint) bool {
-	// TODO(go,core) this definition is slightly different than php, double check and test it
-	if self == nil || other == nil {
-		return false
-	}
-
-	if !strings.EqualFold(self.Name, other.Name) {
-		return false
-	}
-
-	if !self.Type.Equals(other.Type) {
-		return false
-	}
-
-	if !strings.EqualFold(string(self.UnderlyingType), string(other.UnderlyingType)) {
-		return false
-	}
-
-	if self.TextDefinition != other.TextDefinition {
-		return false
-	}
-
-	if self.ForeignOnDelete != other.ForeignOnDelete {
-		return false
-	}
-
-	if self.ForeignOnUpdate != other.ForeignOnUpdate {
-		return false
-	}
-
-	if len(self.ForeignCols) != len(other.ForeignCols) {
-		return false
-	}
-
-	for i, col := range self.Columns {
-		if !strings.EqualFold(col.Name, other.Columns[i].Name) {
-			return false
-		}
-
-		// TODO(feat) We should double check this: does changing a column type invalidate a constraint over it?
-		// if !strings.EqualFold(col.Type, other.Columns[i].Type) {
-		// 	return false
-		// }
-
-		if len(self.ForeignCols) > 0 && !strings.EqualFold(self.ForeignCols[i].Type, other.ForeignCols[i].Type) {
-			return false
-		}
-	}
-
-	return true
-}
-
-func (self *TableConstraint) DependsOnRenamedTable(doc *model.Definition) bool {
+func (self *Constraint) DependsOnRenamedTable(doc *model.Definition, constraint *sql99.TableConstraint) bool {
 	if lib.GlobalDBSteward.IgnoreOldNames {
 		return false
 	}
 
-	refSchema := self.ForeignSchema
-	refTable := self.ForeignTable
-	if refTable == nil && self.TextDefinition != "" && self.Type == ConstraintTypeForeign {
-		if matches := util.IMatch(`^.+\s+REFERENCES\s+\"?(\w+)\"?\.\"?(\w+)\"?\s*\(\s*\"?(.*)\"?\s*\)$`, self.TextDefinition); len(matches) > 0 {
+	refSchema := constraint.ForeignSchema
+	refTable := constraint.ForeignTable
+	if refTable == nil && constraint.TextDefinition != "" && constraint.Type == sql99.ConstraintTypeForeign {
+		if matches := util.IMatch(`^.+\s+REFERENCES\s+\"?(\w+)\"?\.\"?(\w+)\"?\s*\(\s*\"?(.*)\"?\s*\)$`, constraint.TextDefinition); len(matches) > 0 {
 			refSchema = doc.TryGetSchemaNamed(matches[1])
 			if refSchema == nil {
-				lib.GlobalDBSteward.Fatal("Constraint %s.%s.%s references schema %s but could not find it", self.Schema.Name, self.Table.Name, self.Name, matches[1])
+				lib.GlobalDBSteward.Fatal("Constraint %s.%s.%s references schema %s but could not find it", constraint.Schema.Name, constraint.Table.Name, constraint.Name, matches[1])
 			}
 
 			refTable = refSchema.TryGetTableNamed(matches[2])
 			if refTable == nil {
-				lib.GlobalDBSteward.Fatal("Constraint %s.%s.%s references table %s.%s but could not find it", self.Schema.Name, self.Table.Name, self.Name, matches[1], matches[2])
+				lib.GlobalDBSteward.Fatal("Constraint %s.%s.%s references table %s.%s but could not find it", constraint.Schema.Name, constraint.Table.Name, constraint.Name, matches[1], matches[2])
 			}
 		} else {
-			lib.GlobalDBSteward.Fatal("Failed to parse REFERENCES definition for constraint %s.%s.%s: %s", self.Schema.Name, self.Table.Name, self.Name, self.TextDefinition)
+			lib.GlobalDBSteward.Fatal("Failed to parse REFERENCES definition for constraint %s.%s.%s: %s", constraint.Schema.Name, constraint.Table.Name, constraint.Name, constraint.TextDefinition)
 		}
 	}
 
@@ -383,7 +296,7 @@ func (self *TableConstraint) DependsOnRenamedTable(doc *model.Definition) bool {
 	isRenamed, err := GlobalDiffTables.IsRenamedTable(refSchema, refTable)
 	lib.GlobalDBSteward.FatalIfError(err, "while checking if constraint depends on renamed table")
 	if isRenamed {
-		lib.GlobalDBSteward.Notice("Constraint %s.%s.%s references renamed table %s.%s", self.Schema.Name, self.Table.Name, self.Name, refSchema.Name, refTable.Name)
+		lib.GlobalDBSteward.Notice("Constraint %s.%s.%s references renamed table %s.%s", constraint.Schema.Name, constraint.Table.Name, constraint.Name, refSchema.Name, refTable.Name)
 		return true
 	}
 	return false

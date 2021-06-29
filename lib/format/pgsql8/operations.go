@@ -40,6 +40,7 @@ func NewOperations() *Operations {
 }
 
 func (self *Operations) GetQuoter() output.Quoter {
+	// TODO(go,core) can we push this out to the GlobalLookup instance?
 	if self.quoter == nil {
 		dbsteward := lib.GlobalDBSteward
 		return &sql.Quoter{
@@ -949,7 +950,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	// define table primary keys before foreign keys so unique requirements are always met for FOREIGN KEY constraints
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
-			GlobalDiffConstraints.CreateConstraintsTable(ofs, nil, nil, schema, table, ConstraintTypePrimaryKey)
+			GlobalDiffConstraints.CreateConstraintsTable(ofs, nil, nil, schema, table, sql99.ConstraintTypePrimaryKey)
 		}
 	}
 
@@ -957,7 +958,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	// use the dependency order to specify foreign keys in an order that will satisfy nested foreign keys and etc
 	// TODO(feat) shouldn't this consider GlobalDBSteward.LimitToTables like BuildData does?
 	for _, entry := range tableDep {
-		GlobalDiffConstraints.CreateConstraintsTable(ofs, nil, nil, entry.Schema, entry.Table, ConstraintTypeConstraint)
+		GlobalDiffConstraints.CreateConstraintsTable(ofs, nil, nil, entry.Schema, entry.Table, sql99.ConstraintTypeConstraint)
 	}
 
 	// trigger definitions
@@ -975,7 +976,6 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	for _, schema := range doc.Schemas {
 		for _, view := range schema.Views {
 			for _, grant := range view.Grants {
-				// TODO(feat) revokes too?
 				ofs.WriteSql(GlobalView.GetGrantSql(doc, schema, view, grant)...)
 			}
 		}

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
+	"github.com/dbsteward/dbsteward/lib/format/sql99"
 
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
@@ -14,12 +15,12 @@ import (
 )
 
 func TestDiffConstraints_DropCreate_SameToSame(t *testing.T) {
-	ddl := diffConstraintsTableCommon(diffConstraintsSchemaPka, diffConstraintsSchemaPka, pgsql8.ConstraintTypeAll)
+	ddl := diffConstraintsTableCommon(diffConstraintsSchemaPka, diffConstraintsSchemaPka, sql99.ConstraintTypeAll)
 	assert.Equal(t, []output.ToSql{}, ddl)
 }
 
 func TestDiffConstraints_DropCreate_AddSome(t *testing.T) {
-	ddl := diffConstraintsTableCommon(diffConstraintsSchemaPka, diffConstraintsSchemaPkaUqc, pgsql8.ConstraintTypeAll)
+	ddl := diffConstraintsTableCommon(diffConstraintsSchemaPka, diffConstraintsSchemaPkaUqc, sql99.ConstraintTypeAll)
 	assert.Equal(t, []output.ToSql{
 		&sql.ConstraintCreateRaw{
 			Table:          sql.TableRef{"public", "test"},
@@ -31,7 +32,7 @@ func TestDiffConstraints_DropCreate_AddSome(t *testing.T) {
 }
 
 func TestDiffConstraints_DropCreate_DropSome(t *testing.T) {
-	ddl := diffConstraintsTableCommon(diffConstraintsSchemaPkaUqc, diffConstraintsSchemaPka, pgsql8.ConstraintTypeAll)
+	ddl := diffConstraintsTableCommon(diffConstraintsSchemaPkaUqc, diffConstraintsSchemaPka, sql99.ConstraintTypeAll)
 	assert.Equal(t, []output.ToSql{
 		&sql.ConstraintDrop{
 			Table:      sql.TableRef{"public", "test"},
@@ -41,7 +42,7 @@ func TestDiffConstraints_DropCreate_DropSome(t *testing.T) {
 }
 
 func TestDiffConstraints_DropCreate_ChangeOne(t *testing.T) {
-	ddl := diffConstraintsTableCommon(diffConstraintsSchemaPka, diffConstraintsSchemaPkb, pgsql8.ConstraintTypeAll)
+	ddl := diffConstraintsTableCommon(diffConstraintsSchemaPka, diffConstraintsSchemaPkb, sql99.ConstraintTypeAll)
 	assert.Equal(t, []output.ToSql{
 		&sql.ConstraintDrop{
 			Table:      sql.TableRef{"public", "test"},
@@ -56,7 +57,7 @@ func TestDiffConstraints_DropCreate_ChangeOne(t *testing.T) {
 }
 
 func TestDiffConstraints_DropCreate_AddSomeAndChange(t *testing.T) {
-	ddl := diffConstraintsTableCommon(diffConstraintsSchemaPka, diffConstraintsSchemaPkbCfke, pgsql8.ConstraintTypeAll)
+	ddl := diffConstraintsTableCommon(diffConstraintsSchemaPka, diffConstraintsSchemaPkbCfke, sql99.ConstraintTypeAll)
 	assert.Equal(t, []output.ToSql{
 		&sql.ConstraintDrop{
 			Table:      sql.TableRef{"public", "test"},
@@ -77,7 +78,7 @@ func TestDiffConstraints_DropCreate_AddSomeAndChange(t *testing.T) {
 }
 
 func TestDiffConstraints_DropCreate_DropSomeAndChange(t *testing.T) {
-	ddl := diffConstraintsTableCommon(diffConstraintsSchemaPkaUqcIfkdCfke, diffConstraintsSchemaPkbCfke, pgsql8.ConstraintTypeAll)
+	ddl := diffConstraintsTableCommon(diffConstraintsSchemaPkaUqcIfkdCfke, diffConstraintsSchemaPkbCfke, sql99.ConstraintTypeAll)
 	assert.Equal(t, []output.ToSql{
 		&sql.ConstraintDrop{
 			Table:      sql.TableRef{"public", "test"},
@@ -129,7 +130,7 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 
 	// in psql8_diff::update_structure() when the new schema doesn't contain the old table name,
 	// $new_table is set to null for the first diff_constraints_table() call, adjusted this test accordingly
-	// ddl := diffConstraintsTableCommon(oldSchema, newSchema, pgsql8.ConstraintTypePrimaryKey)
+	// ddl := diffConstraintsTableCommon(oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
 	oldDoc := &model.Definition{
 		Schemas: []*model.Schema{oldSchema},
 	}
@@ -141,8 +142,8 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 	}
 	setOldNewDocs(oldDoc, newDoc)
 	diffConstraints := pgsql8.GlobalDiffConstraints
-	diffConstraints.DropConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, nil, pgsql8.ConstraintTypePrimaryKey)
-	diffConstraints.CreateConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], pgsql8.ConstraintTypePrimaryKey)
+	diffConstraints.DropConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, nil, sql99.ConstraintTypePrimaryKey)
+	diffConstraints.CreateConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], sql99.ConstraintTypePrimaryKey)
 
 	assert.Equal(t, []output.ToSql{
 		&sql.ConstraintDrop{
@@ -190,9 +191,9 @@ func TestDiffConstraints_DropCreate_AutoIncrement(t *testing.T) {
 	}
 
 	// auto-increment is no longer considered a constraint, but rather part of a type, and is calculated during the tables diff
-	assert.Equal(t, []output.ToSql{}, diffConstraintsTableCommon(auto, auto, pgsql8.ConstraintTypeAll))
-	assert.Equal(t, []output.ToSql{}, diffConstraintsTableCommon(noAuto, noAuto, pgsql8.ConstraintTypeAll))
-	assert.Equal(t, []output.ToSql{}, diffConstraintsTableCommon(noAuto, auto, pgsql8.ConstraintTypePrimaryKey))
+	assert.Equal(t, []output.ToSql{}, diffConstraintsTableCommon(auto, auto, sql99.ConstraintTypeAll))
+	assert.Equal(t, []output.ToSql{}, diffConstraintsTableCommon(noAuto, noAuto, sql99.ConstraintTypeAll))
+	assert.Equal(t, []output.ToSql{}, diffConstraintsTableCommon(noAuto, auto, sql99.ConstraintTypePrimaryKey))
 }
 
 func TestDiffConstraints_DropCreate_ChangeColumnTypeWithFK(t *testing.T) {
@@ -238,7 +239,7 @@ func TestDiffConstraints_DropCreate_ChangeColumnTypeWithFK(t *testing.T) {
 		},
 	}
 
-	ddl := diffConstraintsTableCommon(oldSchema, newSchema, pgsql8.ConstraintTypeAll)
+	ddl := diffConstraintsTableCommon(oldSchema, newSchema, sql99.ConstraintTypeAll)
 	assert.Equal(t, []output.ToSql{
 		&sql.ConstraintDrop{
 			Table:      sql.TableRef{"public", "test"},
@@ -371,7 +372,7 @@ var diffConstraintsSchemaPkaUqcIfkdCfke = &model.Schema{
 	},
 }
 
-func diffConstraintsTableCommon(oldSchema, newSchema *model.Schema, ctype pgsql8.ConstraintType) []output.ToSql {
+func diffConstraintsTableCommon(oldSchema, newSchema *model.Schema, ctype sql99.ConstraintType) []output.ToSql {
 	oldDoc := &model.Definition{
 		Schemas: []*model.Schema{oldSchema},
 	}

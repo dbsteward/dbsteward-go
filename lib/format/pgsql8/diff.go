@@ -178,8 +178,8 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			GlobalDiffFunctions.DiffFunctions(stage1, stage3, oldSchema, newSchema)
 			GlobalDiffSequences.DiffSequences(stage1, oldSchema, newSchema)
 			// remove old constraints before table constraints, so the sql statements succeed
-			GlobalDiffConstraints.DropConstraints(stage1, oldSchema, newSchema, ConstraintTypeConstraint)
-			GlobalDiffConstraints.DropConstraints(stage1, oldSchema, newSchema, ConstraintTypePrimaryKey)
+			GlobalDiffConstraints.DropConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypeConstraint)
+			GlobalDiffConstraints.DropConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
 			GlobalDiffTables.DropTables(stage1, oldSchema, newSchema)
 			err := GlobalDiffTables.CreateTables(stage1, oldSchema, newSchema)
 			lib.GlobalDBSteward.FatalIfError(err, "while creating tables")
@@ -187,7 +187,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			lib.GlobalDBSteward.FatalIfError(err, "while diffing tables")
 			GlobalDiffIndexes.DiffIndexes(stage1, oldSchema, newSchema)
 			GlobalDiffTables.DiffClusters(stage1, oldSchema, newSchema)
-			GlobalDiffConstraints.CreateConstraints(stage1, oldSchema, newSchema, ConstraintTypePrimaryKey)
+			GlobalDiffConstraints.CreateConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
 			GlobalDiffTriggers.DiffTriggers(stage1, oldSchema, newSchema)
 		}
 		// non-primary key constraints may be inter-schema dependant, and dependant on other's primary keys
@@ -195,7 +195,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		for _, newSchema := range dbsteward.NewDatabase.Schemas {
 			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
-			GlobalDiffConstraints.CreateConstraints(stage1, oldSchema, newSchema, ConstraintTypeConstraint)
+			GlobalDiffConstraints.CreateConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypeConstraint)
 		}
 	} else {
 		// use table dependency order to do structural changes in an intelligent order
@@ -228,8 +228,8 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 
 			// NOTE: when dropping constraints, GlobalDBX.RenamedTableCheckPointer() is not called for oldTable
 			// as GlobalDiffConstraints.DiffConstraintsTable() will do rename checking when recreating constraints for renamed tables
-			GlobalDiffConstraints.DropConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypeConstraint)
-			GlobalDiffConstraints.DropConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypePrimaryKey)
+			GlobalDiffConstraints.DropConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypeConstraint)
+			GlobalDiffConstraints.DropConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypePrimaryKey)
 		}
 
 		processedSchemas = map[string]bool{}
@@ -265,12 +265,12 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			lib.GlobalDBSteward.FatalIfError(err, "while diffing table %s.%s", newSchema.Name, newTable.Name)
 			GlobalDiffIndexes.DiffIndexesTable(stage1, oldSchema, oldTable, newSchema, newTable)
 			GlobalDiffTables.DiffClustersTable(stage1, oldSchema, oldTable, newSchema, newTable)
-			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypePrimaryKey)
+			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypePrimaryKey)
 			GlobalDiffTriggers.DiffTriggersTable(stage1, oldSchema, oldTable, newSchema, newTable)
 
 			// HACK: For now, we'll generate foreign key constraints in stage 4 in updateData below
 			// https://github.com/dbsteward/dbsteward/issues/142
-			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, ConstraintTypeConstraint&^ConstraintTypeForeign)
+			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypeConstraint&^sql99.ConstraintTypeForeign)
 		}
 
 		// drop old tables in reverse dependency order
@@ -380,7 +380,7 @@ func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 
 				// HACK: For now, we'll generate foreign key constraints in stage 4 after inserting data
 				// https://github.com/dbsteward/dbsteward/issues/142
-				GlobalDiffConstraints.CreateConstraintsTable(ofs, oldSchema, oldTable, newSchema, newTable, ConstraintTypeForeign)
+				GlobalDiffConstraints.CreateConstraintsTable(ofs, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypeForeign)
 			}
 		}
 	} else {

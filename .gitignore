@@ -1,4 +1,5 @@
 .vscode
 dbsteward
+dbsteward.exe
 __debug_bin
 *.cov

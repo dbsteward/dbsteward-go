@@ -2,6 +2,7 @@ package pgsql8
 
 import (
 	"github.com/dbsteward/dbsteward/lib"
+	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
@@ -13,7 +14,7 @@ func NewDiffConstraints() *DiffConstraints {
 	return &DiffConstraints{}
 }
 
-func (self *DiffConstraints) CreateConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, constraintType ConstraintType) {
+func (self *DiffConstraints) CreateConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, constraintType sql99.ConstraintType) {
 	for _, newTable := range newSchema.Tables {
 		var oldTable *model.Table
 		if oldSchema != nil {
@@ -24,7 +25,7 @@ func (self *DiffConstraints) CreateConstraints(ofs output.OutputFileSegmenter, o
 	}
 }
 
-func (self *DiffConstraints) CreateConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType ConstraintType) {
+func (self *DiffConstraints) CreateConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType sql99.ConstraintType) {
 	if newTable != nil {
 		GlobalOperations.SetContextReplicaSetId(newTable.SlonySetId)
 	}
@@ -55,7 +56,7 @@ func (self *DiffConstraints) CreateConstraintsTable(ofs output.OutputFileSegment
 	}
 }
 
-func (self *DiffConstraints) DropConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, constraintType ConstraintType) {
+func (self *DiffConstraints) DropConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, constraintType sql99.ConstraintType) {
 	for _, newTable := range newSchema.Tables {
 		var oldTable *model.Table
 		if oldSchema != nil {
@@ -66,7 +67,7 @@ func (self *DiffConstraints) DropConstraints(ofs output.OutputFileSegmenter, old
 	}
 }
 
-func (self *DiffConstraints) DropConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType ConstraintType) {
+func (self *DiffConstraints) DropConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType sql99.ConstraintType) {
 	if newTable != nil {
 		GlobalOperations.SetContextReplicaSetId(newTable.SlonySetId)
 	}
@@ -75,17 +76,17 @@ func (self *DiffConstraints) DropConstraintsTable(ofs output.OutputFileSegmenter
 	}
 }
 
-func (self *DiffConstraints) GetOldConstraints(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType ConstraintType) []*TableConstraint {
+func (self *DiffConstraints) GetOldConstraints(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType sql99.ConstraintType) []*sql99.TableConstraint {
 	if newTable != nil {
 		GlobalOperations.SetContextReplicaSetId(newTable.SlonySetId)
 	}
-	out := []*TableConstraint{}
+	out := []*sql99.TableConstraint{}
 	if newTable != nil && oldTable != nil {
 		oldDb := lib.GlobalDBSteward.OldDatabase
 		newDb := lib.GlobalDBSteward.NewDatabase
 		for _, oldConstraint := range GlobalConstraint.GetTableConstraints(oldDb, oldSchema, oldTable, constraintType) {
 			newConstraint := GlobalConstraint.TryGetTableConstraintNamed(newDb, newSchema, newTable, oldConstraint.Name, constraintType)
-			if newConstraint == nil || !newConstraint.Equals(oldConstraint) || oldConstraint.DependsOnRenamedTable(newDb) || newConstraint.DependsOnRenamedTable(newDb) {
+			if newConstraint == nil || !newConstraint.Equals(oldConstraint) || GlobalConstraint.DependsOnRenamedTable(newDb, oldConstraint) || GlobalConstraint.DependsOnRenamedTable(newDb, newConstraint) {
 				out = append(out, oldConstraint)
 			}
 		}
@@ -93,14 +94,14 @@ func (self *DiffConstraints) GetOldConstraints(oldSchema *model.Schema, oldTable
 	return out
 }
 
-func (self *DiffConstraints) GetNewConstraints(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType ConstraintType) []*TableConstraint {
-	out := []*TableConstraint{}
+func (self *DiffConstraints) GetNewConstraints(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType sql99.ConstraintType) []*sql99.TableConstraint {
+	out := []*sql99.TableConstraint{}
 	if newTable != nil {
 		oldDb := lib.GlobalDBSteward.OldDatabase
 		newDb := lib.GlobalDBSteward.NewDatabase
 		for _, newConstraint := range GlobalConstraint.GetTableConstraints(newDb, newSchema, newTable, constraintType) {
 			oldConstraint := GlobalConstraint.TryGetTableConstraintNamed(oldDb, oldSchema, oldTable, newConstraint.Name, constraintType)
-			if oldConstraint == nil || !oldConstraint.Equals(newConstraint) || newConstraint.DependsOnRenamedTable(newDb) {
+			if oldConstraint == nil || !oldConstraint.Equals(newConstraint) || GlobalConstraint.DependsOnRenamedTable(newDb, newConstraint) {
 				out = append(out, newConstraint)
 			}
 		}
