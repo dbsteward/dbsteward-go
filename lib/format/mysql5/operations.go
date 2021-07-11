@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/dbsteward/dbsteward/lib"
+	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
+	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 type Operations struct {
@@ -190,7 +192,65 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 }
 
 func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableRef) {
-	// TODO(go,mysql) implement me
+	// TODO(go,3) unify this with pgsql implementation?
+	limitToTables := lib.GlobalDBSteward.LimitToTables
+
+	// use the dependency order to then write out the actual data inserts into the data sql file
+	for _, entry := range tableDep {
+		schema := entry.Schema
+		table := entry.Table
+
+		// skip any tables that are not in the limit list, if there are any tables to limit
+		if len(limitToTables) > 0 {
+			if includeTables, ok := limitToTables[schema.Name]; ok {
+				if !util.InArrayStr(table.Name, includeTables) {
+					continue
+				}
+			} else {
+				// if this entry's schema didn't appear in the include list, we can't possibly include any tables from it
+				continue
+			}
+		}
+
+		ofs.WriteSql(GlobalDiffTables.GetCreateDataSql(nil, nil, schema, table)...)
+
+		// set serial primary keys to the max value after inserts have been performed
+		// only if the PRIMARY KEY is not a multi column
+		// TODO(go,4) move sequence polyfill behind a flag
+		if table.Rows != nil && len(table.PrimaryKey) == 1 {
+			dataCols := table.Rows.Columns
+			pkCol := table.PrimaryKey[0]
+			if util.InArrayStr(pkCol, dataCols) {
+				// TODO(go,3) seems like this could be refactored better by putting much of the lookup
+				// into the model structs
+				pk := lib.GlobalDBX.TryInheritanceGetColumn(doc, schema, table, pkCol)
+				if pk == nil {
+					lib.GlobalDBSteward.Fatal("Failed to find primary key column '%s' for %s.%s",
+						pkCol, schema.Name, table.Name)
+				}
+				// only set the pkey to MAX() if the primary key column is also a serial/bigserial and if serialStart is not defined
+				// TODO(go,nth) unify DataType.IsLinkedType and Column.IsSerialType
+				if GlobalColumn.IsSerialType(pk) && pk.SerialStart == nil {
+					ofs.WriteSql(&sql.SequenceSerialSetValMax{
+						Column: sql.ColumnRef{schema.Name, table.Name, pk.Name},
+					})
+				}
+			}
+		}
+
+		// unlike the pg class, we cannot just set identity column start values here with setval without inserting a row
+		// check if primary key is a column of this table - FS#17481
+		for _, columnName := range table.PrimaryKey {
+			col := lib.GlobalDBX.TryInheritanceGetColumn(doc, schema, table, columnName)
+			if col == nil {
+				lib.GlobalDBSteward.Fatal("Declared primary key column (%s) does not exist as column in table %s.%s",
+					columnName, schema.Name, table.Name)
+			}
+		}
+	}
+
+	// include all of the unstaged sql elements
+	lib.GlobalDBX.BuildStagedSql(doc, ofs, "")
 }
 
 func (self *Operations) BuildUpgrade(

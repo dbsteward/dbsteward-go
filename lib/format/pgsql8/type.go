@@ -113,6 +113,7 @@ func (self *DataType) GetDropSql(schema *model.Schema, datatype *model.DataType)
 }
 
 func (self *DataType) IsLinkedTableType(spec string) bool {
+	// TODO(go,pgsql) unify these
 	return self.IsSerialType(spec)
 }
 

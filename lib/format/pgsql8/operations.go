@@ -1020,12 +1020,10 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 						pkCol, schema.Name, table.Name)
 				}
 				// TODO(go,nth) unify DataType.IsLinkedType and Column.IsSerialType
-				if GlobalColumn.IsSerialType(pk) {
-					if pk.SerialStart == nil {
-						ofs.WriteSql(&sql.SequenceSerialSetValMax{
-							Column: sql.ColumnRef{schema.Name, table.Name, pk.Name},
-						})
-					}
+				if GlobalColumn.IsSerialType(pk) && pk.SerialStart == nil {
+					ofs.WriteSql(&sql.SequenceSerialSetValMax{
+						Column: sql.ColumnRef{schema.Name, table.Name, pk.Name},
+					})
 				}
 			}
 		}

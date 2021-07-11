@@ -1,5 +1,5 @@
 -- pgsql8/someapp_extracted_upgrade_stage3_schema1.sql
--- DBSteward stage 3 structure changes, constraints, and removals - generated Sun, 11 Jul 2021 18:14:31 +0000
+-- DBSteward stage 3 structure changes, constraints, and removals - generated Sun, 11 Jul 2021 18:51:16 +0000
 -- Old definition: pgsql8/someapp_v2_composite.xml
 -- New definition pgsql8/someapp_extracted_composite.xml
 

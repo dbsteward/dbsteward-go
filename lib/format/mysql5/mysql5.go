@@ -7,10 +7,12 @@ var GlobalSchema = NewSchema()
 var GlobalDataType = NewDataType()
 var GlobalFunction = NewFunction()
 var GlobalTable = NewTable()
+var GlobalColumn = NewColumn()
 var GlobalSequence = NewSequence()
 var GlobalTrigger = NewTrigger()
 var GlobalView = NewView()
 var GlobalDiffConstraints = NewDiffConstraints()
+var GlobalDiffTables = NewDiffTables()
 var GlobalDiffViews = NewDiffViews()
 
 var GlobalLookup = &format.Lookup{

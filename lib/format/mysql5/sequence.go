@@ -5,6 +5,8 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
+// TODO(go,mysql) Document the mysql sequence polyfill
+
 type Sequence struct {
 }
 
