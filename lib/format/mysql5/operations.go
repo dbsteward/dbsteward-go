@@ -257,15 +257,19 @@ func (self *Operations) BuildUpgrade(
 	oldOutputPrefix string, oldCompositeFile string, oldDoc *model.Definition, oldFiles []string,
 	newOutputPrefix string, newCompositeFile string, newDoc *model.Definition, newFiles []string,
 ) {
-	// TODO(go,mysql) implement me
+	upgradePrefix := newOutputPrefix + "_upgrade"
+
+	lib.GlobalDBSteward.Info("Calculating old table foreign key dependency order...")
+	GlobalDiff.OldTableDependency = lib.GlobalDBX.TableDependencyOrder(oldDoc)
+
+	lib.GlobalDBSteward.Info("Calculating new table foreign key dependency order...")
+	GlobalDiff.NewTableDependency = lib.GlobalDBX.TableDependencyOrder(newDoc)
+
+	GlobalDiff.DiffDoc(oldCompositeFile, newCompositeFile, oldDoc, newDoc, upgradePrefix)
 }
 
 func (self *Operations) ExtractSchema(host string, port uint, name, user, pass string) *model.Definition {
-	// TODO(go,mysql) implement me
-	return nil
-}
-func (self *Operations) CompareDbData(doc *model.Definition, host string, port uint, name, user, pass string) *model.Definition {
-	// TODO(go,mysql) implement me
+	// TODO(go,mysql) implement me; see mysql5::extract_schema
 	return nil
 }
 
@@ -273,11 +277,4 @@ func (self *Operations) GetQuoter() output.Quoter {
 	// TODO(go,core) why is this part of public interface? can it not be?
 	// TODO(go,mysql) implement me
 	return nil
-}
-func (self *Operations) SetContextReplicaSetId(setId *int) {
-	// TODO(go,core) this shouldn't be part of public interface
-}
-
-func (self *Operations) SqlDiff(old, new []string, upgradePrefix string) {
-	// TODO(go,mysql) implement me
 }
