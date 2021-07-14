@@ -34,3 +34,8 @@ func (self *Table) GetGrantSql(doc *model.Definition, schema *model.Schema, tabl
 	// TODO(go,mysql) implement me
 	return nil
 }
+
+func (self *Table) GetRevokeSql(doc *model.Definition, schema *model.Schema, table *model.Table, grant *model.Grant) []output.ToSql {
+	// TODO(go,mysql) implement me
+	return nil
+}

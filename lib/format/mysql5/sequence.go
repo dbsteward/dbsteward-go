@@ -28,3 +28,8 @@ func (self *Sequence) GetMultiGrantSql(doc *model.Definition, schema *model.Sche
 	// TODO(go,mysql) implement me
 	return nil
 }
+
+func (self *Sequence) GetMultiRevokeSql(doc *model.Definition, schema *model.Schema, sequences []*model.Sequence) []output.ToSql {
+	// TODO(go,mysql) implement me
+	return nil
+}

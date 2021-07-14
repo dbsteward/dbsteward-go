@@ -31,8 +31,11 @@ func (self *Diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSe
 	dbx.BuildStagedSql(dbsteward.NewDatabase, stage1, "STAGE1BEFORE")
 	dbx.BuildStagedSql(dbsteward.NewDatabase, stage2, "STAGE2BEFORE")
 
+	// TODO(go,nth) document why mysql revokes and updates permissions but pgsql doesn't
+	//              or: why does pgsql never revoke?
+
 	dbsteward.Info("Revoke Permissions")
-	self.revokePermissions(stage1, stage3)
+	self.revokePermissions(stage1)
 
 	dbsteward.Info("Update Structure")
 	self.updateStructure(stage1, stage3)
@@ -76,8 +79,31 @@ func (self *Diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSe
 	dbx.BuildStagedSql(dbsteward.NewDatabase, stage4, "STAGE4")
 }
 
-func (self *Diff) revokePermissions(stage1, stage3 output.OutputFileSegmenter) {
-	// TODO(go,mysql) implement me
+func (self *Diff) revokePermissions(stage1 output.OutputFileSegmenter) {
+	// TODO(feat) do granular diffing instead of wholesale revoke+regrant
+	// TODO(feat) what if objects were renamed
+	oldDoc := lib.GlobalDBSteward.OldDatabase
+	for _, oldSchema := range oldDoc.Schemas {
+		for _, oldGrant := range oldSchema.Grants {
+			stage1.WriteSql(GlobalSchema.GetRevokeSql(oldDoc, oldSchema, oldGrant)...)
+		}
+		for _, oldTable := range oldSchema.Tables {
+			for _, oldGrant := range oldSchema.Grants {
+				stage1.WriteSql(GlobalTable.GetRevokeSql(oldDoc, oldSchema, oldTable, oldGrant)...)
+			}
+		}
+		stage1.WriteSql(GlobalSequence.GetMultiRevokeSql(oldDoc, oldSchema, oldSchema.Sequences)...)
+		for _, oldFunc := range oldSchema.Functions {
+			for _, oldGrant := range oldFunc.Grants {
+				stage1.WriteSql(GlobalFunction.GetRevokeSql(oldDoc, oldSchema, oldFunc, oldGrant)...)
+			}
+		}
+		for _, oldView := range oldSchema.Views {
+			for _, oldGrant := range oldView.Grants {
+				stage1.WriteSql(GlobalView.GetRevokeSql(oldDoc, oldSchema, oldView, oldGrant)...)
+			}
+		}
+	}
 }
 
 func (self *Diff) updateStructure(stage1, stage3 output.OutputFileSegmenter) {
@@ -85,7 +111,30 @@ func (self *Diff) updateStructure(stage1, stage3 output.OutputFileSegmenter) {
 }
 
 func (self *Diff) updatePermissions(stage1, stage3 output.OutputFileSegmenter) {
-	// TODO(go,mysql) implement me
+	// TODO(feat) do granular diffing instead of wholesale revoke+regrant
+	// TODO(feat) what if objects were renamed
+	newDoc := lib.GlobalDBSteward.NewDatabase
+	for _, newSchema := range newDoc.Schemas {
+		for _, newGrant := range newSchema.Grants {
+			stage1.WriteSql(GlobalSchema.GetGrantSql(newDoc, newSchema, newGrant)...)
+		}
+		for _, newTable := range newSchema.Tables {
+			for _, newGrant := range newSchema.Grants {
+				stage1.WriteSql(GlobalTable.GetGrantSql(newDoc, newSchema, newTable, newGrant)...)
+			}
+		}
+		stage1.WriteSql(GlobalSequence.GetMultiGrantSql(newDoc, newSchema, newSchema.Sequences)...)
+		for _, newFunc := range newSchema.Functions {
+			for _, newGrant := range newFunc.Grants {
+				stage1.WriteSql(GlobalFunction.GetGrantSql(newDoc, newSchema, newFunc, newGrant)...)
+			}
+		}
+		for _, newView := range newSchema.Views {
+			for _, newGrant := range newView.Grants {
+				stage1.WriteSql(GlobalView.GetGrantSql(newDoc, newSchema, newView, newGrant)...)
+			}
+		}
+	}
 }
 
 func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
