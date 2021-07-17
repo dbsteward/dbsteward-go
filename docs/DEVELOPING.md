@@ -82,11 +82,11 @@ At the moment, I (@austinhyde) am the only one actively working on this, and as 
     - [ ] implement
     - [ ] test
 - [ ] mysql
-  - [ ] fresh builds
+  - [ ] fresh builds (@austinhyde)
     - [ ] implement
     - [ ] clean up, refinement
     - [ ] testing
-  - [ ] diffing
+  - [ ] diffing (@austinhyde)
     - [ ] implement
     - [ ] clean up, refinement
     - [ ] testing
