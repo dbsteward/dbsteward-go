@@ -107,7 +107,125 @@ func (self *Diff) revokePermissions(stage1 output.OutputFileSegmenter) {
 }
 
 func (self *Diff) updateStructure(stage1, stage3 output.OutputFileSegmenter) {
-	// TODO(go,mysql) implement me
+	dbsteward := lib.GlobalDBSteward
+	oldDoc := dbsteward.OldDatabase
+	newDoc := dbsteward.NewDatabase
+
+	if GlobalOperations.UseSchemaNamePrefix {
+		dbsteward.Info("Drop Old Schemas")
+		self.DropOldSchemas(stage3)
+	} else if len(dbsteward.NewDatabase.Schemas) > 1 || len(dbsteward.OldDatabase.Schemas) > 1 {
+		dbsteward.Fatal("You cannot use more than one schema in mysql5 without schema name prefixing\nPass the --useschemaprefix flag to turn this on")
+	}
+
+	GlobalDiffViews.DropViewsOrdered(stage1, dbsteward.OldDatabase, dbsteward.NewDatabase)
+
+	// TODO(feat) implement mysql5_language ? no relevant conversion exists see other TODO's stating this
+	//mysql5_diff_languages::diff_languages($ofs1);
+
+	// TODO(go,3) should we just always use table deps?
+	if len(self.NewTableDependency) == 0 {
+		for _, newSchema := range newDoc.Schemas {
+			// TODO(feat) this does not honor old*Name attributes, does it matter?
+			oldSchema := oldDoc.TryGetSchemaNamed(newSchema.Name)
+
+			GlobalDiffTypes.DiffTypes(stage1, oldSchema, newSchema)
+			GlobalDiffFunctions.DiffFunctions(stage1, stage3, oldSchema, newSchema)
+			GlobalDiffSequences.DiffSequences(stage1, stage3, oldSchema, newSchema)
+			// remove old constraints before table constraints, so the SQL statements succeed
+			GlobalDiffConstraints.DropConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypeConstraint)
+			GlobalDiffConstraints.DropConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
+			GlobalDiffTables.DropTables(stage3, oldSchema, newSchema)
+			GlobalDiffTables.DiffTables(stage1, stage3, oldSchema, newSchema)
+			// mysql5_diff_indexes::diff_indexes($ofs1, $old_schema, $new_schema)
+			GlobalDiffConstraints.CreateConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
+			GlobalDiffTriggers.DiffTriggers(stage1, oldSchema, newSchema)
+		}
+
+		// non-primary key constraints may be inter-schema dependant, and dependant on other's primary keys
+		// and therefore should be done after object creation sections
+		for _, newSchema := range newDoc.Schemas {
+			oldSchema := oldDoc.TryGetSchemaNamed(newSchema.Name)
+			GlobalDiffConstraints.CreateConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypeConstraint)
+		}
+	} else {
+		// use table dependency order to do structural changes in an intelligent order
+		// make sure we only process each schema once
+		processedSchemas := map[string]bool{}
+		for _, newEntry := range self.NewTableDependency {
+			newSchema := newEntry.Schema
+			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
+
+			if !processedSchemas[newSchema.Name] {
+				GlobalDiffTypes.DiffTypes(stage1, oldSchema, newSchema)
+				GlobalDiffFunctions.DiffFunctions(stage1, stage3, oldSchema, newSchema)
+				processedSchemas[newSchema.Name] = true
+			}
+		}
+
+		// remove all old constraints before new contraints, in reverse dependency order
+		// TODO(go,mysql) REVERSE dependency order
+		for _, oldEntry := range self.OldTableDependency {
+			oldSchema := oldEntry.Schema
+			oldTable := oldEntry.Table
+
+			newSchema := dbsteward.NewDatabase.TryGetSchemaNamed(oldSchema.Name)
+			var newTable *model.Table
+			if newSchema != nil {
+				newTable = newSchema.TryGetTableNamed(oldTable.Name)
+			}
+
+			// NOTE: when dropping constraints, GlobalDBX.RenamedTableCheckPointer() is not called for oldTable
+			// as GlobalDiffConstraints.DiffConstraintsTable() will do rename checking when recreating constraints for renamed tables
+			GlobalDiffConstraints.DropConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypeConstraint)
+			GlobalDiffConstraints.DropConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypePrimaryKey)
+		}
+
+		processedSchemas = map[string]bool{}
+		for _, newEntry := range self.NewTableDependency {
+			newSchema := newEntry.Schema
+			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
+
+			// schema level stuff should only be done once, keep track of which ones we have done
+			// see above for pre table creation stuff
+			// see below for post table creation stuff
+			if !processedSchemas[newSchema.Name] {
+				GlobalDiffSequences.DiffSequences(stage1, stage3, oldSchema, newSchema)
+				processedSchemas[newSchema.Name] = true
+			}
+
+			newTable := newEntry.Table
+			var oldTable *model.Table
+			if oldSchema != nil {
+				oldTable = oldSchema.TryGetTableNamed(newTable.Name)
+			}
+
+			oldSchema, oldTable = lib.GlobalDBX.RenamedTableCheckPointer(oldSchema, oldTable, newSchema, newTable)
+			err := GlobalDiffTables.CreateTable(stage1, oldSchema, newSchema, newTable)
+			dbsteward.FatalIfError(err, "while creating table %s.%s", newSchema.Name, newTable.Name)
+			err = GlobalDiffTables.DiffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
+			dbsteward.FatalIfError(err, "while diffing table %s.%s", newSchema.Name, newTable.Name)
+			// mysql5_diff_indexes::diff_indexes_table($ofs1, $old_schema, $old_table, $new_schema, $new_table);
+			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypePrimaryKey)
+			GlobalDiffTriggers.DiffTriggersTable(stage1, oldSchema, oldTable, newSchema, newTable)
+
+			// HACK: For now, we'll generate foreign key constraints in stage 4 in updateData below
+			// https://github.com/dbsteward/dbsteward/issues/142
+			GlobalDiffConstraints.CreateConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypeConstraint&^sql99.ConstraintTypeForeign)
+		}
+
+		// drop old tables in reverse dependency order
+		for i := len(self.OldTableDependency) - 1; i >= 0; i -= 1 {
+			oldEntry := self.OldTableDependency[i]
+			oldSchema := oldEntry.Schema
+			oldTable := oldEntry.Table
+
+			newSchema := dbsteward.NewDatabase.TryGetSchemaNamed(oldSchema.Name)
+			GlobalDiffTables.DropTable(stage3, oldSchema, oldTable, newSchema)
+		}
+	}
+
+	GlobalDiffViews.CreateViewsOrdered(stage3, dbsteward.OldDatabase, dbsteward.NewDatabase)
 }
 
 func (self *Diff) updatePermissions(stage1, stage3 output.OutputFileSegmenter) {

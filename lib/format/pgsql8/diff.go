@@ -202,7 +202,6 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		// make sure we only process each schema once
 		processedSchemas := map[string]bool{}
 		for _, newEntry := range self.NewTableDependency {
-			// NOTE: newEntry.IgnoreEntry is NOT checked here because these are schema operations
 			newSchema := newEntry.Schema
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 
@@ -215,6 +214,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		}
 
 		// remove all old constraints before new contraints, in reverse dependency order
+		// TODO(go,pgsql) REVERSE dependency order
 		for _, oldEntry := range self.OldTableDependency {
 			oldSchema := oldEntry.Schema
 			oldTable := oldEntry.Table

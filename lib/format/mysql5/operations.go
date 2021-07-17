@@ -18,6 +18,8 @@ import (
 type Operations struct {
 	*sql99.Operations
 
+	quoter *sql.Quoter
+
 	UseAutoIncrementTableOptions bool
 	UseSchemaNamePrefix          bool
 }
@@ -284,7 +286,18 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 }
 
 func (self *Operations) GetQuoter() output.Quoter {
-	// TODO(go,core) why is this part of public interface? can it not be?
-	// TODO(go,mysql) implement me
-	return nil
+	// TODO(go,core) can we push this out to the GlobalLookup instance?
+	if self.quoter == nil {
+		dbsteward := lib.GlobalDBSteward
+		return &sql.Quoter{
+			Logger:                         dbsteward,
+			ShouldQuoteSchemaNames:         dbsteward.QuoteAllNames || dbsteward.QuoteSchemaNames,
+			ShouldQuoteTableNames:          dbsteward.QuoteAllNames || dbsteward.QuoteTableNames,
+			ShouldQuoteColumnNames:         dbsteward.QuoteAllNames || dbsteward.QuoteColumnNames,
+			ShouldQuoteObjectNames:         dbsteward.QuoteAllNames || dbsteward.QuoteObjectNames,
+			ShouldQuoteIllegalIdentifiers:  dbsteward.QuoteIllegalIdentifiers,
+			ShouldQuoteReservedIdentifiers: dbsteward.QuoteReservedIdentifiers,
+		}
+	}
+	return self.quoter
 }

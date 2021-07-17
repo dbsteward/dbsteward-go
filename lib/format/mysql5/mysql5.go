@@ -13,7 +13,11 @@ var GlobalTrigger = NewTrigger()
 var GlobalView = NewView()
 var GlobalDiff = NewDiff()
 var GlobalDiffConstraints = NewDiffConstraints()
+var GlobalDiffFunctions = NewDiffFunctions()
+var GlobalDiffSequences = NewDiffSequences()
 var GlobalDiffTables = NewDiffTables()
+var GlobalDiffTriggers = NewDiffTriggers()
+var GlobalDiffTypes = NewDiffTypes()
 var GlobalDiffViews = NewDiffViews()
 
 var GlobalLookup = &format.Lookup{

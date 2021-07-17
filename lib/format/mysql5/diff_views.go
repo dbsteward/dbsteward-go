@@ -12,6 +12,10 @@ func NewDiffViews() *DiffViews {
 	return &DiffViews{}
 }
 
-func (self *DiffViews) CreateViewsOrdered(ofs output.OutputFileSegmenter, oldDoc *model.Definition, newDoc *model.Definition) {
+func (self *DiffViews) DropViewsOrdered(ofs output.OutputFileSegmenter, oldDoc, newDoc *model.Definition) {
+	// TODO(go,mysql) implement me
+}
+
+func (self *DiffViews) CreateViewsOrdered(ofs output.OutputFileSegmenter, oldDoc, newDoc *model.Definition) {
 	// TODO(go,mysql) implement me
 }
