@@ -8,19 +8,31 @@ function _help_post {
   echo "Valid formats: ${formats[*]}"
 }
 
-function build { # <file>: Generates a build of the given file
-  info "Building $1..."
-  cmd go run .. --xml "$1" "${@:2}"
+function run { # <...args>: Run DBSteward
+  cmd go run .. "$@"
 }
 
-function diff { # <old> <new>: Generates a diff of <old> to <new>
-  info "Running diff $1 -> $2..."
-  cmd go run .. --oldxml "$1" --newxml "$2" "${@:3}"
+function run-format { # <format> <...args>: Run DBSteward, injecting format-specific arguments
+  if "$1"/run -t run; then
+    "$1"/run run --sqlformat="$1" --outputdir="$1" "${@:2}"
+  else
+    run --sqlformat="$1" --outputdir="$1" "${@:2}"
+  fi
 }
 
-function extract { # <output> <conn args...>: Extracts the database at the given connection to the output file
-  info "Extracting (${*:2}) to $1..."
-  cmd go run .. --dbschemadump --outputfile "$1" "${@:2}"
+function build-format { # <format> <file>: Generates a build of the given file
+  info "Building $2..."
+  run-format "$1" --xml "$2" "${@:3}"
+}
+
+function diff-format { # <format> <old> <new>: Generates a diff of <old> to <new>
+  info "Running diff $2 -> $3..."
+  run-format "$1" --oldxml "$2" --newxml "$3" "${@:4}"
+}
+
+function extract-format { # <format> <output> <conn args...>: Extracts the database at the given connection to the output file
+  info "Extracting (${*:3}) to $2..."
+  run-format "$1" --dbschemadump --outputfile "$2" "${@:3}"
 }
 
 function someapp-clean { #: Remove generated files 
@@ -35,11 +47,11 @@ function someapp-clean-format { # <format>: Remove generated files
 }
 
 function someapp-build { # <format> [...args]: Generates a build of someapp v1
-  build someapp_v1.xml --sqlformat="$1" --outputdir="$1" "${@:2}"
+  build-format "$1" someapp_v1.xml "${@:2}"
 }
 
 function someapp-diff { # <format> [...args]: Generates a diff of someapp v1 -> v2
-  diff someapp_v1.xml someapp_v2.xml --sqlformat="$1" --outputdir="$1" "${@:2}"
+  diff-format "$1" someapp_v1.xml someapp_v2.xml "${@:2}"
 }
 
 function someapp-load-v1 { # <format>: Loads the v1 schema from someapp-build
@@ -53,11 +65,11 @@ function someapp-load-v2 { # <format>: Loads the v2 upgrade from someapp-diff
 function someapp-extract { # <format> [...args]: Extracts the current someapp schema from the postgres db
   # delegate to $format/run so it can inject connection args
   # TODO(core) it looks like we're not respecting --outputdir when a relative --outputfile is passed??
-  "$1"/run extract "$1"/someapp_extracted.xml --sqlformat="$1" --outputdir="$1" "${@:2}"
+  "$1"/run extract "$1"/someapp_extracted.xml "${@:2}"
 }
 
 function someapp-diff-extract { # <format> [...args]: Diffs the extracted someapp schema against v2
-  diff someapp_v2.xml "$1"/someapp_extracted.xml --sqlformat="$1" --outputdir="$1" "${@:2}"
+  diff-format "$1" someapp_v2.xml "$1"/someapp_extracted.xml "${@:2}"
 }
 
 function init-db { # <format>: Initializes the example database for the given format

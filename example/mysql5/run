@@ -31,8 +31,12 @@ function load-stages { # <prefix>: Loads <prefix>_upgrade_*.sql files into the p
   # cmd_psql -f "$1_upgrade_stage4_data1.sql"
 }
 
+function run { # <...args>: Invokes dbsteward
+  ../run run --useschemaprefix "${@}"
+}
+
 function extract { # <output> [...args]: Extracts the database to the output file
-  ../run extract "$1" "${dbsargs[@]}" "${@:2}"
+  ../run extract-format mysql5 "$1" "${dbsargs[@]}" "${@:2}"
 }
 
 function shell { #: Opens a psql shell to the postgres database

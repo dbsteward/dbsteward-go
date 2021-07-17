@@ -109,7 +109,7 @@ function load-stages { # <prefix>: Loads <prefix>_upgrade_*.sql files into the p
 }
 
 function extract { # <output> [...args]: Extracts the database to the output file
-  ../run extract "$1" "${dbsargs[@]}" "${@:2}"
+  ../run extract-format pgsql8 "$1" "${dbsargs[@]}" "${@:2}"
 }
 
 function shell { #: Opens a psql shell to the postgres database

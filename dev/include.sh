@@ -27,14 +27,20 @@ function info {
   echo $'\e[1;37m•' "$*" $'\e[0m'
 }
 
+function task_exists {
+  [ "$(type -t "$1")" == "function" ]
+}
+
 # To be invoked by callers like `main "$@"`
 function main {
   # find include files (probably this one)
   read -ra files < <(sed -En 's/source "\$\(dirname "\$0")\/(.+)".*#follow/\1/p' "$script")
   # echo "${files[@]}"
 
-  if [[ $# -eq 0 || "$1" == "help" || "$1" == "--help" ]]; then
-    if [[ "$(type -t "$2")" ==  "function" ]]; then
+  if [[ "$1" == "-t" ]]; then
+    task_exists "$2"
+  elif [[ $# -eq 0 || "$1" == "help" || "$1" == "--help" ]]; then
+    if task_exists "$2"; then
       type "$2"
     else
       echo "Commands:"
