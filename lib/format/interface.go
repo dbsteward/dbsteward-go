@@ -1,6 +1,7 @@
 package format
 
 import (
+	"github.com/dbsteward/dbsteward/lib/config"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
@@ -17,6 +18,7 @@ type Operations interface {
 
 	SetContextReplicaSetId(*int)
 	GetQuoter() output.Quoter
+	SetConfig(*config.Args)
 }
 
 type XmlParser interface {

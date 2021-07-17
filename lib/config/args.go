@@ -1,4 +1,4 @@
-package lib
+package config
 
 import (
 	"github.com/dbsteward/dbsteward/lib/model"
@@ -77,5 +77,5 @@ type Args struct {
 
 	// Format-specific options
 	UseAutoIncrementOptions bool
-	UseSchemaPrefix         bool
+	UseSchemaPrefix         bool `arg:"--useschemaprefix"`
 }

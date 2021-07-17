@@ -6,6 +6,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/dbsteward/dbsteward/lib/config"
 	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/util"
@@ -109,7 +110,7 @@ func (self *DBSteward) Lookup() *format.Lookup {
 // correlates to dbsteward->arg_parse()
 func (self *DBSteward) ArgParse() {
 	// TODO(go,nth): deck this out with better go-arg config
-	args := &Args{}
+	args := &config.Args{}
 	arg.MustParse(args)
 
 	self.setVerbosity(args)
@@ -345,7 +346,7 @@ func (self *DBSteward) Trace(s string, args ...interface{}) {
 }
 
 // dbsteward::set_verbosity($options)
-func (self *DBSteward) setVerbosity(args *Args) {
+func (self *DBSteward) setVerbosity(args *config.Args) {
 	// TODO(go,nth): differentiate between notice and info
 
 	// remember, lower level is higher verbosity
@@ -404,7 +405,7 @@ func (self *DBSteward) reconcileSqlFormat(target, requested model.SqlFormat) mod
 	return DefaultSqlFormat
 }
 
-func (self *DBSteward) defineSqlFormatDefaultValues(SqlFormat model.SqlFormat, args *Args) {
+func (self *DBSteward) defineSqlFormatDefaultValues(SqlFormat model.SqlFormat, args *config.Args) {
 	switch SqlFormat {
 	case model.SqlFormatPgsql8:
 		self.CreateLanguages = true
@@ -429,9 +430,7 @@ func (self *DBSteward) defineSqlFormatDefaultValues(SqlFormat model.SqlFormat, a
 		if args.DbPort == 0 {
 			args.DbPort = 3306
 		}
-		// TODO(go,mysql)
-		// 	mysql5.GlobalMysql5.UseAutoIncrementTableOptions = args.UseAutoIncrementOptions
-		// 	mysql5.GlobalMysql5.UseSchemaNamePrefix = args.UseSchemaPrefix
+		self.lookupMap[model.SqlFormatMysql5].Operations.SetConfig(args)
 	}
 
 	if SqlFormat != model.SqlFormatPgsql8 {

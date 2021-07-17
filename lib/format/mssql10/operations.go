@@ -1,19 +1,20 @@
 package mssql10
 
 import (
+	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
 type Operations struct {
-	// *sql99.Operations
+	*sql99.Operations
 }
 
 func NewOperations() *Operations {
 	ops := &Operations{
-		// Operations: sql99.NewOperations(),
+		Operations: sql99.NewOperations(),
 	}
-	// ops.Operations.Operations = ops
+	ops.Operations.Operations = ops
 	return ops
 }
 

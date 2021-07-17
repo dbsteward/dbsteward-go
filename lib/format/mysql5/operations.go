@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"github.com/dbsteward/dbsteward/lib"
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
+	"github.com/dbsteward/dbsteward/lib/config"
+	"github.com/dbsteward/dbsteward/lib/format/mysql5/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -17,15 +18,24 @@ import (
 type Operations struct {
 	*sql99.Operations
 
-	UseSchemaNamePrefix bool
+	UseAutoIncrementTableOptions bool
+	UseSchemaNamePrefix          bool
 }
 
 func NewOperations() *Operations {
 	ops := &Operations{
 		Operations: sql99.NewOperations(),
+
+		UseAutoIncrementTableOptions: false,
+		UseSchemaNamePrefix:          false,
 	}
 	ops.Operations.Operations = ops
 	return ops
+}
+
+func (self *Operations) SetConfig(args *config.Args) {
+	self.UseAutoIncrementTableOptions = args.UseAutoIncrementOptions
+	self.UseSchemaNamePrefix = args.UseSchemaPrefix
 }
 
 func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
