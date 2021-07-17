@@ -38,3 +38,12 @@ func (self *DiffTables) GetCreateDataSql(oldSchema *model.Schema, oldTable *mode
 	// TODO(go,mysql) implement me
 	return nil
 }
+
+func (self *DiffTables) GetDeleteDataSql(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) []output.ToSql {
+	// TODO(go,mysql) implement me
+	return nil
+}
+
+func (self *DiffTables) DiffData(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
+	// TODO(go,mysql) implement me
+}

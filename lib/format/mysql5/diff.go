@@ -256,5 +256,38 @@ func (self *Diff) updatePermissions(stage1, stage3 output.OutputFileSegmenter) {
 }
 
 func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
-	// TODO(go,mysql) implement me
+	// TODO(go,3) unify with pgsql
+	if len(self.NewTableDependency) > 0 {
+		for i := 0; i < len(self.NewTableDependency); i++ {
+			item := self.NewTableDependency[i]
+			// go in reverse when in delete mode
+			if deleteMode {
+				item = self.NewTableDependency[len(self.NewTableDependency)-1-i]
+			}
+
+			newSchema := item.Schema
+			newTable := item.Table
+			oldSchema := lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
+			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
+
+			// TODO(feat) pgsq8 does a rename check here, should we also do that here?
+			if deleteMode {
+				// TODO(go,3) clean up inconsistencies between e.g. GetDeleteDataSql and DiffData wrt writing sql to an ofs
+				// TODO(feat) aren't deletes supposed to go in stage 2?
+				ofs.WriteSql(GlobalDiffTables.GetDeleteDataSql(oldSchema, oldTable, newSchema, newTable)...)
+			} else {
+				ofs.WriteSql(GlobalDiffTables.GetCreateDataSql(oldSchema, oldTable, newSchema, newTable)...)
+
+				// HACK: For now, we'll generate foreign key constraints in stage 4 after inserting data
+				// https://github.com/dbsteward/dbsteward/issues/142
+				GlobalDiffConstraints.CreateConstraintsTable(ofs, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypeForeign)
+			}
+		}
+	} else {
+		for _, newSchema := range lib.GlobalDBSteward.NewDatabase.Schemas {
+			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
+			oldSchema := lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
+			GlobalDiffTables.DiffData(ofs, oldSchema, newSchema)
+		}
+	}
 }
