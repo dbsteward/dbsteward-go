@@ -35,11 +35,6 @@ type Schema interface {
 	GetDropSql(*model.Schema) []output.ToSql
 }
 
-type Table interface {
-	GetOldTableSchema(*model.Schema, *model.Table) *model.Schema
-	GetOldTable(*model.Schema, *model.Table) *model.Table
-}
-
 type Index interface {
 	BuildPrimaryKeyName(string) string
 	BuildForeignKeyName(string, string) string
@@ -51,8 +46,4 @@ type Diff interface {
 
 	DropOldSchemas(output.OutputFileSegmenter)
 	CreateNewSchemas(output.OutputFileSegmenter)
-}
-
-type DiffTables interface {
-	IsRenamedTable(*model.Schema, *model.Table) (bool, error)
 }

@@ -30,7 +30,7 @@ func (self *DiffConstraints) CreateConstraintsTable(ofs output.OutputFileSegment
 		GlobalOperations.SetContextReplicaSetId(newTable.SlonySetId)
 	}
 
-	isRenamed, err := GlobalDiffTables.IsRenamedTable(newSchema, newTable)
+	isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
 	lib.GlobalDBSteward.FatalIfError(err, "while checking if table was renamed")
 	if isRenamed {
 		// remove all constraints and recreate with new table name conventions

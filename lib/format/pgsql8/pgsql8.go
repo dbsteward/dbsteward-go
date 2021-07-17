@@ -30,7 +30,5 @@ var GlobalXmlParser = NewXmlParser()
 var GlobalLookup = &format.Lookup{
 	Operations: GlobalOperations,
 	Schema:     GlobalSchema,
-	Table:      GlobalTable,
-	DiffTables: GlobalDiffTables,
 	XmlParser:  GlobalXmlParser,
 }

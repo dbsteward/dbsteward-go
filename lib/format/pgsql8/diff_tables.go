@@ -540,36 +540,6 @@ func (self *DiffTables) addAlterStatistics(stage1 output.OutputFileSegmenter, ol
 	return nil
 }
 
-func (self *DiffTables) IsRenamedTable(schema *model.Schema, table *model.Table) (bool, error) {
-	if lib.GlobalDBSteward.IgnoreOldNames {
-		return false, nil
-	}
-	if table.OldTableName == "" {
-		return false, nil
-	}
-	if schema.TryGetTableNamed(table.OldTableName) != nil {
-		// TODO(feat) what if the table moves schemas?
-		// TODO(feat) what if we move a table and replace it with a table of the same name?
-		return true, errors.Errorf("oldTableName panic - new schema %s still contains table named %s", schema.Name, table.OldTableName)
-	}
-
-	oldSchema := GlobalTable.GetOldTableSchema(schema, table)
-	if oldSchema != nil {
-		if oldSchema.TryGetTableNamed(table.OldTableName) == nil {
-			return true, errors.Errorf("oldTableName panic - old schema %s does not contain table named %s", oldSchema.Name, table.OldTableName)
-		}
-	}
-
-	// it is a new old named table rename if:
-	// table.OldTableName exists in old schema
-	// table.OldTableName does not exist in new schema
-	if oldSchema.TryGetTableNamed(table.OldTableName) != nil && schema.TryGetTableNamed(table.OldTableName) == nil {
-		lib.GlobalDBSteward.Info("Table %s used to be called %s", table.Name, table.OldTableName)
-		return true, nil
-	}
-	return false, nil
-}
-
 func (self *DiffTables) IsRenamedColumn(oldTable, newTable *model.Table, newColumn *model.Column) (bool, error) {
 	dbsteward := lib.GlobalDBSteward
 	if dbsteward.IgnoreOldNames {
@@ -636,14 +606,14 @@ func (self *DiffTables) CreateTable(ofs output.OutputFileSegmenter, oldSchema, n
 		return nil
 	}
 
-	isRenamed, err := self.IsRenamedTable(newSchema, newTable)
+	isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
 	if err != nil {
 		return err
 	}
 	if isRenamed {
 		// this is a renamed table, so rename it instead of creating a new one
-		oldTableSchema := GlobalTable.GetOldTableSchema(newSchema, newTable)
-		oldTable := GlobalTable.GetOldTable(newSchema, newTable)
+		oldTableSchema := lib.GlobalDBX.GetOldTableSchema(newSchema, newTable)
+		oldTable := lib.GlobalDBX.GetOldTable(newSchema, newTable)
 
 		// ALTER TABLE ... RENAME TO does not accept schema qualifiers ...
 		oldRef := sql.TableRef{oldTableSchema.Name, oldTable.Name}
@@ -715,12 +685,12 @@ func (self *DiffTables) DiffClustersTable(ofs output.OutputFileSegmenter, oldSch
 
 func (self *DiffTables) DiffData(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
 	for _, newTable := range newSchema.Tables {
-		isRenamed, err := self.IsRenamedTable(newSchema, newTable)
+		isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
 		lib.GlobalDBSteward.FatalIfError(err, "while diffing data")
 		if isRenamed {
 			// if the table was renamed, get old definition pointers, diff that
-			oldSchema := GlobalTable.GetOldTableSchema(newSchema, newTable)
-			oldTable := GlobalTable.GetOldTable(newSchema, newTable)
+			oldSchema := lib.GlobalDBX.GetOldTableSchema(newSchema, newTable)
+			oldTable := lib.GlobalDBX.GetOldTable(newSchema, newTable)
 			ofs.WriteSql(self.GetCreateDataSql(oldSchema, oldTable, newSchema, newTable)...)
 		} else {
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)

@@ -306,7 +306,7 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 		for _, newTable := range newSchema.Tables {
 			GlobalOperations.SetContextReplicaSetId(newTable.SlonySetId)
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
-			isRenamed, err := GlobalDiffTables.IsRenamedTable(newSchema, newTable)
+			isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
 			lib.GlobalDBSteward.FatalIfError(err, "while updating permissions")
 			if isRenamed {
 				// skip permission diffing on it, it is the same
@@ -363,12 +363,12 @@ func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
 			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 
-			isRenamed, err := GlobalDiffTables.IsRenamedTable(newSchema, newTable)
+			isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
 			lib.GlobalDBSteward.FatalIfError(err, "while updating data")
 			if isRenamed {
 				lib.GlobalDBSteward.Info("%s.%s used to be called %s - will diff data against that definition", newSchema.Name, newTable.Name, newTable.OldTableName)
-				oldSchema = GlobalTable.GetOldTableSchema(newSchema, newTable)
-				oldTable = GlobalTable.GetOldTable(newSchema, newTable)
+				oldSchema = lib.GlobalDBX.GetOldTableSchema(newSchema, newTable)
+				oldTable = lib.GlobalDBX.GetOldTable(newSchema, newTable)
 			}
 
 			if deleteMode {

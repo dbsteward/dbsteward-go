@@ -6,6 +6,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
+	"github.com/pkg/errors"
 )
 
 var GlobalDBX *DBX = NewDBX()
@@ -153,14 +154,14 @@ func (self *DBX) RenamedTableCheckPointer(oldSchema *model.Schema, oldTable *mod
 		return oldSchema, oldTable
 	}
 
-	isRenamed, err := GlobalDBSteward.Lookup().DiffTables.IsRenamedTable(newSchema, newTable)
+	isRenamed, err := self.IsRenamedTable(newSchema, newTable)
 	GlobalDBSteward.FatalIfError(err, "while checking table rename status")
 	if !isRenamed {
 		return oldSchema, oldTable
 	}
 
 	if newTable.OldSchemaName != "" {
-		oldSchema = GlobalDBSteward.Lookup().Table.GetOldTableSchema(newSchema, newTable)
+		oldSchema = self.GetOldTableSchema(newSchema, newTable)
 		if oldSchema == nil {
 			GlobalDBSteward.Fatal("Sanity failure: %s.%s has oldSchemaName attribute but old_schema not found", newSchema.Name, newTable.Name)
 		}
@@ -168,11 +169,59 @@ func (self *DBX) RenamedTableCheckPointer(oldSchema *model.Schema, oldTable *mod
 		GlobalDBSteward.Fatal("Sanity failure: %s.%s has oldTableName attribute but passed old_schema is not defined", newSchema.Name, newTable.Name)
 	}
 
-	oldTable = GlobalDBSteward.Lookup().Table.GetOldTable(newSchema, newTable)
+	oldTable = self.GetOldTable(newSchema, newTable)
 	if oldTable == nil {
 		GlobalDBSteward.Fatal("Sanity failure: %s.%s has oldTableName attribute, but table %s.%s not found", newSchema.Name, newTable.Name, oldSchema.Name, newTable.OldTableName)
 	}
 	return oldSchema, oldTable
+}
+
+func (self *DBX) IsRenamedTable(schema *model.Schema, table *model.Table) (bool, error) {
+	if GlobalDBSteward.IgnoreOldNames {
+		return false, nil
+	}
+	if table.OldTableName == "" {
+		return false, nil
+	}
+	if schema.TryGetTableNamed(table.OldTableName) != nil {
+		// TODO(feat) what if the table moves schemas?
+		// TODO(feat) what if we move a table and replace it with a table of the same name?
+		return true, errors.Errorf("oldTableName panic - new schema %s still contains table named %s", schema.Name, table.OldTableName)
+	}
+
+	oldSchema := self.GetOldTableSchema(schema, table)
+	if oldSchema != nil {
+		if oldSchema.TryGetTableNamed(table.OldTableName) == nil {
+			return true, errors.Errorf("oldTableName panic - old schema %s does not contain table named %s", oldSchema.Name, table.OldTableName)
+		}
+	}
+
+	// it is a new old named table rename if:
+	// table.OldTableName exists in old schema
+	// table.OldTableName does not exist in new schema
+	if oldSchema.TryGetTableNamed(table.OldTableName) != nil && schema.TryGetTableNamed(table.OldTableName) == nil {
+		GlobalDBSteward.Info("Table %s used to be called %s", table.Name, table.OldTableName)
+		return true, nil
+	}
+	return false, nil
+}
+
+func (self *DBX) GetOldTableSchema(schema *model.Schema, table *model.Table) *model.Schema {
+	if table.OldSchemaName == "" {
+		return schema
+	}
+	if GlobalDBSteward.OldDatabase == nil {
+		return nil
+	}
+	return GlobalDBSteward.OldDatabase.TryGetSchemaNamed(table.OldSchemaName)
+}
+
+func (self *DBX) GetOldTable(schema *model.Schema, table *model.Table) *model.Table {
+	if table.OldTableName == "" {
+		return nil
+	}
+	oldSchema := self.GetOldTableSchema(schema, table)
+	return oldSchema.TryGetTableNamed(table.OldTableName)
 }
 
 func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
