@@ -182,6 +182,21 @@ func (mr *MockIntrospectorMockRecorder) GetSequencesForRel(arg0, arg1 interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSequencesForRel", reflect.TypeOf((*MockIntrospector)(nil).GetSequencesForRel), arg0, arg1)
 }
 
+// GetServerVersion mocks base method
+func (m *MockIntrospector) GetServerVersion() (VersionNum, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetServerVersion")
+	ret0, _ := ret[0].(VersionNum)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetServerVersion indicates an expected call of GetServerVersion
+func (mr *MockIntrospectorMockRecorder) GetServerVersion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServerVersion", reflect.TypeOf((*MockIntrospector)(nil).GetServerVersion))
+}
+
 // GetTableList mocks base method
 func (m *MockIntrospector) GetTableList() ([]TableEntry, error) {
 	m.ctrl.T.Helper()

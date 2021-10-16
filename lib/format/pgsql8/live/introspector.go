@@ -36,6 +36,7 @@ func (self *ConstantIntrospectorFactory) NewIntrospector(Connection) (Introspect
 }
 
 type Introspector interface {
+	GetServerVersion() (VersionNum, error)
 	GetTableList() ([]TableEntry, error)
 	GetSchemaOwner(schema string) (string, error)
 	GetTableStorageOptions(schema, table string) (map[string]string, error)
@@ -59,6 +60,10 @@ type LiveIntrospector struct {
 }
 
 var _ Introspector = &LiveIntrospector{}
+
+func (self *LiveIntrospector) GetServerVersion() (VersionNum, error) {
+	return self.vers, nil
+}
 
 // TODO(go,3) can we elevate this to an engine-agnostic interface?
 // TODO(go,3) can we defer this to model operations entirely?

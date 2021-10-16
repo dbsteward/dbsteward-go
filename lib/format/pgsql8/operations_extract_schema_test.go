@@ -15,6 +15,8 @@ import (
 	"github.com/dbsteward/dbsteward/lib/model"
 )
 
+var PG_8_0 live.VersionNum = live.NewVersionNum(8, 0)
+
 // TODO(go,3) is there a way to make this set of tests a whole lot less annoying?
 // TODO(go,pgsql) the v1 ExtractionTest tested what is now ExtractSchema, Introspector, Connection, _and_ postgres
 //                but this only tests ExtractSchema. We still should test the other layers, and come up with a story
@@ -107,7 +109,7 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 		},
 	}, nil)
 
-	schema := commonExtract(introspector)
+	schema := commonExtract(introspector, PG_8_0)
 
 	// TODO(feat) test changing Using
 	// TODO(feat) test conditional index
@@ -206,7 +208,7 @@ func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
 		},
 	}, nil)
 
-	schema := commonExtract(introspector)
+	schema := commonExtract(introspector, PG_8_0)
 
 	// compound constraints should not set individual column uniqueness
 	assert.False(t, schema.Tables[0].Columns[1].Unique)
@@ -256,7 +258,7 @@ func TestOperations_ExtractSchema_TableComments(t *testing.T) {
 	introspector.EXPECT().GetTablePerms().AnyTimes()
 	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
 
-	schema := commonExtract(introspector)
+	schema := commonExtract(introspector, PG_8_0)
 
 	assert.Equal(t, schemaDesc, schema.Description)
 	assert.Equal(t, tableDesc, schema.Tables[0].Description)
@@ -306,7 +308,7 @@ END;
 	introspector.EXPECT().GetTablePerms().AnyTimes()
 	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
 
-	schema := commonExtract(introspector)
+	schema := commonExtract(introspector, PG_8_0)
 	assert.Equal(t, []*model.Function{
 		&model.Function{
 			Name:        "rates_overlap",
@@ -400,7 +402,7 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 	introspector.EXPECT().GetTablePerms().AnyTimes()
 	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
 
-	schema := commonExtract(introspector)
+	schema := commonExtract(introspector, PG_8_0)
 	assert.Equal(t, "arg1", schema.Functions[0].Parameters[0].Name)
 	assert.Equal(t, "integer[]", schema.Functions[0].Parameters[0].Type)
 	assert.Equal(t, "arg2", schema.Functions[0].Parameters[1].Name)
@@ -445,7 +447,7 @@ func TestOperations_ExtractSchema_TableArrayType(t *testing.T) {
 	introspector.EXPECT().GetTablePerms().AnyTimes()
 	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
 
-	schema := commonExtract(introspector)
+	schema := commonExtract(introspector, PG_8_0)
 	assert.Equal(t, "text[]", schema.Tables[0].Columns[0].Type)
 }
 
@@ -504,7 +506,7 @@ func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 	introspector.EXPECT().GetTablePerms().AnyTimes()
 	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
 
-	schema := commonExtract(introspector)
+	schema := commonExtract(introspector, PG_8_0)
 	assert.Equal(t, []*model.ForeignKey{
 		&model.ForeignKey{
 			ConstraintName: "test_foo_fkey",
@@ -564,7 +566,7 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 	introspector.EXPECT().GetTablePerms().AnyTimes()
 	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
 
-	schema := commonExtract(introspector)
+	schema := commonExtract(introspector, PG_8_0)
 	// Test that int sequences become serials
 	// TODO(go,3) this doesn't feel right - does an int/nextval column have different semantics than a serial type?
 	//            It feels wrong that we simply don't extract the sequence. I'd rather extract it as-is and let the
@@ -584,7 +586,7 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 	}, schema.Sequences)
 }
 
-func commonExtract(introspector *live.MockIntrospector) *model.Schema {
+func commonExtract(introspector *live.MockIntrospector, version live.VersionNum) *model.Schema {
 	ops := pgsql8.GlobalOperations
 	origCF := ops.ConnectionFactory
 	origIF := ops.IntrospectorFactory
@@ -599,6 +601,8 @@ func commonExtract(introspector *live.MockIntrospector) *model.Schema {
 	ops.IntrospectorFactory = &live.ConstantIntrospectorFactory{
 		Introspector: introspector,
 	}
+	introspector.EXPECT().GetServerVersion().Return(version, nil)
+
 	doc := ops.ExtractSchema("", 0, "", "", "")
 	return doc.Schemas[0]
 }

@@ -184,6 +184,10 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	introspector, err := self.IntrospectorFactory.NewIntrospector(conn)
 	dbsteward.FatalIfError(err, "could not create schema introspector")
 
+	version, err := introspector.GetServerVersion()
+	dbsteward.FatalIfError(err, "could not establish server version")
+	dbsteward.Info("Connected to database, server version %s", version)
+
 	doc := &model.Definition{
 		Database: &model.Database{
 			SqlFormat: model.SqlFormatPgsql8,

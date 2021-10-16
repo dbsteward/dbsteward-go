@@ -1,5 +1,7 @@
 package live
 
+import "fmt"
+
 // https://www.postgresql.org/support/versioning/
 // This is obtained from `SHOW server_version_num;`
 // Prior to 10.0, Version X.Y.Z was represented as X*10000+Y*100+Z
@@ -23,4 +25,31 @@ func NewVersionNum(major, minor int, patch ...int) VersionNum {
 
 func (self VersionNum) IsOlderThan(major, minor int, patch ...int) bool {
 	return self < NewVersionNum(major, minor, patch...)
+}
+
+func (self VersionNum) String() string {
+	major := self.Major()
+	if major < 10 {
+		return fmt.Sprintf("%d.%d.%d", major, self.Minor(), self.Patch())
+	} else {
+		return fmt.Sprintf("%d.%d", major, self.Minor())
+	}
+}
+
+func (self VersionNum) Major() int {
+	return int(self) / 10000
+}
+
+func (self VersionNum) Minor() int {
+	if self < 10000 {
+		return (int(self) % 10000) / 100
+	}
+	return int(self) % 10000
+}
+
+func (self VersionNum) Patch() int {
+	if self < 10000 {
+		return int(self) % 100
+	}
+	return 0
 }
