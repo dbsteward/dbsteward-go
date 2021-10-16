@@ -2,7 +2,6 @@
 # shellcheck disable=SC1090
 source "$(dirname "$0")/../../dev/include.sh" #follow
 
-pg_container="someapp_pgsql8"
 dbname="someapp"
 dbpass="secret"
 dbsargs=(--dbhost localhost --dbname "$dbname" --dbuser postgres --dbpassword "$dbpass")
@@ -13,6 +12,8 @@ psqlscriptargs=(--echo-all -v ON_ERROR_STOP=1)
 # used in version checks below
 pg_version="8"
 pgversion=$((pg_version * 10))
+
+pg_container="someapp_pgsql8_$pgversion"
 
 function cmd_psql {
   PGPASSWORD=$dbpass cmd psql "${psqlargs[@]}" "${psqlscriptargs[@]}" "$@"
@@ -31,7 +32,7 @@ function pgsql-start { #: Starts and initializes a postgres db
     info "Example postgres db already running: ${dbsargs[*]}"
   else
     info "Starting example postgres db: ${dbsargs[*]}"
-    if [[ $status == Exited* ]]; then
+    if [[ $status == Exited* || $status == Created ]]; then
       cmd docker start $pg_container
     else
       cmd docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=$dbpass -e POSTGRES_DB=$dbname --name $pg_container postgres:"$pg_version"
