@@ -443,21 +443,31 @@ func (self *LiveIntrospector) GetForeignKeys() ([]ForeignKeyEntry, error) {
 }
 
 func (self *LiveIntrospector) GetFunctions() ([]FunctionEntry, error) {
-	res, err := self.conn.Query(`
+	typeCase := `
+		WHEN p.proisagg THEN 'aggregate'
+		WHEN p.proiswindow THEN 'window'
+	`
+	if FEAT_FUNCTION_USE_KIND(self.vers) {
+		typeCase = `
+			WHEN p.prokind = 'a' THEN 'aggregate'
+			WHEN p.prokind = 'w' THEN 'window'
+		`
+	}
+
+	res, err := self.conn.Query(fmt.Sprintf(`
 		SELECT
 			p.oid as oid, n.nspname as schema, p.proname as name,
 			pg_catalog.pg_get_function_result(p.oid) as return_type,
 			CASE
-				WHEN p.proisagg THEN 'aggregate'
-				WHEN p.proiswindow THEN 'window'
+				%s
 				WHEN p.prorettype = 'pg_catalog.trigger'::pg_catalog.regtype THEN 'trigger'
 				ELSE 'normal'
-		END as type,
-		CASE
+			END as type,
+			CASE
 				WHEN p.provolatile = 'i' THEN 'IMMUTABLE'
 				WHEN p.provolatile = 's' THEN 'STABLE'
 				WHEN p.provolatile = 'v' THEN 'VOLATILE'
-		END as volatility,
+			END as volatility,
 			pg_catalog.pg_get_userbyid(p.proowner) as owner,
 			l.lanname as language,
 			p.prosrc as source,
@@ -466,7 +476,7 @@ func (self *LiveIntrospector) GetFunctions() ([]FunctionEntry, error) {
 			LEFT JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
 			LEFT JOIN pg_catalog.pg_language l ON l.oid = p.prolang
 		WHERE n.nspname NOT IN ('pg_catalog', 'information_schema');
-	`)
+	`, typeCase))
 	if err != nil {
 		return nil, errors.Wrap(err, "while running query")
 	}
