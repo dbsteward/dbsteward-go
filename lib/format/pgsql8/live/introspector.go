@@ -4,10 +4,13 @@ import (
 	"fmt"
 
 	"github.com/dbsteward/dbsteward/lib/util"
+	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
 )
 
 //go:generate $PWD/run _mockgen lib/format/pgsql8/live Introspector
+
+// TODO(go, pgsql) Add unit tests for all of this... somehow
 
 type IntrospectorFactory interface {
 	NewIntrospector(Connection) (Introspector, error)
@@ -273,11 +276,26 @@ func (self *LiveIntrospector) GetSequenceRelList(schema string, sequenceCols []s
 }
 
 func (self *LiveIntrospector) GetSequencesForRel(schema, rel string) ([]SequenceEntry, error) {
-	// TODO(feat) should this read from a catalog instead? can we do away with the dynamic sql? can we merge into GetSequenceRelList()?
-	res, err := self.conn.Query(fmt.Sprintf(`
-		SELECT cache_value, start_value, min_value, max_value, increment_by, is_cycled
-		FROM "%s"."%s"
-	`, schema, rel))
+	// TODO(feat) can we merge into GetSequenceRelList()? This is kept separate just because
+	// the old code was too
+	var res pgx.Rows
+	var err error
+
+	// Note that we select equivalent values in the same order so we can reuse the same scanning code
+	if FEAT_SEQUENCE_USE_CATALOG(self.vers) {
+		res, err = self.conn.Query(`
+			SELECT seqcache, seqstart, seqmin, seqmax, seqincrement, seqcycle
+			FROM pg_catalog.pg_sequence s
+			LEFT JOIN pg_catalog.pg_class c ON s.seqrelid = c.oid
+			LEFT JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+			WHERE n.nspname = $1 AND c.relname = $2
+		`, schema, rel)
+	} else {
+		res, err = self.conn.Query(fmt.Sprintf(`
+			SELECT cache_value, start_value, min_value, max_value, increment_by, is_cycled
+			FROM "%s"."%s"
+		`, schema, rel))
+	}
 	if err != nil {
 		return nil, errors.Wrap(err, "while running query")
 	}
