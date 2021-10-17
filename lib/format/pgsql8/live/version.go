@@ -27,6 +27,10 @@ func (self VersionNum) IsOlderThan(major, minor int, patch ...int) bool {
 	return self < NewVersionNum(major, minor, patch...)
 }
 
+func (self VersionNum) IsAtLeast(major, minor int, patch ...int) bool {
+	return !self.IsOlderThan(major, minor, patch...)
+}
+
 func (self VersionNum) String() string {
 	major := self.Major()
 	if major < 10 {

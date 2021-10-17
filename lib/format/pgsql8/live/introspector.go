@@ -505,9 +505,9 @@ func (self *LiveIntrospector) GetFunctionArgs(fnOid Oid) ([]FunctionArgEntry, er
 }
 
 func (self *LiveIntrospector) GetTriggers() ([]TriggerEntry, error) {
-	timingCol := "action_timing"
-	if self.vers.IsOlderThan(9, 1) {
-		timingCol = "condition_timing"
+	timingCol := "condition_timing"
+	if FEAT_TRIGGER_USE_ACTION_TIMING(self.vers) {
+		timingCol = "action_timing"
 	}
 	res, err := self.conn.Query(fmt.Sprintf(`
 		SELECT
