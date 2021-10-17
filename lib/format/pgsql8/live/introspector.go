@@ -342,13 +342,23 @@ func (self *LiveIntrospector) GetViews() ([]ViewEntry, error) {
 }
 
 func (self *LiveIntrospector) GetConstraints() ([]ConstraintEntry, error) {
-	res, err := self.conn.Query(`
+	consrcCol := "consrc AS check_src"
+	if FEAT_CONSTRAINT_USE_GETTER(self.vers) {
+		// NOTE: Passing `true` as second parameter "pretty-prints" the definition, however:
+		// > The pretty-printed format is more readable, but the default format is more likely
+		// > to be interpreted the same way by future versions of PostgreSQL; avoid using
+		// > pretty-printed output for dump purposes
+		// - https://www.postgresql.org/docs/12/functions-info.html
+		consrcCol = "pg_get_constraintdef(pgc.oid) AS check_src"
+	}
+
+	res, err := self.conn.Query(fmt.Sprintf(`
 		SELECT
 			nspname AS table_schema,
 			relname AS table_name,
 			conname AS constraint_name,
 			contype AS constraint_type,
-			consrc AS check_src,
+			%s,
 			(
 				SELECT array_agg(attname)
 				FROM unnest(conkey) num
@@ -360,7 +370,7 @@ func (self *LiveIntrospector) GetConstraints() ([]ConstraintEntry, error) {
 		WHERE pgn.nspname not in ('information_schema', 'pg_catalog')
 			AND contype != 'f' -- ignore foreign keys here
 		ORDER BY pgn.nspname, pgt.relname
-	`)
+	`, consrcCol))
 	if err != nil {
 		return nil, errors.Wrap(err, "while running query")
 	}
