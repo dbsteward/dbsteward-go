@@ -1,5 +1,5 @@
 -- pgsql8/someapp_extracted_upgrade_stage1_schema1.sql
--- DBSteward stage 1 structure additions and modifications - generated Wed, 14 Jul 2021 11:20:13 +0000
+-- DBSteward stage 1 structure additions and modifications - generated Sun, 17 Oct 2021 11:46:38 -0400
 -- Old definition: pgsql8/someapp_v2_composite.xml
 -- New definition pgsql8/someapp_extracted_composite.xml
 
