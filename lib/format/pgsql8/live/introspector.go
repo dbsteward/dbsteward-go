@@ -471,7 +471,7 @@ func (self *LiveIntrospector) GetFunctions() ([]FunctionEntry, error) {
 			pg_catalog.pg_get_userbyid(p.proowner) as owner,
 			l.lanname as language,
 			p.prosrc as source,
-			pg_catalog.obj_description(p.oid, 'pg_proc') as description
+			COALESCE(pg_catalog.obj_description(p.oid, 'pg_proc'), '') as description
 		FROM pg_catalog.pg_proc p
 			LEFT JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
 			LEFT JOIN pg_catalog.pg_language l ON l.oid = p.prolang
