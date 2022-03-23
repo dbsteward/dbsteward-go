@@ -253,7 +253,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 			// TODO(feat) can we just add this to the main query?
 			owner, err := introspector.GetSchemaOwner(schemaName)
-			dbsteward.FatalIfError(err, "Could not query database")
+			dbsteward.FatalIfError(err, "Error getting schema owner for schema")
 			schema.Owner = registerRole(roleContextOwner, owner)
 		}
 
@@ -536,7 +536,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 			// TODO(feat) can we just add this to the main query?
 			owner, err := introspector.GetSchemaOwner(schema.Name)
-			dbsteward.FatalIfError(err, "Could not query database")
+			dbsteward.FatalIfError(err, "Error getting schema owner for function")
 			schema.Owner = registerRole(roleContextOwner, owner)
 		}
 
