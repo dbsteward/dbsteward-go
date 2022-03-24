@@ -78,31 +78,29 @@ func (self *DiffTables) updateTableOptions(stage1 output.OutputFileSegmenter, ol
 	newOpts := newTable.GetTableOptionStrMap(model.SqlFormatPgsql8)
 
 	// dropped options are those present in old table but not new
-	deleteOpts := oldOpts.DifferenceIStr(newOpts)
+	deleteOpts := oldOpts.DifferenceFunc(newOpts, strings.EqualFold)
 
 	// added options are those present in new table but not old
-	createOpts := newOpts.DifferenceIStr(oldOpts)
+	createOpts := newOpts.DifferenceFunc(oldOpts, strings.EqualFold)
 
 	// changed options are those present in both tables but with different values
-	updateOpts := newOpts.IntersectFunc(oldOpts, func(newKey, oldKey interface{}) bool {
-		return util.IStrEqual(newKey, oldKey) && !util.IStrEqual(newOpts.Get(newKey), oldOpts.Get(newKey))
+	updateOpts := newOpts.IntersectFunc(oldOpts, func(newKey, oldKey string) bool {
+		return strings.EqualFold(newKey, oldKey) && !strings.EqualFold(newOpts.Get(newKey), oldOpts.Get(newKey))
 	})
 
 	return self.applyTableOptionsDiff(stage1, newSchema, newTable, updateOpts, createOpts, deleteOpts)
 }
 
-func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *model.Schema, table *model.Table, updateOpts, createOpts, deleteOpts *util.OrderedMap) error {
+func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *model.Schema, table *model.Table, updateOpts, createOpts, deleteOpts *util.OrderedMap[string, string]) error {
 	alters := []sql.TableAlterPart{}
 	ref := sql.TableRef{schema.Name, table.Name}
 
 	// in pgsql create and alter have the same syntax
-	for _, kv := range createOpts.UnionIStr(updateOpts).Entries() {
-		name := kv[0].(string)
-		value := kv[1].(string)
-		if strings.EqualFold(name, "with") {
+	for _, entry := range createOpts.UnionFunc(updateOpts, strings.EqualFold).Entries() {
+		if strings.EqualFold(entry.Key, "with") {
 			// ALTER TABLE ... SET (params) doesn't accept oids=true/false unlike CREATE TABLE
 			// only WITH OIDS or WITHOUT OIDS
-			params := GlobalTable.ParseStorageParams(value)
+			params := GlobalTable.ParseStorageParams(entry.Value)
 			if oids, ok := params["oids"]; ok {
 				delete(params, "oids")
 				if util.IsTruthy(oids) {
@@ -117,23 +115,21 @@ func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter,
 
 			// set rest of params normally
 			alters = append(alters, &sql.TableAlterPartSetStorageParams{params})
-		} else if strings.EqualFold(name, "tablespace") {
-			alters = append(alters, &sql.TableAlterPartSetTablespace{value})
+		} else if strings.EqualFold(entry.Key, "tablespace") {
+			alters = append(alters, &sql.TableAlterPartSetTablespace{entry.Value})
 			// TODO(go,3) MoveTablespaceIndexes generates a whole function that just walks indexes and issues ALTER INDEXes. can we move that to this side?
 			stage1.WriteSql(&sql.TableMoveTablespaceIndexes{
 				Table:      ref,
-				Tablespace: value,
+				Tablespace: entry.Value,
 			})
 		} else {
-			lib.GlobalDBSteward.Warning("Ignoring create/update of unknown table option %s on table %s.%s", name, schema.Name, table.Name)
+			lib.GlobalDBSteward.Warning("Ignoring create/update of unknown table option %s on table %s.%s", entry.Key, schema.Name, table.Name)
 		}
 	}
 
-	for _, kv := range deleteOpts.Entries() {
-		name := kv[0].(string)
-		value := kv[1].(string)
-		if strings.EqualFold(name, "with") {
-			params := GlobalTable.ParseStorageParams(value)
+	for _, entry := range deleteOpts.Entries() {
+		if strings.EqualFold(entry.Key, "with") {
+			params := GlobalTable.ParseStorageParams(entry.Value)
 			// handle oids separately since pgsql doesn't recognize it as a storage parameter in an ALTER TABLE
 			if _, ok := params["oids"]; ok {
 				delete(params, "oids")
@@ -141,12 +137,12 @@ func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter,
 			}
 			// handle rest normally
 			alters = append(alters, &sql.TableAlterPartResetStorageParams{util.StrMapKeys(params)})
-		} else if strings.EqualFold(name, "tablespace") {
+		} else if strings.EqualFold(entry.Key, "tablespace") {
 			stage1.WriteSql(&sql.TableResetTablespace{
 				Table: ref,
 			})
 		} else {
-			lib.GlobalDBSteward.Warning("Ignoring removal of unknown table option %s on table %s.%s", name, schema.Name, table.Name)
+			lib.GlobalDBSteward.Warning("Ignoring removal of unknown table option %s on table %s.%s", entry.Key, schema.Name, table.Name)
 		}
 	}
 

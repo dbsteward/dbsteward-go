@@ -1,75 +1,73 @@
 package util
 
 import (
-	"strings"
 	"fmt"
 )
 
-type EqualFunc = func(l, r interface{}) bool
+type EqualFunc[T comparable] func(l, r T) bool
 
-func StrictEqual(l, r interface{}) bool {
+func StrictEqual[T comparable](l, r T) bool {
 	return l == r
-}
-func IStrEqual(l, r interface{}) bool {
-	return strings.EqualFold(l.(string), r.(string))
 }
 
 // TODO(go,core) find map iterations that should be deterministic and upgrade to use this impl
 // TODO(go,nth) make this threadsafe
 
 // OrderedMap implements a simple map data structure that maintains its insertion order.
-type OrderedMap struct {
-	data map[interface{}]interface{}
-	ind map[int]interface{}
+type OrderedMap[K comparable, V any] struct {
+	data map[K]V
+	ind  map[int]K
 }
 
-func NewOrderedMap() *OrderedMap {
-	return &OrderedMap{
-		data: make(map[interface{}]interface{}),
-		ind: make(map[int]interface{}),
+func NewOrderedMap[K comparable, V any]() *OrderedMap[K, V] {
+	return &OrderedMap[K, V]{
+		data: make(map[K]V),
+		ind:  make(map[int]K),
 	}
 }
-func NewOrderedMapOfSize(n int) *OrderedMap {
-	return &OrderedMap{
-		data: make(map[interface{}]interface{}, n),
-		ind: make(map[int]interface{}, n),
+func NewOrderedMapOfSize[K comparable, V any](n int) *OrderedMap[K, V] {
+	return &OrderedMap[K, V]{
+		data: make(map[K]V, n),
+		ind:  make(map[int]K, n),
 	}
 }
 
-func (self *OrderedMap) ShallowClone() *OrderedMap {
-	out := NewOrderedMapOfSize(self.Len())
+func (self *OrderedMap[K, V]) ShallowClone() *OrderedMap[K, V] {
+	out := NewOrderedMapOfSize[K, V](self.Len())
 	for i, k := range self.ind {
 		out.ind[i] = k
 		out.data[k] = self.data[k]
 	}
 	return out
 }
-func (self *OrderedMap) Len() int {
+func (self *OrderedMap[K, V]) Len() int {
 	return len(self.data)
 }
-func (self *OrderedMap) Insert(keyvals ...interface{}) *OrderedMap {
-	if len(keyvals) == 0 || len(keyvals) % 2 != 0 {
+func (self *OrderedMap[K, V]) Insert(keyvals ...interface{}) *OrderedMap[K, V] {
+	if len(keyvals) == 0 || len(keyvals)%2 != 0 {
 		panic(fmt.Errorf("Expected non-zero even number of key/value pairs to OrderedMap.Insert, got: %v", keyvals))
 	}
-	for i, ii := 0, len(keyvals); i < ii; i+=2 {
+	for i, ii := 0, len(keyvals); i < ii; i += 2 {
+		k := keyvals[i].(K)
+		v := keyvals[i+1].(V)
 		idx := len(self.data)
-		self.ind[idx] = keyvals[i]
-		self.data[keyvals[i]] = keyvals[i+1]
+		self.ind[idx] = k
+		self.data[k] = v
 	}
 	return self
 }
-func (self *OrderedMap) Get(key interface{}) interface{} {
+func (self *OrderedMap[K, V]) Get(key K) V {
 	return self.data[key]
 }
-func (self *OrderedMap) GetIndex(idx int) (interface{}, interface{}) {
-	l := self.Len();
+func (self *OrderedMap[K, V]) GetIndex(idx int) (K, V) {
+	l := self.Len()
 	if idx < 0 || idx >= l {
 		panic(fmt.Errorf("Bounds check: OrderedMap.GetIndex(%d) on map of len %d", idx, l))
 	}
 	k := self.ind[idx]
 	return k, self.data[k]
 }
-func (self *OrderedMap) Delete(key interface{}) interface{} {
+func (self *OrderedMap[K, V]) Delete(key K) V {
 	v := self.data[key]
 	delete(self.data, key)
 	for i, k := range self.ind {
@@ -80,49 +78,51 @@ func (self *OrderedMap) Delete(key interface{}) interface{} {
 	}
 	panic("self.data and self.ind are out of sync")
 }
-func (self *OrderedMap) ForEach(f func(i int, key, val interface{})) {
+func (self *OrderedMap[K, V]) ForEach(f func(i int, key K, val V)) {
 	for i, ii := 0, self.Len(); i < ii; i++ {
 		key, val := self.GetIndex(i)
 		f(i, key, val)
 	}
 }
 
-func (self *OrderedMap) Keys() []interface{} {
-	out := make([]interface{}, self.Len())
-	self.ForEach(func(i int, key, val interface{}) {
+func (self *OrderedMap[K, V]) Keys() []K {
+	out := make([]K, self.Len())
+	self.ForEach(func(i int, key K, val V) {
 		out[i] = key
 	})
 	return out
 }
 
-func (self *OrderedMap) Values() []interface{} {
-	out := make([]interface{}, self.Len())
-	self.ForEach(func(i int, key, val interface{}) {
+func (self *OrderedMap[K, V]) Values() []V {
+	out := make([]V, self.Len())
+	self.ForEach(func(i int, key K, val V) {
 		out[i] = val
 	})
 	return out
 }
 
-func (self *OrderedMap) Entries() [][]interface{} {
-	out := make([][]interface{}, self.Len())
-	self.ForEach(func(i int, key, val interface{}) {
-		out[i] = []interface{}{key, val}
+type Entry[K comparable, V any] struct {
+	Key   K
+	Value V
+}
+
+func (self *OrderedMap[K, V]) Entries() []Entry[K, V] {
+	out := make([]Entry[K, V], self.Len())
+	self.ForEach(func(i int, key K, val V) {
+		out[i] = Entry[K, V]{Key: key, Value: val}
 	})
 	return out
 }
 
-func (self *OrderedMap) MapPleaseDoNotMutate() map[interface{}]interface{} {
+func (self *OrderedMap[K, V]) MapPleaseDoNotMutate() map[K]V {
 	return self.data
 }
 
-func (left *OrderedMap) Difference(right *OrderedMap) *OrderedMap {
-	return left.DifferenceFunc(right, StrictEqual)
+func (left *OrderedMap[K, V]) Difference(right *OrderedMap[K, V]) *OrderedMap[K, V] {
+	return left.DifferenceFunc(right, StrictEqual[K])
 }
-func (left *OrderedMap) DifferenceIStr(right *OrderedMap) *OrderedMap {
-	return left.DifferenceFunc(right, IStrEqual)
-}
-func (left *OrderedMap) DifferenceFunc(right *OrderedMap, keyEq EqualFunc) *OrderedMap {
-	out := NewOrderedMap()
+func (left *OrderedMap[K, V]) DifferenceFunc(right *OrderedMap[K, V], keyEq EqualFunc[K]) *OrderedMap[K, V] {
+	out := NewOrderedMap[K, V]()
 	for _, lk := range left.Keys() {
 		inRight := false
 		for _, rk := range right.Keys() {
@@ -138,14 +138,11 @@ func (left *OrderedMap) DifferenceFunc(right *OrderedMap, keyEq EqualFunc) *Orde
 	return out
 }
 
-func (left *OrderedMap) Intersect(right *OrderedMap) *OrderedMap {
-	return left.IntersectFunc(right, StrictEqual)
+func (left *OrderedMap[K, V]) Intersect(right *OrderedMap[K, V]) *OrderedMap[K, V] {
+	return left.IntersectFunc(right, StrictEqual[K])
 }
-func (left *OrderedMap) IntersectIStr(right *OrderedMap) *OrderedMap {
-	return left.IntersectFunc(right, IStrEqual)
-}
-func (left *OrderedMap) IntersectFunc(right *OrderedMap, keyEq EqualFunc) *OrderedMap {
-	out := NewOrderedMap()
+func (left *OrderedMap[K, V]) IntersectFunc(right *OrderedMap[K, V], keyEq EqualFunc[K]) *OrderedMap[K, V] {
+	out := NewOrderedMap[K, V]()
 	for _, lk := range left.Keys() {
 		for _, rk := range right.Keys() {
 			if keyEq(lk, rk) {
@@ -157,13 +154,10 @@ func (left *OrderedMap) IntersectFunc(right *OrderedMap, keyEq EqualFunc) *Order
 	return out
 }
 
-func (left *OrderedMap) Union(right *OrderedMap) *OrderedMap {
-	return left.UnionFunc(right, StrictEqual)
+func (left *OrderedMap[K, V]) Union(right *OrderedMap[K, V]) *OrderedMap[K, V] {
+	return left.UnionFunc(right, StrictEqual[K])
 }
-func (left *OrderedMap) UnionIStr(right *OrderedMap) *OrderedMap {
-	return left.UnionFunc(right, IStrEqual)
-}
-func (left *OrderedMap) UnionFunc(right *OrderedMap, keyEq EqualFunc) *OrderedMap {
+func (left *OrderedMap[K, V]) UnionFunc(right *OrderedMap[K, V], keyEq EqualFunc[K]) *OrderedMap[K, V] {
 	out := left.ShallowClone()
 	for _, rk := range right.Keys() {
 		found := false

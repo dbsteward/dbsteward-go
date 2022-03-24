@@ -76,7 +76,7 @@ func (self *Index) GetTableIndexes(schema *model.Schema, table *model.Table) ([]
 
 	// validate that there are no duplicate index names
 	// TODO(go,3) move this validation elsewhere
-	names := util.NewSet(util.IdentityId)
+	names := util.NewSet(util.IdentityId[string])
 	for _, index := range out {
 		if names.Has(index.Name) {
 			return out, fmt.Errorf("Duplicate index name %s on table %s.%s", index.Name, schema.Name, table.Name)

@@ -216,9 +216,9 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	// in its current form does nothing that `customRole` does not
 	const roleContextOwner = "owner"
 	const roleContextGrant = "grant"
-	ownerHeap := util.NewCountHeap(util.StrLowerId)
-	appHeap := util.NewCountHeap(util.StrLowerId)
-	roHeap := util.NewCountHeap(util.StrLowerId)
+	ownerHeap := util.NewCountHeap(strings.ToLower)
+	appHeap := util.NewCountHeap(strings.ToLower)
+	roHeap := util.NewCountHeap(strings.ToLower)
 	registerRole := func(context string, role string) string {
 		if context == roleContextGrant && strings.HasSuffix(role, "_ro") || strings.HasSuffix(role, "_readonly") {
 			roHeap.Push(role)
@@ -669,19 +669,19 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	}
 
 	// NEW(2) now that we've seen all possible roles, determine the results of the popularity contest
-	customRoles := util.NewSet(util.StrLowerId)
+	customRoles := util.NewSet(strings.ToLower)
 	if appHeap.Len() > 0 {
-		doc.Database.Roles.Application = appHeap.Pop().(string)
+		doc.Database.Roles.Application = appHeap.Pop()
 	}
 	customRoles.AddFrom(appHeap.PopAll())
 
 	if ownerHeap.Len() > 0 {
-		doc.Database.Roles.Owner = ownerHeap.Pop().(string)
+		doc.Database.Roles.Owner = ownerHeap.Pop()
 	}
 	customRoles.AddFrom(ownerHeap.PopAll())
 
 	if roHeap.Len() > 0 {
-		doc.Database.Roles.ReadOnly = roHeap.Pop().(string)
+		doc.Database.Roles.ReadOnly = roHeap.Pop()
 	}
 	customRoles.AddFrom(roHeap.PopAll())
 	customRoles.Remove(
@@ -691,7 +691,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		doc.Database.Roles.ReadOnly,
 	)
 	for _, item := range customRoles.Items() {
-		doc.Database.Roles.CustomRoles.Append(item.(string))
+		doc.Database.Roles.CustomRoles.Append(item)
 	}
 
 	// scan all now defined tables

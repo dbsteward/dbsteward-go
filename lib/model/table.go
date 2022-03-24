@@ -66,9 +66,9 @@ func (self *Table) GetTableOptions(sqlFormat SqlFormat) []*TableOption {
 	return out
 }
 
-func (self *Table) GetTableOptionStrMap(sqlFormat SqlFormat) *util.OrderedMap {
+func (self *Table) GetTableOptionStrMap(sqlFormat SqlFormat) *util.OrderedMap[string, string] {
 	opts := self.GetTableOptions(sqlFormat)
-	out := util.NewOrderedMapOfSize(len(opts))
+	out := util.NewOrderedMapOfSize[string, string](len(opts))
 	for _, opt := range opts {
 		out.Insert(opt.Name, opt.Value)
 	}
