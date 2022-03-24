@@ -101,7 +101,7 @@ func (self *Definition) AddLanguage(lang *Language) {
 }
 
 func (self *Definition) IsRoleDefined(role string) bool {
-	if util.IIndexOfStr(role, MACRO_ROLES) >= 0 {
+	if util.IStrsContains(MACRO_ROLES, role) {
 		return true
 	}
 	if self.Database == nil {

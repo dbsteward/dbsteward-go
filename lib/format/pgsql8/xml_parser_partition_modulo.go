@@ -47,7 +47,7 @@ func (self *moduloPartition) slonyId(i int) *int {
 	if self.slonyRange == nil {
 		return nil
 	}
-	return util.Intp(self.slonyRange.first + i)
+	return util.Ptr(self.slonyRange.first + i)
 }
 
 func (self *XmlParser) expandModuloParitionedTable(doc *model.Definition, schema *model.Schema, table *model.Table) {
@@ -196,5 +196,5 @@ func (self *XmlParser) checkModuloPartitionChange(oldSchema *model.Schema, oldTa
 
 func simpleBuildIdentifier(prefix, name, suffix string) string {
 	remaining := MAX_IDENT_LENGTH - len(prefix) - len(suffix)
-	return prefix + name[0:util.IntMin(remaining, len(name))] + suffix
+	return prefix + name[0:util.Min(remaining, len(name))] + suffix
 }

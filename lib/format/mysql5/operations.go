@@ -215,7 +215,7 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 		// skip any tables that are not in the limit list, if there are any tables to limit
 		if len(limitToTables) > 0 {
 			if includeTables, ok := limitToTables[schema.Name]; ok {
-				if !util.InArrayStr(table.Name, includeTables) {
+				if !util.Contains(includeTables, table.Name) {
 					continue
 				}
 			} else {
@@ -232,7 +232,7 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 		if table.Rows != nil && len(table.PrimaryKey) == 1 {
 			dataCols := table.Rows.Columns
 			pkCol := table.PrimaryKey[0]
-			if util.InArrayStr(pkCol, dataCols) {
+			if util.Contains(dataCols, pkCol) {
 				// TODO(go,3) seems like this could be refactored better by putting much of the lookup
 				// into the model structs
 				pk := lib.GlobalDBX.TryInheritanceGetColumn(doc, schema, table, pkCol)

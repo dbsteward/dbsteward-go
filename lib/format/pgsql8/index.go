@@ -143,8 +143,8 @@ func (self *Index) buildIndexName(table, column, suffix string) string {
 		columnMax += tableMax - tableLen
 	}
 
-	table = table[0:util.IntMin(tableMax, tableLen)]
-	column = column[0:util.IntMin(columnMax, columnLen)]
+	table = table[0:util.Min(tableMax, tableLen)]
+	column = column[0:util.Min(columnMax, columnLen)]
 
 	if columnLen > 0 {
 		return fmt.Sprintf("%s_%s_%s", table, column, suffix)

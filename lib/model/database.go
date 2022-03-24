@@ -64,7 +64,7 @@ func (self *Database) Merge(overlay *Database) {
 }
 
 func (self *RoleAssignment) IsRoleDefined(role string) bool {
-	return util.IIndexOfStr(role, self.CustomRoles) >= 0
+	return util.IStrsContains(self.CustomRoles, role)
 }
 
 func (self *RoleAssignment) AddCustomRole(role string) {

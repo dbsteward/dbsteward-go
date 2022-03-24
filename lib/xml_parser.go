@@ -358,7 +358,7 @@ func (self *XmlParser) RoleEnum(doc *model.Definition, role string) string {
 		strings.EqualFold(roles.Owner, role) ||
 		strings.EqualFold(roles.ReadOnly, role) ||
 		strings.EqualFold(roles.Replication, role) ||
-		util.IIndexOfStr(role, roles.CustomRoles) >= 0 {
+		util.IStrsContains(roles.CustomRoles, role) {
 		return role
 	}
 

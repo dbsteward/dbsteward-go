@@ -549,10 +549,10 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 		{Name: "blah", Owner: "owner"},
 	}, nil)
 	introspector.EXPECT().GetSequencesForRel("public", "test_seq").Return([]live.SequenceEntry{
-		{Start: util.Intp(1), Increment: util.Intp(1), Cache: util.Intp(1), Max: util.Intp(15)},
+		{Start: util.Ptr(1), Increment: util.Ptr(1), Cache: util.Ptr(1), Max: util.Ptr(15)},
 	}, nil)
 	introspector.EXPECT().GetSequencesForRel("public", "blah").Return([]live.SequenceEntry{
-		{Cache: util.Intp(5), Min: util.Intp(3), Max: util.Intp(10)},
+		{Cache: util.Ptr(5), Min: util.Ptr(3), Max: util.Ptr(10)},
 	}, nil)
 	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
@@ -579,9 +579,9 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 		&model.Sequence{
 			Name:  "blah",
 			Owner: "owner",
-			Cache: util.Intp(5),
-			Min:   util.Intp(3),
-			Max:   util.Intp(10),
+			Cache: util.Ptr(5),
+			Min:   util.Ptr(3),
+			Max:   util.Ptr(10),
 		},
 	}, schema.Sequences)
 }

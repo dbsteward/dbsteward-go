@@ -374,7 +374,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 					continue
 				}
 				// is sequence being implicity generated? if so, skip it
-				if util.IndexOfStr(fmt.Sprintf("%s.%s", schema.Name, seqListRow.Name), tableSerials) >= 0 {
+				if util.IndexOf(tableSerials, fmt.Sprintf("%s.%s", schema.Name, seqListRow.Name)) >= 0 {
 					continue
 				}
 				schema.AddSequence(&model.Sequence{
@@ -772,7 +772,7 @@ func (self *Operations) CompareDbData(doc *model.Definition, host string, port u
 					pkExprs := []string{}
 					for _, pkCol := range pkCols {
 						// TODO(go,nth) can we put this column lookup in the model? `row.GetValueForColumn(pkCol)`
-						pkIndex := util.IndexOfStr(pkCol, cols)
+						pkIndex := util.IndexOf(cols, pkCol)
 						if pkIndex < 0 {
 							dbsteward.Fatal("failed to find %s.%s primary key column %s in cols list %v",
 								schema.Name, table.Name, pkCol, cols)
@@ -999,7 +999,7 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 		// skip any tables that are not in the limit list, if there are any tables to limit
 		if len(limitToTables) > 0 {
 			if includeTables, ok := limitToTables[schema.Name]; ok {
-				if !util.InArrayStr(table.Name, includeTables) {
+				if !util.Contains(includeTables, table.Name) {
 					continue
 				}
 			} else {
@@ -1015,7 +1015,7 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 		if table.Rows != nil && len(table.PrimaryKey) == 1 {
 			dataCols := table.Rows.Columns
 			pkCol := table.PrimaryKey[0]
-			if util.InArrayStr(pkCol, dataCols) {
+			if util.Contains(dataCols, pkCol) {
 				// TODO(go,3) seems like this could be refactored better by putting much of the lookup
 				// into the model structs
 				pk := lib.GlobalDBX.TryInheritanceGetColumn(doc, schema, table, pkCol)

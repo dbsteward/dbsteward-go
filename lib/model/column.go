@@ -144,7 +144,7 @@ func (self *Column) EqualsInherited(other *Column) bool {
 		strings.EqualFold(self.ForeignTable, other.ForeignTable) &&
 		self.ForeignOnUpdate.Equals(other.ForeignOnUpdate) &&
 		self.ForeignOnDelete.Equals(other.ForeignOnDelete) &&
-		util.IntpEq(self.Statistics, other.Statistics)
+		util.PtrEq(self.Statistics, other.Statistics)
 }
 
 type ColumnRef struct {

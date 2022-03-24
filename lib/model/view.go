@@ -29,7 +29,7 @@ func (self *View) GetOwner() string {
 func (self *View) GetGrantsForRole(role string) []*Grant {
 	out := []*Grant{}
 	for _, grant := range self.Grants {
-		if util.IIndexOfStr(role, grant.Roles) >= 0 {
+		if util.IStrsContains(grant.Roles, role) {
 			out = append(out, grant)
 		}
 	}

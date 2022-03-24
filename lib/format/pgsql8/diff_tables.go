@@ -136,7 +136,7 @@ func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter,
 				alters = append(alters, &sql.TableAlterPartWithoutOids{})
 			}
 			// handle rest normally
-			alters = append(alters, &sql.TableAlterPartResetStorageParams{util.StrMapKeys(params)})
+			alters = append(alters, &sql.TableAlterPartResetStorageParams{util.MapKeys(params)})
 		} else if strings.EqualFold(entry.Key, "tablespace") {
 			stage1.WriteSql(&sql.TableResetTablespace{
 				Table: ref,
@@ -829,7 +829,7 @@ func (self *DiffTables) buildDataUpdate(schema *model.Schema, table *model.Table
 	for i, newCol := range change.newRow.Columns {
 		newColName := table.Rows.Columns[i]
 
-		oldColIdx := util.IIndexOfStr(newColName, change.oldCols)
+		oldColIdx := util.IStrsIndex(change.oldCols, newColName)
 		if oldColIdx < 0 || !change.oldRow.Columns[oldColIdx].Equals(newCol) {
 			updateCols = append(updateCols, newColName)
 			updateVals = append(updateVals, GlobalOperations.ColumnValueDefault(schema, table, newColName, newCol))

@@ -63,7 +63,7 @@ func (self *Trigger) Equals(other *Trigger) bool {
 	// TODO(feat) should this include identity?
 	return self.IdentityMatches(other) &&
 		strings.EqualFold(self.Function, other.Function) &&
-		util.StrsIEq(self.Events, other.Events) &&
+		util.IStrsEq(self.Events, other.Events) &&
 		self.ForEach.Equals(other.ForEach) &&
 		self.Timing.Equals(other.Timing) &&
 		self.SqlFormat.Equals(other.SqlFormat)

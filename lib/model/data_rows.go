@@ -79,7 +79,7 @@ func (self *DataRows) GetColMap(row *DataRow) map[string]*DataCol {
 func (self *DataRows) GetColMapKeys(row *DataRow, keys []string) map[string]*DataCol {
 	out := map[string]*DataCol{}
 	for i, col := range row.Columns {
-		if util.IIndexOfStr(self.Columns[i], keys) >= 0 {
+		if util.IStrsContains(keys, self.Columns[i]) {
 			out[self.Columns[i]] = col
 		}
 	}
@@ -99,7 +99,7 @@ func (self *DataRows) TryGetRowMatchingColMap(colmap map[string]*DataCol) *DataR
 func (self *DataRows) RowMatchesColMap(row *DataRow, colmap map[string]*DataCol) bool {
 	for colName, col := range colmap {
 		// find the corresponding column
-		idx := util.IIndexOfStr(colName, self.Columns)
+		idx := util.IStrsIndex(self.Columns, colName)
 		if idx < 0 {
 			return false // the column doesn't exist in this DataRows
 		}

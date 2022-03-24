@@ -26,8 +26,9 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
 	github.com/jackc/puddle v1.1.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	golang.org/x/exp v0.0.0-20220323204016-c86f0da35e87 // indirect
 	golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8 // indirect
 	golang.org/x/text v0.3.3 // indirect
-	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/yaml.v2 v2.2.2 // indirect
 )

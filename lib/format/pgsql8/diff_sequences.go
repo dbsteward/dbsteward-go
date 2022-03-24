@@ -34,16 +34,16 @@ func (self *DiffSequences) DiffSequences(ofs output.OutputFileSegmenter, oldSche
 
 		parts := []sql.SequenceAlterPart{}
 
-		if !util.IntpEq(oldSeq.Increment, newSeq.Increment) {
+		if !util.PtrEq(oldSeq.Increment, newSeq.Increment) {
 			parts = append(parts, &sql.SequenceAlterPartIncrement{newSeq.Increment})
 		}
-		if !util.IntpEq(oldSeq.Min, newSeq.Min) {
+		if !util.PtrEq(oldSeq.Min, newSeq.Min) {
 			parts = append(parts, &sql.SequenceAlterPartMinValue{newSeq.Min})
 		}
-		if !util.IntpEq(oldSeq.Max, newSeq.Max) {
+		if !util.PtrEq(oldSeq.Max, newSeq.Max) {
 			parts = append(parts, &sql.SequenceAlterPartMaxValue{newSeq.Max})
 		}
-		if !util.IntpEq(oldSeq.Cache, newSeq.Cache) {
+		if !util.PtrEq(oldSeq.Cache, newSeq.Cache) {
 			parts = append(parts, &sql.SequenceAlterPartCache{newSeq.Cache})
 		}
 		if oldSeq.Cycle != newSeq.Cycle {

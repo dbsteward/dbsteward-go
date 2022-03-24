@@ -92,7 +92,7 @@ func (self *Table) AddTableOption(opt *TableOption) {
 func (self *Table) GetGrantsForRole(role string) []*Grant {
 	out := []*Grant{}
 	for _, grant := range self.Grants {
-		if util.IIndexOfStr(role, grant.Roles) >= 0 {
+		if util.IStrsContains(grant.Roles, role) {
 			out = append(out, grant)
 		}
 	}
