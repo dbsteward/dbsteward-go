@@ -59,6 +59,14 @@ func (self *OrderedMap[K, V]) Insert(keyvals ...interface{}) *OrderedMap[K, V] {
 func (self *OrderedMap[K, V]) Get(key K) V {
 	return self.data[key]
 }
+func (self *OrderedMap[K, V]) GetOrInit(key K, init func() V) V {
+	if v, ok := self.data[key]; ok {
+		return v
+	}
+	v := init()
+	self.data[key] = v
+	return v
+}
 func (self *OrderedMap[K, V]) GetIndex(idx int) (K, V) {
 	l := self.Len()
 	if idx < 0 || idx >= l {

@@ -45,3 +45,8 @@ func IsFalsey(s string) bool {
 		return false
 	}
 }
+
+func ZeroVal[T any]() T {
+	var zero T
+	return zero
+}

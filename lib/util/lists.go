@@ -68,3 +68,23 @@ outer:
 	}
 	return out
 }
+
+func Remove[S ~[]T, T comparable](slice S, target T) S {
+	return RemoveFunc(slice, target, StrictEqual[T])
+}
+
+func RemoveFunc[S ~[]T, T comparable](slice S, target T, eq EqualFunc[T]) S {
+	// a quick helper to cut down on complexity below, see https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
+	// HACK: this is, IMHO, a really bullshit and footgunny method to do this efficiently
+	b := slice[:0]
+	for _, x := range slice {
+		if !eq(x, target) {
+			b = append(b, x)
+		}
+	}
+	// garbage collect
+	for i := len(b); i < len(slice); i++ {
+		slice[i] = ZeroVal[T]()
+	}
+	return b
+}
