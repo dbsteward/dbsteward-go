@@ -38,7 +38,7 @@ type Trigger struct {
 	Timing     TriggerTiming  `xml:"when,attr"`  // XML when="", but not to be confused with the SQL WHEN clause, which isn't captured in this struct (yet) TODO(feat)
 	ForEach    TriggerForEach `xml:"forEach,attr"`
 	Function   string         `xml:"function,attr"`
-	SqlFormat  SqlFormat      `xml:"sqlFormat,attr,omitempty"`
+	SqlFormat  string         `xml:"sqlFormat,attr,omitempty"`
 	SlonySetId *int           `xml:"slonySetId,attr,omitempty"`
 }
 
@@ -66,7 +66,7 @@ func (self *Trigger) Equals(other *Trigger) bool {
 		util.IStrsEq(self.Events, other.Events) &&
 		self.ForEach.Equals(other.ForEach) &&
 		self.Timing.Equals(other.Timing) &&
-		self.SqlFormat.Equals(other.SqlFormat)
+		strings.EqualFold(self.SqlFormat, other.SqlFormat)
 }
 
 func (self *Trigger) Merge(overlay *Trigger) {
@@ -75,9 +75,4 @@ func (self *Trigger) Merge(overlay *Trigger) {
 	self.ForEach = overlay.ForEach
 	self.Function = overlay.Function
 	self.SqlFormat = overlay.SqlFormat
-}
-
-func (self *Trigger) Validate(*Definition, *Schema) []error {
-	// TODO(go,3) validate values
-	return nil
 }

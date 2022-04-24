@@ -50,3 +50,7 @@ func ZeroVal[T any]() T {
 	var zero T
 	return zero
 }
+
+func IsZero[T comparable](t T) bool {
+	return t == ZeroVal[T]()
+}

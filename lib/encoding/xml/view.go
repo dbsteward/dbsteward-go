@@ -1,7 +1,6 @@
 package xml
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/util"
@@ -18,8 +17,8 @@ type View struct {
 }
 
 type ViewQuery struct {
-	SqlFormat SqlFormat `xml:"sqlFormat,attr,omitempty"`
-	Text      string    `xml:",cdata"`
+	SqlFormat string `xml:"sqlFormat,attr,omitempty"`
+	Text      string `xml:",cdata"`
 }
 
 func (self *View) GetOwner() string {
@@ -55,7 +54,7 @@ func (self *View) Merge(overlay *View) {
 
 	for _, overlayQuery := range overlay.Queries {
 		for _, baseQuery := range self.Queries {
-			if baseQuery.SqlFormat.Equals(overlayQuery.SqlFormat) {
+			if strings.EqualFold(baseQuery.SqlFormat, overlayQuery.SqlFormat) {
 				baseQuery.Text = overlayQuery.Text
 			}
 		}
@@ -70,7 +69,7 @@ func (self *View) IdentityMatches(other *View) bool {
 	return strings.EqualFold(self.Name, other.Name)
 }
 
-func (self *View) Equals(other *View, sqlFormat SqlFormat) bool {
+func (self *View) Equals(other *View, sqlFormat string) bool {
 	if self == nil || other == nil {
 		return false
 	}
@@ -83,19 +82,10 @@ func (self *View) Equals(other *View, sqlFormat SqlFormat) bool {
 	return true
 }
 
-func (self *View) Validate(*Definition, *Schema) []error {
-	// TODO(go,3) validate owner, remove from other codepaths
-	// TODO(go,3) validate ViewQueries
-	return nil
-}
-
-func (self *View) TryGetViewQuery(sqlFormat SqlFormat) *ViewQuery {
-	for _, query := range self.Queries {
-		if query.SqlFormat.Equals(sqlFormat) {
-			return query
-		}
-	}
-	return nil
+func (self *View) TryGetViewQuery(sqlFormat string) util.Opt[*ViewQuery] {
+	return util.Find(self.Queries, func(q *ViewQuery) bool {
+		return q.SqlFormat == sqlFormat
+	})
 }
 
 func (self *ViewQuery) Equals(other *ViewQuery) bool {
@@ -109,13 +99,4 @@ func (self *ViewQuery) Equals(other *ViewQuery) bool {
 func (self *ViewQuery) GetNormalizedText() string {
 	// TODO(feat) can we clean this up a bit more? remove leading indents?
 	return strings.TrimSuffix(strings.TrimSpace(self.Text), ";")
-}
-
-type ViewRef struct {
-	Schema *Schema
-	View   *View
-}
-
-func (self ViewRef) String() string {
-	return fmt.Sprintf("%s.%s", self.Schema.Name, self.View.Name)
 }

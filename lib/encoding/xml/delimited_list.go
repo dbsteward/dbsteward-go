@@ -1,15 +1,14 @@
 package xml
 
 import (
-	"encoding/xml"
 	"regexp"
 	"strings"
 )
 
-var spaceCommaRegex = regexp.MustCompile(`[\,\s]+`)
-var commaRegex = regexp.MustCompile(`\s*,+\s*`)
-
+// A DelimitedList is a list of strings parsed from a string delimited by spaces or commas
 type DelimitedList []string
+
+var spaceCommaRegex = regexp.MustCompile(`[\,\s]+`)
 
 func ParseDelimitedList(str string) DelimitedList {
 	return DelimitedList(spaceCommaRegex.Split(str, -1))
@@ -23,34 +22,19 @@ func (self *DelimitedList) Joined() string {
 	return strings.Join([]string(*self), ", ")
 }
 
-func (self *DelimitedList) UnmarshalXMLAttr(attr xml.Attr) error {
-	*self = ParseDelimitedList(attr.Value)
+func (self *DelimitedList) UnmarshalText(text []byte) error {
+	*self = ParseDelimitedList(string(text))
 	return nil
 }
 
-func (self *DelimitedList) MarshalXMLAttr(name xml.Name) (xml.Attr, error) {
-	// TODO(go,nth) retain the original separators used and reuse them when marshalling
-	return xml.Attr{
-		Name:  name,
-		Value: self.Joined(),
-	}, nil
+func (self *DelimitedList) MarshalText() ([]byte, error) {
+	return []byte(self.Joined()), nil
 }
 
-func (self *DelimitedList) UnmarshalXML(decoder *xml.Decoder, start xml.StartElement) error {
-	var value string
-	err := decoder.DecodeElement(&value, &start)
-	if err != nil {
-		return err
-	}
-	*self = ParseDelimitedList(value)
-	return nil
-}
-
-func (self *DelimitedList) MarshalXML(encoder *xml.Encoder, start xml.StartElement) error {
-	return encoder.EncodeElement(self.Joined(), start)
-}
-
+// A DelimitedList is a list of strings parsed from a string delimited by commas possibly surrounded by spaces
 type CommaDelimitedList []string
+
+var commaRegex = regexp.MustCompile(`\s*,+\s*`)
 
 func ParseCommaDelimitedList(str string) CommaDelimitedList {
 	return CommaDelimitedList(commaRegex.Split(str, -1))
@@ -64,29 +48,11 @@ func (self *CommaDelimitedList) Joined() string {
 	return strings.Join([]string(*self), ",")
 }
 
-func (self *CommaDelimitedList) UnmarshalXMLAttr(attr xml.Attr) error {
-	*self = ParseCommaDelimitedList(attr.Value)
+func (self *CommaDelimitedList) UnmarshalText(text []byte) error {
+	*self = ParseCommaDelimitedList(string(text))
 	return nil
 }
 
-func (self *CommaDelimitedList) MarshalXMLAttr(name xml.Name) (xml.Attr, error) {
-	// TODO(go,nth) retain the original separators used and reuse them when marshalling
-	return xml.Attr{
-		Name:  name,
-		Value: self.Joined(),
-	}, nil
-}
-
-func (self *CommaDelimitedList) UnmarshalXML(decoder *xml.Decoder, start xml.StartElement) error {
-	var value string
-	err := decoder.DecodeElement(&value, &start)
-	if err != nil {
-		return err
-	}
-	*self = ParseCommaDelimitedList(value)
-	return nil
-}
-
-func (self *CommaDelimitedList) MarshalXML(encoder *xml.Encoder, start xml.StartElement) error {
-	return encoder.EncodeElement(self.Joined(), start)
+func (self *CommaDelimitedList) MarshalText() ([]byte, error) {
+	return []byte(self.Joined()), nil
 }

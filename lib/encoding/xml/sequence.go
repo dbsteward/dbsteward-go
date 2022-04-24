@@ -65,10 +65,3 @@ func (self *Sequence) IdentityMatches(other *Sequence) bool {
 	}
 	return strings.EqualFold(self.Name, other.Name)
 }
-
-func (self *Sequence) Validate(*Definition, *Schema) []error {
-	// TODO(go,3) validate owner, remove from other codepaths
-	// TODO(go,3) validate cache/start/min/max/increment values
-	// TODO(go,3) validate grants, remove from other codepaths
-	return nil
-}

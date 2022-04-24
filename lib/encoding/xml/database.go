@@ -7,7 +7,7 @@ import (
 )
 
 type Database struct {
-	SqlFormat    SqlFormat       `xml:"sqlFormat"`
+	SqlFormat    string          `xml:"sqlFormat"`
 	Roles        *RoleAssignment `xml:"role"`
 	ConfigParams []*ConfigParam  `xml:"configurationParameter"`
 

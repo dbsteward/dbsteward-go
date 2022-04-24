@@ -1,7 +1,6 @@
 package xml
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/util"
@@ -77,61 +76,6 @@ func (self *DataType) Merge(overlay *DataType) {
 	self.CompositeFields = overlay.CompositeFields
 	self.DomainType = overlay.DomainType
 	self.DomainConstraints = overlay.DomainConstraints
-}
-
-func (self *DataType) Validate(doc *Definition, schema *Schema) []error {
-	out := []error{}
-
-	// note: this used to be handled at DTD validation stage, but that doesn't guard against
-	// manually constructed representations or alternately parsed representations
-
-	// TODO(go,3) is there a better way to translate these errors back to something indicative of what the user
-	// should do for a given representation e.g. "must have a <domainType> element"? how do we have both agnostic
-	// validation AND format-specific errors?
-	// TODO(go,3) we should probably look into making these cases unrepresentable at all;
-	//   will require splitting marshalling structs from model structs (which is good!)
-	// TODO(go,3) further validate the component structs
-
-	switch self.Kind {
-	case DataTypeKindEnum:
-		if len(self.EnumValues) == 0 {
-			out = append(out, fmt.Errorf("enum data type %s.%s must define at least one enum value", schema.Name, self.Name))
-		}
-		if len(self.DomainConstraints) > 0 {
-			out = append(out, fmt.Errorf("enum data type %s.%s must not define a domain constraint", schema.Name, self.Name))
-		}
-		if self.DomainType != nil {
-			out = append(out, fmt.Errorf("enum data type %s.%s must not define a domain type", schema.Name, self.Name))
-		}
-		if len(self.CompositeFields) > 0 {
-			out = append(out, fmt.Errorf("enum data type %s.%s must not define composite fields", schema.Name, self.Name))
-		}
-	case DataTypeKindDomain:
-		if len(self.EnumValues) > 0 {
-			out = append(out, fmt.Errorf("domain data type %s.%s must not define enum values", schema.Name, self.Name))
-		}
-		if self.DomainType == nil {
-			out = append(out, fmt.Errorf("domain data type %s.%s must define a domain type", schema.Name, self.Name))
-		}
-		if len(self.CompositeFields) > 0 {
-			out = append(out, fmt.Errorf("domain data type %s.%s must not define composite fields", schema.Name, self.Name))
-		}
-	case DataTypeKindComposite:
-		if len(self.EnumValues) > 0 {
-			out = append(out, fmt.Errorf("composite data type %s.%s must not define enum values", schema.Name, self.Name))
-		}
-		if len(self.DomainConstraints) > 0 {
-			out = append(out, fmt.Errorf("composite data type %s.%s must not define a domain constraint", schema.Name, self.Name))
-		}
-		if self.DomainType != nil {
-			out = append(out, fmt.Errorf("composite data type %s.%s must not define a domain type", schema.Name, self.Name))
-		}
-		if len(self.CompositeFields) == 0 {
-			out = append(out, fmt.Errorf("composite data type %s.%s must define at least one composite field", schema.Name, self.Name))
-		}
-	}
-
-	return out
 }
 
 func (self *DataType) Equals(other *DataType) bool {

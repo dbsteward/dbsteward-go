@@ -1,5 +1,7 @@
 package util
 
+import "strings"
+
 func Contains[S ~[]T, T comparable](list S, target T) bool {
 	return IndexOf(list, target) >= 0
 }
@@ -19,6 +21,33 @@ func IndexOfFunc[S ~[]T, T comparable](list S, target T, eq EqualFunc[T]) int {
 		}
 	}
 	return -1
+}
+
+func Find[S ~[]T, T any](list S, pred func(T) bool) Opt[T] {
+	for _, t := range list {
+		if pred(t) {
+			return Some(t)
+		}
+	}
+	return None[T]()
+}
+
+func FindBy[S ~[]T, T any, K comparable](list S, id K, get func(T) K) Opt[T] {
+	return Find(list, func(t T) bool {
+		return id == get(t)
+	})
+}
+
+func FindNamed[S ~[]T, T interface{ Name() string }](list S, name string) Opt[T] {
+	return Find(list, func(t T) bool {
+		return strings.EqualFold(t.Name(), name)
+	})
+}
+
+func FindMatching[S ~[]T, T interface{ IdentityMatches(T) bool }](list S, other T) Opt[T] {
+	return Find(list, func(t T) bool {
+		return t.IdentityMatches(other)
+	})
 }
 
 // UnionFunc unions two lists, using the provided equality function

@@ -4,12 +4,6 @@ import (
 	"fmt"
 )
 
-type EqualFunc[T comparable] func(l, r T) bool
-
-func StrictEqual[T comparable](l, r T) bool {
-	return l == r
-}
-
 // TODO(go,core) find map iterations that should be deterministic and upgrade to use this impl
 // TODO(go,nth) make this threadsafe
 

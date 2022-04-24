@@ -1,7 +1,6 @@
 package xml
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -33,9 +32,9 @@ type Table struct {
 }
 
 type TableOption struct {
-	SqlFormat SqlFormat `xml:"sqlFormat,attr"`
-	Name      string    `xml:"name"`
-	Value     string    `xml:"value"`
+	SqlFormat string `xml:"sqlFormat,attr"`
+	Name      string `xml:"name"`
+	Value     string `xml:"value"`
 }
 
 func (self *Table) GetOwner() string {
@@ -56,17 +55,17 @@ func (self *Table) TryGetTableOptionMatching(target *TableOption) *TableOption {
 	return nil
 }
 
-func (self *Table) GetTableOptions(sqlFormat SqlFormat) []*TableOption {
+func (self *Table) GetTableOptions(sqlFormat string) []*TableOption {
 	out := make([]*TableOption, 0, len(self.TableOptions))
 	for _, opt := range self.TableOptions {
-		if opt.SqlFormat.Equals(sqlFormat) {
+		if strings.EqualFold(opt.SqlFormat, sqlFormat) {
 			out = append(out, opt)
 		}
 	}
 	return out
 }
 
-func (self *Table) GetTableOptionStrMap(sqlFormat SqlFormat) *util.OrderedMap[string, string] {
+func (self *Table) GetTableOptionStrMap(sqlFormat string) *util.OrderedMap[string, string] {
 	opts := self.GetTableOptions(sqlFormat)
 	out := util.NewOrderedMapOfSize[string, string](len(opts))
 	for _, opt := range opts {
@@ -75,7 +74,7 @@ func (self *Table) GetTableOptionStrMap(sqlFormat SqlFormat) *util.OrderedMap[st
 	return out
 }
 
-func (self *Table) SetTableOption(sqlFormat SqlFormat, name, value string) {
+func (self *Table) SetTableOption(sqlFormat string, name, value string) {
 	// TODO(feat) sanity check
 	self.AddTableOption(&TableOption{
 		SqlFormat: sqlFormat,
@@ -283,66 +282,11 @@ func (self *Table) MergeDataRows(overlay *DataRows) {
 	// TODO(go,core) impl from xml_parser::data_rows_overlay(); should this maybe go in XmlParser instead?
 }
 
-func (self *Table) Validate(doc *Definition, schema *Schema) []error {
-	// TODO(go,3) check owner, remove from other codepaths
-	// TODO(go,3) validate grants, remove from other codepaths
-	// TODO(go,3) validate primary key, remove from other codepaths
-	// TODO(go,3) validate data rows, remove from other codepaths
-	// TODO(go,3) validate oldname references, remove from other codepaths
-	// TODO(go,3) validate inheritance references, remove from other codepaths
-
-	out := []error{}
-
-	// no two objects should have same identity (also, validate sub-objects)
-	for i, tableOption := range self.TableOptions {
-		out = append(out, tableOption.Validate(doc, schema, self)...)
-		for _, other := range self.TableOptions[i+1:] {
-			if tableOption.IdentityMatches(other) {
-				out = append(out, fmt.Errorf("found two tableOptions in table %s.%s with name %q", schema.Name, self.Name, tableOption.Name))
-			}
-		}
-	}
-	for i, column := range self.Columns {
-		out = append(out, column.Validate(doc, schema, self)...)
-		for _, other := range self.Columns[i+1:] {
-			if column.IdentityMatches(other) {
-				out = append(out, fmt.Errorf("found two columns in table %s.%s with name %q", schema.Name, self.Name, column.Name))
-			}
-		}
-	}
-	for i, foreignKey := range self.ForeignKeys {
-		out = append(out, foreignKey.Validate(doc, schema, self)...)
-		for _, other := range self.ForeignKeys[i+1:] {
-			if foreignKey.IdentityMatches(other) {
-				out = append(out, fmt.Errorf("found two foreignKeys in table %s.%s with constraint name %q", schema.Name, self.Name, foreignKey.ConstraintName))
-			}
-		}
-	}
-	for i, index := range self.Indexes {
-		out = append(out, index.Validate(doc, schema, self)...)
-		for _, other := range self.Indexes[i+1:] {
-			if index.IdentityMatches(other) {
-				out = append(out, fmt.Errorf("found two indexes in table %s.%s with name %q", schema.Name, self.Name, index.Name))
-			}
-		}
-	}
-	for i, constraint := range self.Constraints {
-		out = append(out, constraint.Validate(doc, schema, self)...)
-		for _, other := range self.Constraints[i+1:] {
-			if constraint.IdentityMatches(other) {
-				out = append(out, fmt.Errorf("found two constraints in table %s.%s with name %q", schema.Name, self.Name, constraint.Name))
-			}
-		}
-	}
-
-	return out
-}
-
 func (self *TableOption) IdentityMatches(other *TableOption) bool {
 	if self == nil || other == nil {
 		return false
 	}
-	return self.SqlFormat.Equals(other.SqlFormat) && strings.EqualFold(self.Name, other.Name)
+	return strings.EqualFold(self.SqlFormat, other.SqlFormat) && strings.EqualFold(self.Name, other.Name)
 }
 
 func (self *TableOption) Equals(other *TableOption) bool {
@@ -352,30 +296,4 @@ func (self *TableOption) Equals(other *TableOption) bool {
 func (self *TableOption) Merge(overlay *TableOption) {
 	// TODO(feat) does this need to be more sophisticated given that sometimes we set name=with,value=<lots of things>?
 	self.Value = overlay.Value
-}
-
-func (self *TableOption) Validate(*Definition, *Schema, *Table) []error {
-	// TODO(go,3) validate values
-	return nil
-}
-
-type TableRef struct {
-	Schema *Schema
-	Table  *Table
-}
-
-func (self TableRef) String() string {
-	schema := "<nil>"
-	if self.Schema != nil {
-		schema = self.Schema.Name
-	}
-	table := "<nil>"
-	if self.Table != nil {
-		table = self.Table.Name
-	}
-	return fmt.Sprintf("%s.%s", schema, table)
-}
-
-func (self *TableRef) ToColumnRef(column *Column) *ColumnRef {
-	return &ColumnRef{self.Schema, self.Table, column}
 }

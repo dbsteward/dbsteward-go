@@ -3,24 +3,13 @@ package xml
 import (
 	"fmt"
 	"strings"
+
+	"github.com/dbsteward/dbsteward/lib/util"
 )
-
-type IndexType string
-
-const (
-	IndexTypeBtree IndexType = "btree"
-	IndexTypeHash  IndexType = "hash"
-	IndexTypeGin   IndexType = "gin"
-	IndexTypeGist  IndexType = "gist"
-)
-
-func (self IndexType) Equals(other IndexType) bool {
-	return strings.EqualFold(string(self), string(other))
-}
 
 type Index struct {
 	Name         string       `xml:"name,attr,omitempty"`
-	Using        IndexType    `xml:"using,attr,omitempty"`
+	Using        string       `xml:"using,attr,omitempty"`
 	Unique       bool         `xml:"unique,attr,omitempty"`
 	Concurrently bool         `xml:"concurrently,attr,omitempty"`
 	Dimensions   []*IndexDim  `xml:"indexDimension"`
@@ -33,8 +22,8 @@ type IndexDim struct {
 	Value string `xml:",chardata"`
 }
 type IndexCond struct {
-	SqlFormat SqlFormat `xml:"sqlFormat,attr,omitempty"`
-	Condition string    `xml:",chardata"`
+	SqlFormat string `xml:"sqlFormat,attr,omitempty"`
+	Condition string `xml:",chardata"`
 }
 
 func (self *Index) AddDimensionNamed(name, value string) {
@@ -52,14 +41,11 @@ func (self *Index) AddDimension(value string) {
 	)
 }
 
-func (self *Index) TryGetCondition(sqlFormat SqlFormat) *IndexCond {
+func (self *Index) TryGetCondition(sqlFormat string) util.Opt[*IndexCond] {
 	// TODO(go,core) fallback to returning empty sqlformat condition if it exists
-	for _, cond := range self.Conditions {
-		if cond.SqlFormat.Equals(sqlFormat) {
-			return cond
-		}
-	}
-	return nil
+	return util.Find(self.Conditions, func(c *IndexCond) bool {
+		return strings.EqualFold(c.SqlFormat, sqlFormat)
+	})
 }
 
 func (self *Index) IdentityMatches(other *Index) bool {
@@ -69,7 +55,7 @@ func (self *Index) IdentityMatches(other *Index) bool {
 	return strings.EqualFold(self.Name, other.Name)
 }
 
-func (self *Index) Equals(other *Index, sqlFormat SqlFormat) bool {
+func (self *Index) Equals(other *Index, sqlFormat string) bool {
 	if self == nil || other == nil {
 		// nil != nil in this case
 		return false
@@ -83,7 +69,7 @@ func (self *Index) Equals(other *Index, sqlFormat SqlFormat) bool {
 	if self.Concurrently != other.Concurrently {
 		return false
 	}
-	if !self.Using.Equals(other.Using) {
+	if !strings.EqualFold(self.Using, other.Using) {
 		return false
 	}
 	if len(self.Dimensions) != len(other.Dimensions) {
@@ -116,11 +102,6 @@ func (self *Index) Merge(overlay *Index) {
 	self.Dimensions = overlay.Dimensions
 }
 
-func (self *Index) Validate(*Definition, *Schema, *Table) []error {
-	// TODO(go,3) validate values
-	return nil
-}
-
 func (self *IndexDim) Equals(other *IndexDim) bool {
 	if self == nil || other == nil {
 		return false
@@ -134,5 +115,6 @@ func (self *IndexCond) Equals(other *IndexCond) bool {
 	if self == nil || other == nil {
 		return false
 	}
-	return self.SqlFormat.Equals(other.SqlFormat) && strings.TrimSpace(self.Condition) == strings.TrimSpace(other.Condition)
+	return strings.EqualFold(self.SqlFormat, other.SqlFormat) &&
+		strings.TrimSpace(self.Condition) == strings.TrimSpace(other.Condition)
 }
