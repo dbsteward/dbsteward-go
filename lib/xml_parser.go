@@ -1,7 +1,7 @@
 package lib
 
 import (
-	"encoding/xml"
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
+	"github.com/dbsteward/dbsteward/lib/encoding/xml"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -30,32 +31,23 @@ func (self *XmlParser) LoadDefintion(file string) (*model.Definition, error) {
 	}
 	defer f.Close()
 
-	doc := &model.Definition{}
-	err = xml.NewDecoder(f).Decode(doc)
-	if err != nil {
-		return nil, errors.Wrapf(err, "could not parse dbxml file %s", file)
-	}
-	return doc, nil
+	return xml.ReadDef(f)
 }
 
-func (self *XmlParser) SaveDoc(filename string, doc *model.Definition) {
+func (self *XmlParser) SaveDefinition(filename string, def *model.Definition) {
 	f, err := os.Create(filename)
 	GlobalDBSteward.FatalIfError(err, "Could not open file %s for writing", filename)
 	defer f.Close()
 
-	// TODO(go,nth) get rid of empty closing tags like <grant ...></grant> => <grant .../>
-	// Go doesn't natively support this (yet?), and google is being google about it
-	// https://github.com/golang/go/issues/21399
-	enc := xml.NewEncoder(f)
-	enc.Indent("", "  ")
-	err = enc.Encode(doc)
-	GlobalDBSteward.FatalIfError(err, "Could not marshal document")
+	err = xml.WriteDef(f, def)
+	GlobalDBSteward.FatalIfError(err, "Could not write XML document to file")
 }
 
-func (self *XmlParser) FormatXml(doc *model.Definition) string {
-	d, err := xml.MarshalIndent(doc, "", "  ")
+func (self *XmlParser) FormatXml(def *model.Definition) string {
+	buf := &bytes.Buffer{}
+	err := xml.WriteDef(buf, def)
 	GlobalDBSteward.FatalIfError(err, "could not marshal definition")
-	return string(d)
+	return buf.String()
 }
 
 func (self *XmlParser) GetSqlFormat(files []string) model.SqlFormat {

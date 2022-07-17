@@ -14,6 +14,7 @@ import (
 	"encoding/xml"
 	"io"
 
+	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/pkg/errors"
 )
 
@@ -36,5 +37,24 @@ func WriteDoc(w io.Writer, doc *Document) error {
 	// https://github.com/golang/go/issues/21399
 	enc := xml.NewEncoder(w)
 	enc.Indent("", "  ")
-	return errors.Wrap(enc.Encode(doc), "while marshaling xml")
+	return errors.Wrap(enc.Encode(doc), "could not marshal xml")
+}
+
+// TODO lift these up
+
+func ReadDef(r io.Reader) (*model.Definition, error) {
+	doc, err := ReadDoc(r)
+	if err != nil {
+		return nil, err
+	}
+	return doc.ToModel()
+}
+
+func WriteDef(w io.Writer, def *model.Definition) error {
+	doc := &Document{}
+	err := doc.FromModel(def)
+	if err != nil {
+		return err
+	}
+	return WriteDoc(w, doc)
 }

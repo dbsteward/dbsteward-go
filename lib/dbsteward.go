@@ -499,7 +499,7 @@ func (self *DBSteward) doXmlDataInsert(defFile string, dataFile string) {
 
 	defFileModified := defFile + ".xmldatainserted"
 	self.Notice("Saving modified dbsteward definition as %s", defFileModified)
-	GlobalXmlParser.SaveDoc(defFileModified, defDoc)
+	GlobalXmlParser.SaveDefinition(defFileModified, defDoc)
 }
 func (self *DBSteward) doXmlSort(files []string) {
 	for _, file := range files {
@@ -532,7 +532,7 @@ func (self *DBSteward) doXmlSlonyId(files []string, slonyOut string) {
 	outputPrefix := self.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
 	self.Notice("Saving composite as %s", compositeFile)
-	GlobalXmlParser.SaveDoc(compositeFile, dbDoc)
+	GlobalXmlParser.SaveDefinition(compositeFile, dbDoc)
 
 	self.Notice("Slony ID numbering any missing attributes")
 	self.Info("slonyidstartvalue = %d", self.slonyIdStartValue)
@@ -543,7 +543,7 @@ func (self *DBSteward) doXmlSlonyId(files []string, slonyOut string) {
 		slonyIdNumberedFile = slonyOut
 	}
 	self.Notice("Saving Slony ID numbered XML as %s", slonyIdNumberedFile)
-	GlobalXmlParser.SaveDoc(slonyIdNumberedFile, slonyIdDoc)
+	GlobalXmlParser.SaveDefinition(slonyIdNumberedFile, slonyIdDoc)
 }
 func (self *DBSteward) doBuild(files []string, dataFiles []string, addendums uint) {
 	self.Info("Compositing XML files...")
@@ -563,12 +563,12 @@ func (self *DBSteward) doBuild(files []string, dataFiles []string, addendums uin
 	outputPrefix := self.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
 	self.Notice("Saving composite as %s", compositeFile)
-	GlobalXmlParser.SaveDoc(compositeFile, dbDoc)
+	GlobalXmlParser.SaveDefinition(compositeFile, dbDoc)
 
 	if addendumsDoc != nil {
 		addendumsFile := outputPrefix + "_addendums.xml"
 		self.Notice("Saving addendums as %s", addendumsFile)
-		GlobalXmlParser.SaveDoc(compositeFile, addendumsDoc)
+		GlobalXmlParser.SaveDefinition(compositeFile, addendumsDoc)
 	}
 
 	self.Lookup().Operations.Build(outputPrefix, dbDoc)
@@ -590,12 +590,12 @@ func (self *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []
 	oldOutputPrefix := self.calculateFileOutputPrefix(oldFiles)
 	oldCompositeFile := oldOutputPrefix + "_composite.xml"
 	self.Notice("Saving composite as %s", oldCompositeFile)
-	GlobalXmlParser.SaveDoc(oldCompositeFile, oldDbDoc)
+	GlobalXmlParser.SaveDefinition(oldCompositeFile, oldDbDoc)
 
 	newOutputPrefix := self.calculateFileOutputPrefix(newFiles)
 	newCompositeFile := newOutputPrefix + "_composite.xml"
 	self.Notice("Saving composite as %s", newCompositeFile)
-	GlobalXmlParser.SaveDoc(newCompositeFile, newDbDoc)
+	GlobalXmlParser.SaveDefinition(newCompositeFile, newDbDoc)
 
 	self.Lookup().Operations.BuildUpgrade(
 		oldOutputPrefix, oldCompositeFile, oldDbDoc, oldFiles,
@@ -605,7 +605,7 @@ func (self *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []
 func (self *DBSteward) doExtract(dbHost string, dbPort uint, dbName, dbUser, dbPass string, outputFile string) {
 	output := self.Lookup().Operations.ExtractSchema(dbHost, dbPort, dbName, dbUser, dbPass)
 	self.Notice("Saving extracted database schema to %s", outputFile)
-	GlobalXmlParser.SaveDoc(outputFile, output)
+	GlobalXmlParser.SaveDefinition(outputFile, output)
 }
 func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendums uint, dbHost string, dbPort uint, dbName, dbUser, dbPass string) {
 	self.Info("Compositing XML files...")
@@ -626,10 +626,10 @@ func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendum
 	outputPrefix := self.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
 	self.Notice("Saving composite as %s", compositeFile)
-	GlobalXmlParser.SaveDoc(compositeFile, dbDoc)
+	GlobalXmlParser.SaveDefinition(compositeFile, dbDoc)
 
 	output := self.Lookup().Operations.CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
-	GlobalXmlParser.SaveDoc(compositeFile, output)
+	GlobalXmlParser.SaveDefinition(compositeFile, output)
 }
 func (self *DBSteward) doSqlDiff(oldSql, newSql []string, outputFile string) {
 	self.Lookup().Operations.SqlDiff(oldSql, newSql, outputFile)
