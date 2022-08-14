@@ -15,20 +15,20 @@ func (self TablePartitionType) Equals(other TablePartitionType) bool {
 }
 
 type TablePartition struct {
-	Type      TablePartitionType       `xml:"type,attr"`
-	SqlFormat SqlFormat                `xml:"sqlFormat,attr,omitempty"`
-	Options   []*TablePartitionOption  `xml:"tablePartitionOption"`
-	Segments  []*TablePartitionSegment `xml:"tablePartitionSegment"`
+	Type      TablePartitionType
+	SqlFormat SqlFormat
+	Options   []*TablePartitionOption
+	Segments  []*TablePartitionSegment
 }
 
 type TablePartitionOption struct {
-	Name  string `xml:"name,attr"`
-	Value string `xml:"value,attr"`
+	Name  string
+	Value string
 }
 
 type TablePartitionSegment struct {
-	Name  string `xml:"name,attr"`
-	Value string `xml:"value,attr"`
+	Name  string
+	Value string
 }
 
 func (self *TablePartition) TryGetOptionValueNamed(name string) string {

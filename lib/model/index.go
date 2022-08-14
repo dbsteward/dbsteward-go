@@ -19,22 +19,22 @@ func (self IndexType) Equals(other IndexType) bool {
 }
 
 type Index struct {
-	Name         string       `xml:"name,attr,omitempty"`
-	Using        IndexType    `xml:"using,attr,omitempty"`
-	Unique       bool         `xml:"unique,attr,omitempty"`
-	Concurrently bool         `xml:"concurrently,attr,omitempty"`
-	Dimensions   []*IndexDim  `xml:"indexDimension"`
-	Conditions   []*IndexCond `xml:"indexWhere"`
+	Name         string
+	Using        IndexType
+	Unique       bool
+	Concurrently bool
+	Dimensions   []*IndexDim
+	Conditions   []*IndexCond
 }
 
 type IndexDim struct {
-	Name  string `xml:"name,attr"` // TODO(go,4) why does a dimension have a name? just for compositing/differencing's sake?
-	Sql   bool   `xml:"sql,attr,omitempty"`
-	Value string `xml:",chardata"`
+	Name  string // TODO(go,4) why does a dimension have a name? just for compositing/differencing's sake?
+	Sql   bool
+	Value string
 }
 type IndexCond struct {
-	SqlFormat SqlFormat `xml:"sqlFormat,attr,omitempty"`
-	Condition string    `xml:",chardata"`
+	SqlFormat SqlFormat
+	Condition string
 }
 
 func (self *Index) AddDimensionNamed(name, value string) {

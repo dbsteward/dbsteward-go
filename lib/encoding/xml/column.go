@@ -53,18 +53,3 @@ func (self *Column) UnmarshalXML(decoder *xml.Decoder, start xml.StartElement) e
 	*self = Column(*col)
 	return nil
 }
-
-func (self *Column) Merge(overlay *Column) {
-	// TODO(go,core) slony, migration sql
-	self.Type = overlay.Type
-	self.Nullable = overlay.Nullable
-	self.Default = overlay.Default
-	self.Description = overlay.Description
-	self.SerialStart = overlay.SerialStart
-	self.ForeignSchema = overlay.ForeignSchema
-	self.ForeignTable = overlay.ForeignTable
-	self.ForeignKeyName = overlay.ForeignKeyName
-	self.ForeignOnUpdate = overlay.ForeignOnUpdate
-	self.ForeignOnDelete = overlay.ForeignOnDelete
-	self.Statistics = overlay.Statistics
-}
