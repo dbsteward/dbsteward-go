@@ -20,33 +20,32 @@ func (self DataTypeKind) Equals(other DataTypeKind) bool {
 }
 
 type DataType struct {
-	Name              string                      `xml:"name,attr,omitempty"`
-	Kind              DataTypeKind                `xml:"type,attr,omitempty"`
-	SlonySetId        *int                        `xml:"slonySetId,attr,omitempty"`
-	EnumValues        []*DataTypeEnumValue        `xml:"enum"`
-	CompositeFields   []*DataTypeCompositeField   `xml:"typeCompositeElement"`
-	DomainType        *DataTypeDomainType         `xml:"domainType"`
-	DomainConstraints []*DataTypeDomainConstraint `xml:"domainConstraint"`
+	Name              string
+	Kind              DataTypeKind
+	EnumValues        []*DataTypeEnumValue
+	CompositeFields   []*DataTypeCompositeField
+	DomainType        *DataTypeDomainType
+	DomainConstraints []*DataTypeDomainConstraint
 }
 
 type DataTypeEnumValue struct {
-	Value string `xml:"name,attr"`
+	Value string
 }
 
 type DataTypeCompositeField struct {
-	Name string `xml:"name,attr"`
-	Type string `xml:"type,attr"`
+	Name string
+	Type string
 }
 
 type DataTypeDomainType struct {
-	BaseType string `xml:"baseType,attr"`
-	Default  string `xml:"default,attr,omitempty"`
-	Nullable bool   `xml:"null,attr,omitempty"`
+	BaseType string
+	Default  string
+	Nullable bool
 }
 
 type DataTypeDomainConstraint struct {
-	Name  string `xml:"name,attr,omitempty"`
-	Check string `xml:",chardata"`
+	Name  string
+	Check string
 }
 
 func (self *DataType) TryGetDomainConstraintNamed(name string) *DataTypeDomainConstraint {
@@ -72,7 +71,6 @@ func (self *DataType) Merge(overlay *DataType) {
 		return
 	}
 	self.Kind = overlay.Kind
-	self.SlonySetId = overlay.SlonySetId
 	self.EnumValues = overlay.EnumValues
 	self.CompositeFields = overlay.CompositeFields
 	self.DomainType = overlay.DomainType

@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/xml"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -12,31 +11,29 @@ import (
 // TODO(go,3) move most public fields to private, use accessors to better enable encapsulation, validation; "make invalid states unrepresentable"
 
 type Definition struct {
-	XMLName        xml.Name          `xml:"dbsteward"`
-	IncludeFiles   []*IncludeFile    `xml:"includeFile"`
-	InlineAssembly []*InlineAssembly `xml:"inlineAssembly"`
-	Database       *Database         `xml:"database"`
-	Schemas        []*Schema         `xml:"schema"`
-	Languages      []*Language       `xml:"language"`
-	Sql            []*Sql            `xml:"sql"`
+	IncludeFiles   []*IncludeFile
+	InlineAssembly []*InlineAssembly
+	Database       *Database
+	Schemas        []*Schema
+	Languages      []*Language
+	Sql            []*Sql
 }
 
 type IncludeFile struct {
-	Name string `xml:"name,attr"`
+	Name string
 }
 
 type InlineAssembly struct {
-	Name string `xml:"name,attr"`
+	Name string
 }
 
 type Sql struct {
-	Author     string   `xml:"author,attr"`
-	Ticket     string   `xml:"ticket,attr"`
-	Version    string   `xml:"version,attr"`
-	Comment    string   `xml:"comment,attr"`
-	Stage      SqlStage `xml:"stage,attr"`
-	SlonySetId *int     `xml:"slonySetId,attr"`
-	Text       string   `xml:",chardata"`
+	Author  string
+	Ticket  string
+	Version string
+	Comment string
+	Stage   SqlStage
+	Text    string
 }
 
 func (self *Definition) GetSchemaNamed(name string) (*Schema, error) {
@@ -226,7 +223,6 @@ func (self *Sql) Merge(overlay *Sql) {
 	self.Version = overlay.Version
 	self.Comment = overlay.Comment
 	self.Stage = overlay.Stage
-	self.SlonySetId = overlay.SlonySetId
 }
 
 func (self *Sql) Validate(*Definition) []error {

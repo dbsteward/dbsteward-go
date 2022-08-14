@@ -107,9 +107,9 @@ type HasGrants interface {
 }
 
 type Grant struct {
-	Roles       DelimitedList      `xml:"role,attr,omitempty"`
-	Permissions CommaDelimitedList `xml:"operation,attr,omitempty"`
-	With        string             `xml:"with,attr,omitempty"`
+	Roles       []string
+	Permissions []string
+	With        string
 }
 
 func (self *Grant) AddPermission(op string) {

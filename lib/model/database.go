@@ -7,24 +7,24 @@ import (
 )
 
 type Database struct {
-	SqlFormat    SqlFormat       `xml:"sqlFormat"`
-	Roles        *RoleAssignment `xml:"role"`
-	ConfigParams []*ConfigParam  `xml:"configurationParameter"`
+	SqlFormat    SqlFormat
+	Roles        *RoleAssignment
+	ConfigParams []*ConfigParam
 
 	// slony
 }
 
 type RoleAssignment struct {
-	Application string        `xml:"application"`
-	Owner       string        `xml:"owner"`
-	Replication string        `xml:"replication"`
-	ReadOnly    string        `xml:"readonly"`
-	CustomRoles DelimitedList `xml:"customRole,omitempty"`
+	Application string
+	Owner       string
+	Replication string
+	ReadOnly    string
+	CustomRoles []string
 }
 
 type ConfigParam struct {
-	Name  string `xml:"name,attr"`
-	Value string `xml:"value,attr"`
+	Name  string
+	Value string
 }
 
 func (self *Database) IsRoleDefined(role string) bool {

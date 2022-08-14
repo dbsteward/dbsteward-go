@@ -20,14 +20,14 @@ func (self ForeignKeyAction) Equals(other ForeignKeyAction) bool {
 }
 
 type ForeignKey struct {
-	Columns        DelimitedList    `xml:"columns,attr"`
-	ForeignSchema  string           `xml:"foreignSchema,attr,omitempty"`
-	ForeignTable   string           `xml:"foreignTable,attr"`
-	ForeignColumns DelimitedList    `xml:"foreignColumns,attr,omitempty"`
-	ConstraintName string           `xml:"constraintName,attr,omitempty"`
-	IndexName      string           `xml:"indexName,attr,omitempty"`
-	OnUpdate       ForeignKeyAction `xml:"onUpdate,attr,omitempty"`
-	OnDelete       ForeignKeyAction `xml:"onDelete,attr,omitempty"`
+	Columns        []string
+	ForeignSchema  string
+	ForeignTable   string
+	ForeignColumns []string
+	ConstraintName string
+	IndexName      string
+	OnUpdate       ForeignKeyAction
+	OnDelete       ForeignKeyAction
 }
 
 func (self *ForeignKey) GetReferencedKey() KeyNames {

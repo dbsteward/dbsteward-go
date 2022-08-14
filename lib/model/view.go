@@ -8,18 +8,17 @@ import (
 )
 
 type View struct {
-	Name           string        `xml:"name,attr"`
-	Description    string        `xml:"description,attr,omitempty"`
-	Owner          string        `xml:"owner,attr,omitempty"`
-	DependsOnViews DelimitedList `xml:"dependsOnViews,attr,omitempty"`
-	SlonySetId     *int          `xml:"slonySetId,attr,omitempty"`
-	Grants         []*Grant      `xml:"grant"`
-	Queries        []*ViewQuery  `xml:"viewQuery"`
+	Name           string
+	Description    string
+	Owner          string
+	DependsOnViews []string
+	Grants         []*Grant
+	Queries        []*ViewQuery
 }
 
 type ViewQuery struct {
-	SqlFormat SqlFormat `xml:"sqlFormat,attr,omitempty"`
-	Text      string    `xml:",cdata"`
+	SqlFormat SqlFormat
+	Text      string
 }
 
 func (self *View) GetOwner() string {

@@ -4,21 +4,22 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/pkg/errors"
 )
 
 type Schema struct {
-	Name        string      `xml:"name,attr"`
-	Description string      `xml:"description,attr,omitempty"`
-	Owner       string      `xml:"owner,attr,omitempty"`
-	SlonySetId  *int        `xml:"slonySetId,attr,omitempty"`
-	Tables      []*Table    `xml:"table"`
-	Grants      []*Grant    `xml:"grant"`
-	Types       []*DataType `xml:"type"`
-	Sequences   []*Sequence `xml:"sequence"`
-	Functions   []*Function `xml:"function"`
-	Triggers    []*Trigger  `xml:"trigger"`
-	Views       []*View     `xml:"view"`
+	Name        string
+	Description string
+	Owner       string
+	SlonySetId  util.Opt[int]
+	Tables      []*Table
+	Grants      []*Grant
+	Types       []*DataType
+	Sequences   []*Sequence
+	Functions   []*Function
+	Triggers    []*Trigger
+	Views       []*View
 }
 
 // TODO(go,4) triggers are schema objects, but always only in the scope of a single table. consider moving it to Table

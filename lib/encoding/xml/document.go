@@ -5,6 +5,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/util"
+	"github.com/pkg/errors"
 )
 
 type Document struct {
@@ -41,8 +42,44 @@ type Sql struct {
 // No semantic validation is performed at this point, as that's outside
 // of the scope of an "xml" package - see `model.Definition.Validate()`
 func (self *Document) ToModel() (*model.Definition, error) {
-	// TODO
-	return nil, nil
+	includeFiles, err := util.MapErr(self.IncludeFiles, (*IncludeFile).ToModel)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not process includeFile tags")
+	}
+
+	inlineAssembly, err := util.MapErr(self.InlineAssembly, (*InlineAssembly).ToModel)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not process inlineAssembly tags")
+	}
+
+	database, err := self.Database.ToModel()
+	if err != nil {
+		return nil, errors.Wrap(err, "could not process database tag")
+	}
+
+	schemas, err := util.MapErr(self.Schemas, (*Schema).ToModel)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not process schema tags")
+	}
+
+	languages, err := util.MapErr(self.Languages, (*Language).ToModel)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not process language tags")
+	}
+
+	sql, err := util.MapErr(self.Sql, (*Sql).ToModel)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not process sql tags")
+	}
+
+	return &model.Definition{
+		IncludeFiles:   includeFiles,
+		InlineAssembly: inlineAssembly,
+		Database:       database,
+		Schemas:        schemas,
+		Languages:      languages,
+		Sql:            sql,
+	}, nil
 }
 
 // FromModel builds a Document from a model.Definition
@@ -53,84 +90,15 @@ func (self *Document) FromModel(def *model.Definition) error {
 	return nil
 }
 
-func (self *Document) AddSchema(schema *Schema) {
-	// TODO(feat) sanity check duplicate name
-	self.Schemas = append(self.Schemas, schema)
+// TODO should there be a model.IncludeFile, or should we always overlay when converting to model?
+func (self *IncludeFile) ToModel() (*model.IncludeFile, error) {
+	return &model.IncludeFile{Name: self.Name}, nil
 }
 
-func (self *Document) AddLanguage(lang *Language) {
-	// TODO(feat) sanity check
-	self.Languages = append(self.Languages, lang)
+func (self *InlineAssembly) ToModel() (*model.InlineAssembly, error) {
+	return &model.InlineAssembly{Name: self.Name}, nil
 }
 
-func (self *Document) AddCustomRole(role string) {
-	if self.Database == nil {
-		// TODO(go,nth) incomplete construction
-		self.Database = &Database{}
-	}
-	self.Database.AddCustomRole(role)
-}
-
-func (self *Document) AddSql(sql *Sql) {
-	// TODO(feat) sanity check
-	self.Sql = append(self.Sql, sql)
-}
-
-// Merge "overlays" a document on top of this one.
-func (base *Document) Merge(overlay *Document) {
-	if overlay == nil {
-		return
-	}
-	base.IncludeFiles = append(base.IncludeFiles, overlay.IncludeFiles...)
-	base.InlineAssembly = append(base.InlineAssembly, overlay.InlineAssembly...)
-
-	if base.Database == nil {
-		base.Database = &Database{}
-	}
-	base.Database.Merge(overlay.Database)
-
-	for _, overlaySchema := range overlay.Schemas {
-		if baseSchema, ok := util.FindMatching(base.Schemas, overlaySchema).Maybe(); ok {
-			baseSchema.Merge(overlaySchema)
-		} else {
-			// TODO(go,core) we should probably clone this. Should we just make AddSchema take a value not pointer?
-			base.AddSchema(overlaySchema)
-		}
-	}
-
-	for _, overlayLang := range overlay.Languages {
-		if baseLang, ok := util.FindMatching(base.Languages, overlayLang).Maybe(); ok {
-			baseLang.Merge(overlayLang)
-		} else {
-			base.AddLanguage(overlayLang)
-		}
-	}
-
-	for _, overlaySql := range overlay.Sql {
-		if baseSql, ok := util.FindMatching(base.Sql, overlaySql).Maybe(); ok {
-			baseSql.Merge(overlaySql)
-		} else {
-			base.AddSql(overlaySql)
-		}
-	}
-}
-
-func (self *Sql) IdentityMatches(other *Sql) bool {
-	if self == nil || other == nil {
-		return false
-	}
-	// TODO(feat) make this more sophisticated
-	return self.Text == other.Text
-}
-
-func (self *Sql) Merge(overlay *Sql) {
-	if overlay == nil {
-		return
-	}
-	self.Author = overlay.Author
-	self.Ticket = overlay.Ticket
-	self.Version = overlay.Version
-	self.Comment = overlay.Comment
-	self.Stage = overlay.Stage
-	self.SlonySetId = overlay.SlonySetId
+func (self *Sql) ToModel() (*model.Sql, error) {
+	panic("todo")
 }

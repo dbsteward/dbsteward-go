@@ -20,29 +20,28 @@ func (self FuncParamDir) Equals(other FuncParamDir) bool {
 }
 
 type Function struct {
-	Name            string                `xml:"name,attr"`
-	Owner           string                `xml:"owner,attr,omitempty"`
-	Description     string                `xml:"description,attr,omitempty"`
-	Returns         string                `xml:"returns,attr"`
-	CachePolicy     string                `xml:"cachePolicy,attr,omitempty"`
-	ForceRedefine   bool                  `xml:"forceRedefine,attr,omitempty"`
-	SecurityDefiner bool                  `xml:"securityDefiner,attr,omitempty"`
-	SlonySetId      *int                  `xml:"slonySetId,attr,omitempty"`
-	Parameters      []*FunctionParameter  `xml:"functionParameter"`
-	Definitions     []*FunctionDefinition `xml:"functionDefinition"`
-	Grants          []*Grant              `xml:"grant"`
+	Name            string
+	Owner           string
+	Description     string
+	Returns         string
+	CachePolicy     string
+	ForceRedefine   bool
+	SecurityDefiner bool
+	Parameters      []*FunctionParameter
+	Definitions     []*FunctionDefinition
+	Grants          []*Grant
 }
 
 type FunctionParameter struct {
-	Name      string       `xml:"name,attr,omitempty"`
-	Type      string       `xml:"type,attr"`
-	Direction FuncParamDir `xml:"direction,attr,omitempty"`
+	Name      string
+	Type      string
+	Direction FuncParamDir
 }
 
 type FunctionDefinition struct {
-	SqlFormat SqlFormat `xml:"sqlFormat,attr,omitempty"`
-	Language  string    `xml:"language,attr,omitempty"`
-	Text      string    `xml:",cdata"`
+	SqlFormat SqlFormat
+	Language  string
+	Text      string
 }
 
 func (self *Function) HasDefinition(sqlFormat SqlFormat) bool {

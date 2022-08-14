@@ -10,6 +10,12 @@ type Opt[T any] struct {
 func Some[T any](t T) Opt[T] {
 	return Opt[T]{true, t}
 }
+func SomePtr[T any](t *T) Opt[T] {
+	if t == nil {
+		return None[T]()
+	}
+	return Some(*t)
+}
 func None[T any]() Opt[T] {
 	return Opt[T]{hasValue: false}
 }

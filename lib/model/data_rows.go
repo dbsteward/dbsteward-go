@@ -8,22 +8,22 @@ import (
 )
 
 type DataRows struct {
-	TabRowDelimiter string        `xml:"tabrowDelimiter,attr,omitempty"`
-	Columns         DelimitedList `xml:"columns,attr,omitempty"`
-	Rows            []*DataRow    `xml:"row"`
-	TabRows         []string      `xml:"tabrow"`
+	TabRowDelimiter string
+	Columns         []string
+	Rows            []*DataRow
+	TabRows         []string
 }
 
 type DataRow struct {
-	Columns []*DataCol `xml:"col"`
-	Delete  bool       `xml:"delete,attr,omitempty"` // TODO(go,core) does this un/marshal properly?
+	Columns []*DataCol
+	Delete  bool
 }
 
 type DataCol struct {
-	Null  bool   `xml:"null,attr,omitempty"`
-	Empty bool   `xml:"empty,attr,omitempty"`
-	Sql   bool   `xml:"sql,attr,omitempty"`
-	Text  string `xml:",chardata"`
+	Null  bool
+	Empty bool
+	Sql   bool
+	Text  string
 }
 
 func (self *DataRows) AddColumn(name string, value string) error {

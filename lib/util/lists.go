@@ -117,3 +117,23 @@ func RemoveFunc[S ~[]T, T comparable](slice S, target T, eq EqualFunc[T]) S {
 	}
 	return b
 }
+
+func Map[S ~[]T, T, U any](slice S, f func(T) U) []U {
+	out := make([]U, len(slice))
+	for i, t := range slice {
+		out[i] = f(t)
+	}
+	return out
+}
+
+func MapErr[S ~[]T, T, U any](slice S, f func(T) (U, error)) ([]U, error) {
+	out := make([]U, len(slice))
+	for i, t := range slice {
+		u, err := f(t)
+		out[i] = u
+		if err != nil {
+			return out, err
+		}
+	}
+	return out, nil
+}

@@ -10,32 +10,30 @@ import (
 )
 
 type Table struct {
-	Name           string          `xml:"name,attr"`
-	Description    string          `xml:"description,attr,omitempty"`
-	Owner          string          `xml:"owner,attr,omitempty"`
-	PrimaryKey     DelimitedList   `xml:"primaryKey,attr,omitempty"`
-	PrimaryKeyName string          `xml:"primaryKeyName,attr,omitempty"`
-	ClusterIndex   string          `xml:"clusterIndex,attr,omitempty"`
-	InheritsTable  string          `xml:"inheritsTable,attr,omitempty"`
-	InheritsSchema string          `xml:"inheritsSchema,attr,omitempty"`
-	OldTableName   string          `xml:"oldTableName,attr,omitempty"`
-	OldSchemaName  string          `xml:"oldSchemaName,attr,omitempty"`
-	SlonySetId     *int            `xml:"slonySetId,attr,omitempty"`
-	SlonyId        *int            `xml:"slonyId,attr,omitempty"`
-	TableOptions   []*TableOption  `xml:"tableOption"`
-	Partitioning   *TablePartition `xml:"tablePartition"`
-	Columns        []*Column       `xml:"column"`
-	ForeignKeys    []*ForeignKey   `xml:"foreignKey"`
-	Indexes        []*Index        `xml:"index"`
-	Constraints    []*Constraint   `xml:"constraint"`
-	Grants         []*Grant        `xml:"grant"`
-	Rows           *DataRows       `xml:"rows"`
+	Name           string
+	Description    string
+	Owner          string
+	PrimaryKey     []string
+	PrimaryKeyName string
+	ClusterIndex   string
+	InheritsTable  string
+	InheritsSchema string
+	OldTableName   string
+	OldSchemaName  string
+	TableOptions   []*TableOption
+	Partitioning   *TablePartition
+	Columns        []*Column
+	ForeignKeys    []*ForeignKey
+	Indexes        []*Index
+	Constraints    []*Constraint
+	Grants         []*Grant
+	Rows           *DataRows
 }
 
 type TableOption struct {
-	SqlFormat SqlFormat `xml:"sqlFormat,attr"`
-	Name      string    `xml:"name"`
-	Value     string    `xml:"value"`
+	SqlFormat SqlFormat
+	Name      string
+	Value     string
 }
 
 func (self *Table) GetOwner() string {
@@ -233,7 +231,6 @@ func (self *Table) Merge(overlay *Table) {
 	self.Owner = overlay.Owner
 	self.PrimaryKey = overlay.PrimaryKey
 	self.PrimaryKeyName = overlay.PrimaryKeyName
-	self.SlonySetId = overlay.SlonySetId
 
 	for _, overlayOpt := range overlay.TableOptions {
 		if baseOpt := self.TryGetTableOptionMatching(overlayOpt); baseOpt != nil {
