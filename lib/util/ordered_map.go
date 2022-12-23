@@ -64,7 +64,7 @@ func (self *OrderedMap[K, V]) GetOrInit(key K, init func() V) V {
 		return v
 	}
 	v := init()
-	self.data[key] = v
+	self.Insert(key, v)
 	return v
 }
 func (self *OrderedMap[K, V]) GetIndex(idx int) (K, V) {

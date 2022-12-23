@@ -239,15 +239,14 @@ func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
 			curr := model.TableRef{schema, table}
-			// initialize them so we know the node is there, even if it has no dependencies
-			foreigns := forward.GetOrInit(curr, init)
-			if len(*foreigns) == 0 {
-				*foreigns = []model.TableRef{}
-			}
 			if len(reverse[curr]) == 0 {
 				reverse[curr] = []model.TableRef{}
 			}
 
+			// for each dependency of current table
+			// add that dep as something this table depends on
+			// add this table as something depending on that dep
+			foreigns := forward.GetOrInit(curr, init)
 			for _, dep := range self.getTableDependencies(doc, schema, table) {
 				*foreigns = append(*foreigns, dep)
 				reverse[dep] = append(reverse[dep], curr)
@@ -307,22 +306,12 @@ func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
 	out := []*model.TableRef{}
 	i := 0
 	for forward.Len() > 0 {
-		// fmt.Printf("%d ----\n", i)
-		// fmt.Printf("forward:\n")
-		// for _, entry := range forward {
-		// 	fmt.Printf("  %s => %v\n", entry.local, entry.foreign)
-		// }
-		// fmt.Printf("reverse:\n")
-		// for key, vals := range reverse {
-		// 	fmt.Printf("  %s => %v\n", key, vals)
-		// }
 		i += 1
 		toRemove := []model.TableRef{}
 		for _, entry := range forward.Entries() {
 			local := entry.Key
 			foreigns := entry.Value
 			if len(*foreigns) == 0 {
-				// fmt.Printf("%s has no foreigns, popping it\n", local)
 				// GOTCHA: go reuses the same memory for loop iteration variables,
 				// so we need to copy it before we make a pointer to it
 				clone := local
