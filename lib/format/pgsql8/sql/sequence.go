@@ -4,41 +4,42 @@ import (
 	"fmt"
 
 	"github.com/dbsteward/dbsteward/lib/output"
+	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 type SequenceCreate struct {
 	Sequence  SequenceRef
-	Cache     *int
-	Start     *int
-	Min       *int
-	Max       *int
-	Increment *int
+	Cache     util.Opt[int]
+	Start     util.Opt[int]
+	Min       util.Opt[int]
+	Max       util.Opt[int]
+	Increment util.Opt[int]
 	Cycle     bool
 	OwnedBy   string
 }
 
 func (self *SequenceCreate) ToSql(q output.Quoter) string {
 	ddl := "CREATE SEQUENCE " + self.Sequence.Qualified(q)
-	if self.Increment != nil {
-		ddl += fmt.Sprintf("\n  INCREMENT BY %d", *self.Increment)
+	if val, ok := self.Increment.Maybe(); ok {
+		ddl += fmt.Sprintf("\n  INCREMENT BY %d", val)
 	}
-	if self.Min != nil {
-		ddl += fmt.Sprintf("\n  MINVALUE %d", *self.Min)
+	if val, ok := self.Min.Maybe(); ok {
+		ddl += fmt.Sprintf("\n  MINVALUE %d", val)
 	} else {
 		// NOTE: this is technically not needed, NO MINVALUE is the default
 		ddl += "\n  NO MINVALUE"
 	}
-	if self.Max != nil {
-		ddl += fmt.Sprintf("\n  MAXVALUE %d", *self.Max)
+	if val, ok := self.Max.Maybe(); ok {
+		ddl += fmt.Sprintf("\n  MAXVALUE %d", val)
 	} else {
 		// NOTE: this is technically not needed, NO MINVALUE is the default
 		ddl += "\n  NO MAXVALUE"
 	}
-	if self.Start != nil {
-		ddl += fmt.Sprintf("\n  START WITH %d", *self.Start)
+	if val, ok := self.Start.Maybe(); ok {
+		ddl += fmt.Sprintf("\n  START WITH %d", val)
 	}
-	if self.Cache != nil {
-		ddl += fmt.Sprintf("\n  CACHE %d", *self.Cache)
+	if val, ok := self.Cache.Maybe(); ok {
+		ddl += fmt.Sprintf("\n  CACHE %d", val)
 	}
 	if self.Cycle {
 		ddl += "\n  CYCLE"

@@ -50,8 +50,6 @@ func (self *Schema) GetDropSql(schema *model.Schema) []output.ToSql {
 }
 
 func (self *Schema) GetGrantSql(doc *model.Definition, schema *model.Schema, grant *model.Grant) []output.ToSql {
-	GlobalOperations.SetContextReplicaSetId(schema.SlonySetId)
-
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
 		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)

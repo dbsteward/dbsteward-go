@@ -42,9 +42,6 @@ func (self *Operations) GetQuoter() output.Quoter {
 	// TODO(go,mssql) implement me
 	return nil
 }
-func (self *Operations) SetContextReplicaSetId(setId *int) {
-	// TODO(go,core) this shouldn't be part of public interface
-}
 
 func (self *Operations) SqlDiff(old, new []string, upgradePrefix string) {
 	// TODO(go,mssql) implement me

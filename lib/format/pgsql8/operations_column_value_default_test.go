@@ -92,10 +92,10 @@ func getColumnValueDefault(def *model.Column, data *model.DataCol) string {
 				Tables: []*model.Table{
 					&model.Table{
 						Name:       "test_table",
-						PrimaryKey: model.DelimitedList{def.Name},
+						PrimaryKey: []string{def.Name},
 						Columns:    []*model.Column{def},
 						Rows: &model.DataRows{
-							Columns: model.DelimitedList{def.Name},
+							Columns: []string{def.Name},
 							Rows: []*model.DataRow{
 								&model.DataRow{
 									Columns: []*model.DataCol{data},

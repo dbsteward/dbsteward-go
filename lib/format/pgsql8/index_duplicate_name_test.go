@@ -14,7 +14,7 @@ func TestIndex_GetTableIndexes_DuplicateIndexNameError(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "table1",
-				PrimaryKey: model.DelimitedList{"col1"},
+				PrimaryKey: []string{"col1"},
 				Columns: []*model.Column{
 					{Name: "col1", Type: "int"},
 				},

@@ -43,7 +43,6 @@ func (self *Function) DefinitionReferencesTable(definition *model.FunctionDefini
 }
 
 func (self *Function) GetCreationSql(schema *model.Schema, function *model.Function) []output.ToSql {
-	GlobalOperations.SetContextReplicaSetId(function.SlonySetId)
 	ref := sql.FunctionRef{schema.Name, function.Name, function.ParamSigs()}
 	def := function.TryGetDefinition(model.SqlFormatPgsql8)
 	out := []output.ToSql{
@@ -74,7 +73,6 @@ func (self *Function) GetCreationSql(schema *model.Schema, function *model.Funct
 }
 
 func (self *Function) GetDropSql(schema *model.Schema, function *model.Function) []output.ToSql {
-	GlobalOperations.SetContextReplicaSetId(function.SlonySetId)
 	types := function.ParamTypes()
 	for i, paramType := range types {
 		// TODO(feat) there's evidence in get_drop_sql that postgres only recognizes the normalized typenames here.
@@ -95,8 +93,6 @@ func (self *Function) normalizeParameterType(paramType string) string {
 }
 
 func (self *Function) GetGrantSql(doc *model.Definition, schema *model.Schema, fn *model.Function, grant *model.Grant) []output.ToSql {
-	GlobalOperations.SetContextReplicaSetId(fn.SlonySetId)
-
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
 		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)

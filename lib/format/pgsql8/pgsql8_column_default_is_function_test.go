@@ -31,7 +31,7 @@ func TestColumnDefaultIsFunction(t *testing.T) {
 				Tables: []*model.Table{
 					{
 						Name:       "rate",
-						PrimaryKey: model.DelimitedList{"rate_id"},
+						PrimaryKey: []string{"rate_id"},
 						Columns: []*model.Column{
 							{Name: "rate_id", Type: "integer", Nullable: false},
 							{Name: "rate_group_id", Nullable: false, ForeignTable: "rate_group"},
@@ -41,7 +41,7 @@ func TestColumnDefaultIsFunction(t *testing.T) {
 					},
 					{
 						Name:       "rate_group",
-						PrimaryKey: model.DelimitedList{"rate_group_id"},
+						PrimaryKey: []string{"rate_group_id"},
 						Columns: []*model.Column{
 							{Name: "rate_group_id", Type: "integer", Nullable: false, Default: "dbsteward.test()"},
 							{Name: "rate_group_name", Type: "character varying(100)", Nullable: true},

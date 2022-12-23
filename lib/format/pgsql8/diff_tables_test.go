@@ -88,7 +88,7 @@ func TestDiffTables_DiffTables_TableOptions_NoChange(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "test",
-				PrimaryKey: model.DelimitedList{"a"},
+				PrimaryKey: []string{"a"},
 				TableOptions: []*model.TableOption{
 					&model.TableOption{
 						SqlFormat: model.SqlFormatPgsql8,
@@ -111,7 +111,7 @@ func TestDiffTables_DiffTables_TableOptions_AddWith(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:         "test",
-				PrimaryKey:   model.DelimitedList{"a"},
+				PrimaryKey:   []string{"a"},
 				TableOptions: []*model.TableOption{},
 			},
 		},
@@ -121,7 +121,7 @@ func TestDiffTables_DiffTables_TableOptions_AddWith(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "test",
-				PrimaryKey: model.DelimitedList{"a"},
+				PrimaryKey: []string{"a"},
 				TableOptions: []*model.TableOption{
 					&model.TableOption{
 						SqlFormat: model.SqlFormatPgsql8,
@@ -152,7 +152,7 @@ func TestDiffTables_DiffTables_TableOptions_AlterWith(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "test",
-				PrimaryKey: model.DelimitedList{"a"},
+				PrimaryKey: []string{"a"},
 				TableOptions: []*model.TableOption{
 					&model.TableOption{
 						SqlFormat: model.SqlFormatPgsql8,
@@ -170,7 +170,7 @@ func TestDiffTables_DiffTables_TableOptions_AlterWith(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "test",
-				PrimaryKey: model.DelimitedList{"a"},
+				PrimaryKey: []string{"a"},
 				TableOptions: []*model.TableOption{
 					&model.TableOption{
 						SqlFormat: model.SqlFormatPgsql8,
@@ -201,7 +201,7 @@ func TestDiffTables_DiffTables_TableOptions_AddTablespaceAlterWith(t *testing.T)
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "test",
-				PrimaryKey: model.DelimitedList{"a"},
+				PrimaryKey: []string{"a"},
 				TableOptions: []*model.TableOption{
 					&model.TableOption{
 						SqlFormat: model.SqlFormatPgsql8,
@@ -219,7 +219,7 @@ func TestDiffTables_DiffTables_TableOptions_AddTablespaceAlterWith(t *testing.T)
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "test",
-				PrimaryKey: model.DelimitedList{"a"},
+				PrimaryKey: []string{"a"},
 				TableOptions: []*model.TableOption{
 					&model.TableOption{
 						SqlFormat: model.SqlFormatPgsql8,
@@ -260,7 +260,7 @@ func TestDiffTables_DiffTables_TableOptions_DropTablespace(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "test",
-				PrimaryKey: model.DelimitedList{"a"},
+				PrimaryKey: []string{"a"},
 				TableOptions: []*model.TableOption{
 					&model.TableOption{
 						SqlFormat: model.SqlFormatPgsql8,
@@ -283,7 +283,7 @@ func TestDiffTables_DiffTables_TableOptions_DropTablespace(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "test",
-				PrimaryKey: model.DelimitedList{"a"},
+				PrimaryKey: []string{"a"},
 				TableOptions: []*model.TableOption{
 					&model.TableOption{
 						SqlFormat: model.SqlFormatPgsql8,
@@ -311,13 +311,13 @@ func TestDiffTables_GetDeleteCreateDataSql_AddSerialColumn(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "serial_test",
-				PrimaryKey: model.DelimitedList{"test_string"},
+				PrimaryKey: []string{"test_string"},
 				Columns: []*model.Column{
 					{Name: "test_string", Type: "text"},
 					{Name: "test_number", Type: "integer"},
 				},
 				Rows: &model.DataRows{
-					Columns: model.DelimitedList{"test_string", "test_number"},
+					Columns: []string{"test_string", "test_number"},
 					// NOTE original test used tabrows, but that's already been expanded by this point
 					Rows: []*model.DataRow{
 						{Columns: []*model.DataCol{{Text: "testtest"}, {Text: "12345"}}},
@@ -331,14 +331,14 @@ func TestDiffTables_GetDeleteCreateDataSql_AddSerialColumn(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "serial_test",
-				PrimaryKey: model.DelimitedList{"test_string"},
+				PrimaryKey: []string{"test_string"},
 				Columns: []*model.Column{
 					{Name: "test_serial", Type: "serial"},
 					{Name: "test_string", Type: "text"},
 					{Name: "test_number", Type: "integer"},
 				},
 				Rows: &model.DataRows{
-					Columns: model.DelimitedList{"test_serial", "test_string", "test_number"},
+					Columns: []string{"test_serial", "test_string", "test_number"},
 					// NOTE original test used tabrows, but that's already been expanded by this point
 					Rows: []*model.DataRow{
 						{Columns: []*model.DataCol{{Text: "1"}, {Text: "testtest"}, {Text: "12345"}}},

@@ -18,12 +18,6 @@ func NewView() *View {
 }
 
 func (self *View) GetCreationSql(schema *model.Schema, view *model.View) []output.ToSql {
-	if view.SlonySetId == nil {
-		GlobalOperations.SetContextReplicaSetId(schema.SlonySetId)
-	} else {
-		GlobalOperations.SetContextReplicaSetId(view.SlonySetId)
-	}
-
 	ref := sql.ViewRef{schema.Name, view.Name}
 	query := view.TryGetViewQuery(model.SqlFormatPgsql8)
 	util.Assert(query != nil, "Calling View.GetCreationSql for a view not defined for this sqlformat")
@@ -52,11 +46,6 @@ func (self *View) GetCreationSql(schema *model.Schema, view *model.View) []outpu
 }
 
 func (self *View) GetDropSql(schema *model.Schema, view *model.View) []output.ToSql {
-	if view.SlonySetId == nil {
-		GlobalOperations.SetContextReplicaSetId(schema.SlonySetId)
-	} else {
-		GlobalOperations.SetContextReplicaSetId(view.SlonySetId)
-	}
 	return []output.ToSql{
 		&sql.ViewDrop{
 			View: sql.ViewRef{schema.Name, view.Name},
@@ -66,8 +55,6 @@ func (self *View) GetDropSql(schema *model.Schema, view *model.View) []output.To
 
 func (self *View) GetGrantSql(doc *model.Definition, schema *model.Schema, view *model.View, grant *model.Grant) []output.ToSql {
 	// NOTE: pgsql views use table grants!
-	GlobalOperations.SetContextReplicaSetId(view.SlonySetId)
-
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
 		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)

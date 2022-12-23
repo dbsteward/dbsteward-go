@@ -285,7 +285,6 @@ func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 		}
 	} else {
 		for _, newSchema := range lib.GlobalDBSteward.NewDatabase.Schemas {
-			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 			oldSchema := lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 			GlobalDiffTables.DiffData(ofs, oldSchema, newSchema)
 		}

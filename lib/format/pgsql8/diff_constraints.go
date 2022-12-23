@@ -26,10 +26,6 @@ func (self *DiffConstraints) CreateConstraints(ofs output.OutputFileSegmenter, o
 }
 
 func (self *DiffConstraints) CreateConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType sql99.ConstraintType) {
-	if newTable != nil {
-		GlobalOperations.SetContextReplicaSetId(newTable.SlonySetId)
-	}
-
 	isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
 	lib.GlobalDBSteward.FatalIfError(err, "while checking if table was renamed")
 	if isRenamed {
@@ -68,18 +64,12 @@ func (self *DiffConstraints) DropConstraints(ofs output.OutputFileSegmenter, old
 }
 
 func (self *DiffConstraints) DropConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType sql99.ConstraintType) {
-	if newTable != nil {
-		GlobalOperations.SetContextReplicaSetId(newTable.SlonySetId)
-	}
 	for _, constraint := range self.GetOldConstraints(oldSchema, oldTable, newSchema, newTable, constraintType) {
 		ofs.WriteSql(GlobalConstraint.GetDropSql(constraint)...)
 	}
 }
 
 func (self *DiffConstraints) GetOldConstraints(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType sql99.ConstraintType) []*sql99.TableConstraint {
-	if newTable != nil {
-		GlobalOperations.SetContextReplicaSetId(newTable.SlonySetId)
-	}
 	out := []*sql99.TableConstraint{}
 	if newTable != nil && oldTable != nil {
 		oldDb := lib.GlobalDBSteward.OldDatabase

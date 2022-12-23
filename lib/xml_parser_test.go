@@ -17,7 +17,7 @@ func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
 				Tables: []*model.Table{
 					&model.Table{
 						Name:       "parent_table",
-						PrimaryKey: model.DelimitedList{"pk"},
+						PrimaryKey: []string{"pk"},
 						Columns: []*model.Column{
 							{Name: "pk", Type: "int"},
 							{Name: "col1", Type: "char(10)", Default: "yeahboy"},
@@ -33,7 +33,7 @@ func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
 			Tables: []*model.Table{
 				&model.Table{
 					Name:           "child_table",
-					PrimaryKey:     model.DelimitedList{"pkchild"},
+					PrimaryKey:     []string{"pkchild"},
 					InheritsSchema: "public",
 					InheritsTable:  "parent_table",
 					Columns: []*model.Column{
@@ -41,7 +41,7 @@ func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
 						{Name: "x", Type: "int"},
 					},
 					Rows: &model.DataRows{
-						Columns: model.DelimitedList{"pkchild", "col1"},
+						Columns: []string{"pkchild", "col1"},
 						Rows: []*model.DataRow{
 							&model.DataRow{
 								Columns: []*model.DataCol{
@@ -62,7 +62,7 @@ func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
 			Tables: []*model.Table{
 				&model.Table{
 					Name:       "parent_table",
-					PrimaryKey: model.DelimitedList{"pk"},
+					PrimaryKey: []string{"pk"},
 					Columns: []*model.Column{
 						{Name: "pk", Type: "int"},
 						{Name: "col1", Type: "char(10)", Default: "yeahboy"},
@@ -70,7 +70,7 @@ func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
 				},
 				&model.Table{
 					Name:           "child_table",
-					PrimaryKey:     model.DelimitedList{"pkchild"},
+					PrimaryKey:     []string{"pkchild"},
 					InheritsSchema: "public",
 					InheritsTable:  "parent_table",
 					Columns: []*model.Column{
@@ -78,7 +78,7 @@ func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
 						{Name: "x", Type: "int"},
 					},
 					Rows: &model.DataRows{
-						Columns: model.DelimitedList{"pkchild", "col1"},
+						Columns: []string{"pkchild", "col1"},
 						Rows: []*model.DataRow{
 							&model.DataRow{
 								Columns: []*model.DataCol{
@@ -99,7 +99,7 @@ func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
 			Tables: []*model.Table{
 				&model.Table{
 					Name:           "grandchild_table",
-					PrimaryKey:     model.DelimitedList{"pkgrandchild"},
+					PrimaryKey:     []string{"pkgrandchild"},
 					InheritsSchema: "public",
 					InheritsTable:  "child_table",
 					Columns: []*model.Column{
@@ -107,7 +107,7 @@ func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
 						{Name: "y", Type: "int"},
 					},
 					Rows: &model.DataRows{
-						Columns: model.DelimitedList{"pkgrandchild", "col1"},
+						Columns: []string{"pkgrandchild", "col1"},
 						Rows: []*model.DataRow{
 							&model.DataRow{
 								Columns: []*model.DataCol{

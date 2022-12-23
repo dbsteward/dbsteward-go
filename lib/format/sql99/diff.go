@@ -69,7 +69,6 @@ func (self *Diff) DropOldSchemas(ofs output.OutputFileSegmenter) {
 	for _, oldSchema := range lib.GlobalDBSteward.OldDatabase.Schemas {
 		if lib.GlobalDBSteward.NewDatabase.TryGetSchemaNamed(oldSchema.Name) == nil {
 			lib.GlobalDBSteward.Info("Drop old schema: %s", oldSchema.Name)
-			// TODO(go,slony) GlobalOperations.SetContextReplicaSetId(oldSchema.SlonySetId)
 			ofs.WriteSql(self.lookup.Schema.GetDropSql(oldSchema)...)
 		}
 	}
@@ -80,7 +79,6 @@ func (self *Diff) CreateNewSchemas(ofs output.OutputFileSegmenter) {
 	for _, newSchema := range lib.GlobalDBSteward.NewDatabase.Schemas {
 		if lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(newSchema.Name) == nil {
 			lib.GlobalDBSteward.Info("Create new schema: %s", newSchema.Name)
-			// TODO(go,slony) GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 			ofs.WriteSql(self.lookup.Schema.GetCreationSql(newSchema)...)
 		}
 	}

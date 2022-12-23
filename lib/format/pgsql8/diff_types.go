@@ -36,8 +36,6 @@ func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *mode
 			continue
 		}
 
-		GlobalOperations.SetContextReplicaSetId(newType.SlonySetId)
-
 		// TODO(feat) what about functions in other schemas?
 		for _, oldFunc := range GlobalSchema.GetFunctionsDependingOnType(oldSchema, oldType) {
 			ofs.WriteSql(sql.NewComment(
@@ -72,7 +70,6 @@ func (self *DiffTypes) dropTypes(ofs output.OutputFileSegmenter, oldSchema *mode
 	if oldSchema != nil {
 		for _, oldType := range oldSchema.Types {
 			if newSchema.TryGetTypeNamed(oldType.Name) == nil {
-				GlobalOperations.SetContextReplicaSetId(oldType.SlonySetId)
 				// TODO(go,pgsql) old dbsteward does GetDropSql(*newSchema*, oldtype) but that's not consistent with anything else. Need to validate
 				ofs.WriteSql(GlobalDataType.GetDropSql(oldSchema, oldType)...)
 			}
@@ -83,7 +80,6 @@ func (self *DiffTypes) dropTypes(ofs output.OutputFileSegmenter, oldSchema *mode
 func (self *DiffTypes) createTypes(ofs output.OutputFileSegmenter, oldSchema *model.Schema, newSchema *model.Schema) {
 	for _, newType := range newSchema.Types {
 		if oldSchema.TryGetTypeNamed(newType.Name) == nil {
-			GlobalOperations.SetContextReplicaSetId(newType.SlonySetId)
 			sql, err := GlobalDataType.GetCreationSql(newSchema, newType)
 			lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for type diff")
 			ofs.WriteSql(sql...)

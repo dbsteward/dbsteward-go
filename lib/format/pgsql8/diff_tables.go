@@ -190,70 +190,14 @@ func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegme
 	stage3.WriteSql(agg.before3...)
 
 	ref := sql.TableRef{newSchema.Name, newTable.Name}
-	useReplicationOwner := false
 	ownRole := newTable.Owner
 	if ownRole == "" {
 		ownRole = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, model.RoleOwner)
-	}
-	if newTable.SlonyId != nil {
-		// slony will make the alter table statement changes as its super user
-		// which if the db owner is different,
-		// implicit sequence creation will fail with:
-		// ERROR:  55000: sequence must have same owner as table it is linked to
-		// so if the alter statement contains a new serial column,
-		// change the user to the slony user for the alter, then (see similar block below)
-		for _, part := range agg.stage1 {
-			// unwrap annotations
-			if annot, ok := part.(*sql.TableAlterPartAnnotation); ok {
-				part = annot.Wrapped
-			}
-
-			// inspect the alter table parts for indications that we're creating a serial column
-			switch pt := part.(type) {
-			case *sql.TableAlterPartColumnCreate:
-				if GlobalDataType.IsSerialType(pt.ColumnDef.Type.Type) {
-					useReplicationOwner = true
-				}
-			case *sql.TableAlterPartColumnChangeType:
-				if GlobalDataType.IsSerialType(pt.Type.Type) {
-					useReplicationOwner = true
-				}
-			}
-
-			if useReplicationOwner {
-				break
-			}
-		}
-
-		repRole := lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, model.RoleReplication)
-		if repRole == "" || repRole == ownRole {
-			useReplicationOwner = false
-		}
-
-		if useReplicationOwner {
-			stage1.WriteSql(&sql.Annotated{
-				Annotation: "postgres needs to be appeased by making the owner the user we are executing as when pushing DDL through slony",
-				Wrapped: &sql.TableAlterOwner{
-					Table: ref,
-					Role:  repRole,
-				},
-			})
-		}
 	}
 	if len(agg.stage1) > 0 {
 		stage1.WriteSql(&sql.TableAlterParts{
 			Table: ref,
 			Parts: agg.stage1,
-		})
-	}
-	if useReplicationOwner {
-		// replicated table? put ownership back
-		stage1.WriteSql(&sql.Annotated{
-			Annotation: "postgresql has been appeased, see above",
-			Wrapped: &sql.TableAlterOwner{
-				Table: ref,
-				Role:  ownRole,
-			},
 		})
 	}
 	if len(agg.stage3) > 0 {

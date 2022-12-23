@@ -34,7 +34,6 @@ func (self *DBX) BuildStagedSql(doc *model.Definition, ofs output.OutputFileSegm
 		ofs.Write("\n-- SQL STAGE %s COMMANDS\n", stage)
 	}
 	for _, sql := range doc.Sql {
-		GlobalDBSteward.Lookup().Operations.SetContextReplicaSetId(sql.SlonySetId)
 		if sql.Stage.Equals(stage) {
 			if sql.Comment != "" {
 				ofs.Write("%s\n", util.PrefixLines(sql.Comment, "-- "))

@@ -24,8 +24,7 @@ type Operations struct {
 	IntrospectorFactory live.IntrospectorFactory
 	ConnectionFactory   live.ConnectionFactory
 
-	contextReplicaSetId int
-	quoter              output.Quoter
+	quoter output.Quoter
 }
 
 func NewOperations() *Operations {
@@ -621,7 +620,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		var grant *model.Grant
 		if len(docGrants) == 0 {
 			grant = &model.Grant{
-				Roles: model.DelimitedList{grantee},
+				Roles: []string{grantee},
 			}
 			relation.AddGrant(grant)
 		} else {
@@ -655,7 +654,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 						var grant *model.Grant
 						if len(grants) == 0 {
 							grant = &model.Grant{
-								Roles: model.DelimitedList{grantee},
+								Roles: []string{grantee},
 							}
 							sequence.AddGrant(grant)
 						} else {
@@ -691,7 +690,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		doc.Database.Roles.ReadOnly,
 	)
 	for _, item := range customRoles.Items() {
-		doc.Database.Roles.CustomRoles.Append(item)
+		doc.Database.Roles.CustomRoles = append(doc.Database.Roles.CustomRoles, item)
 	}
 
 	// scan all now defined tables
@@ -700,7 +699,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		for _, table := range schema.Tables {
 			// if table does not have a primary key defined, add placeholder
 			if len(table.PrimaryKey) == 0 {
-				table.PrimaryKey = model.DelimitedList{"dbsteward_primary_key_not_found"}
+				table.PrimaryKey = []string{"dbsteward_primary_key_not_found"}
 				tableNoticeDesc := fmt.Sprintf("DBSTEWARD_EXTRACTION_WARNING: primary key definition not found for %s - placeholder has been specified for DTD validity", table.Name)
 				dbsteward.Warning(tableNoticeDesc)
 				if len(table.Description) == 0 {
@@ -1092,12 +1091,6 @@ func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Ta
 
 func (self *Operations) StripStringQuoting(str string) string {
 	return strings.ReplaceAll(strings.TrimPrefix(strings.TrimSuffix(str, "'"), "'"), "''", "'")
-}
-
-func (self *Operations) SetContextReplicaSetId(setId *int) {
-	if setId != nil {
-		self.contextReplicaSetId = *setId
-	}
 }
 
 // TODO(go,nth) should this live somewhere else?

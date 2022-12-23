@@ -172,7 +172,6 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 	// TODO(go,3) should we just always use table deps?
 	if len(self.NewTableDependency) == 0 {
 		for _, newSchema := range dbsteward.NewDatabase.Schemas {
-			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 			GlobalDiffTypes.DiffTypes(stage1, oldSchema, newSchema)
 			GlobalDiffFunctions.DiffFunctions(stage1, stage3, oldSchema, newSchema)
@@ -193,7 +192,6 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		// non-primary key constraints may be inter-schema dependant, and dependant on other's primary keys
 		// and therefore should be done after object creation sections
 		for _, newSchema := range dbsteward.NewDatabase.Schemas {
-			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 			GlobalDiffConstraints.CreateConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypeConstraint)
 		}
@@ -206,7 +204,6 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 
 			if !processedSchemas[newSchema.Name] {
-				GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 				GlobalDiffTypes.DiffTypes(stage1, oldSchema, newSchema)
 				GlobalDiffFunctions.DiffFunctions(stage1, stage3, oldSchema, newSchema)
 				processedSchemas[newSchema.Name] = true
@@ -222,7 +219,6 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			newSchema := dbsteward.NewDatabase.TryGetSchemaNamed(oldSchema.Name)
 			var newTable *model.Table
 			if newSchema != nil {
-				GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 				newTable = newSchema.TryGetTableNamed(oldTable.Name)
 			}
 
@@ -235,9 +231,6 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		processedSchemas = map[string]bool{}
 		for _, newEntry := range self.NewTableDependency {
 			newSchema := newEntry.Schema
-			if newSchema != nil {
-				GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
-			}
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 
 			// schema level stuff should only be done once, keep track of which ones we have done
@@ -294,7 +287,6 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 	newDoc := lib.GlobalDBSteward.NewDatabase
 	oldDoc := lib.GlobalDBSteward.OldDatabase
 	for _, newSchema := range newDoc.Schemas {
-		GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 		oldSchema := oldDoc.TryGetSchemaNamed(newSchema.Name)
 
 		for _, newGrant := range newSchema.Grants {
@@ -304,7 +296,6 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 		}
 
 		for _, newTable := range newSchema.Tables {
-			GlobalOperations.SetContextReplicaSetId(newTable.SlonySetId)
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
 			isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
 			lib.GlobalDBSteward.FatalIfError(err, "while updating permissions")
@@ -361,7 +352,6 @@ func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 			newTable := item.Table
 			oldSchema := lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
-			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 
 			isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
 			lib.GlobalDBSteward.FatalIfError(err, "while updating data")
@@ -387,7 +377,6 @@ func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 		// dependency order unknown, hit them in natural order
 		// TODO(feat) the above switches on deleteMode, this does not. we never delete data if table dep order is unknown?
 		for _, newSchema := range lib.GlobalDBSteward.NewDatabase.Schemas {
-			GlobalOperations.SetContextReplicaSetId(newSchema.SlonySetId)
 			oldSchema := lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 			GlobalDiffTables.DiffData(ofs, oldSchema, newSchema)
 		}

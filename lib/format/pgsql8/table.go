@@ -20,8 +20,6 @@ func NewTable() *Table {
 }
 
 func (self *Table) GetCreationSql(schema *model.Schema, table *model.Table) []output.ToSql {
-	GlobalOperations.SetContextReplicaSetId(table.SlonySetId)
-
 	cols := []sql.ColumnDefinition{}
 	colSetup := []output.ToSql{}
 	for _, col := range table.Columns {
@@ -87,7 +85,6 @@ func (self *Table) GetCreationSql(schema *model.Schema, table *model.Table) []ou
 }
 
 func (self *Table) GetDropSql(schema *model.Schema, table *model.Table) []output.ToSql {
-	GlobalOperations.SetContextReplicaSetId(table.SlonySetId)
 	return []output.ToSql{
 		&sql.TableDrop{
 			Table: sql.TableRef{schema.Name, table.Name},
@@ -121,8 +118,6 @@ func (self *Table) DefineTableColumnDefaults(schema *model.Schema, table *model.
 }
 
 func (self *Table) GetGrantSql(doc *model.Definition, schema *model.Schema, table *model.Table, grant *model.Grant) []output.ToSql {
-	GlobalOperations.SetContextReplicaSetId(table.SlonySetId)
-
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
 		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)

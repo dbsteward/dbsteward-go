@@ -14,7 +14,6 @@ func NewDiffTriggers() *DiffTriggers {
 
 func (self *DiffTriggers) DiffTriggers(ofs output.OutputFileSegmenter, oldSchema *model.Schema, newSchema *model.Schema) {
 	for _, newTable := range newSchema.Tables {
-		GlobalOperations.SetContextReplicaSetId(newTable.SlonySetId)
 		oldTable := oldSchema.TryGetTableNamed(newTable.Name)
 		self.DiffTriggersTable(ofs, oldSchema, oldTable, newSchema, newTable)
 	}
@@ -35,7 +34,6 @@ func (self *DiffTriggers) DiffTriggersTable(ofs output.OutputFileSegmenter, oldS
 			}
 			newTrigger := newSchema.TryGetTriggerMatching(oldTrigger)
 			if newTrigger == nil || !oldTrigger.Equals(newTrigger) {
-				GlobalOperations.SetContextReplicaSetId(oldTrigger.SlonySetId)
 				ofs.WriteSql(GlobalTrigger.GetDropSql(oldSchema, oldTrigger)...)
 			}
 		}
@@ -49,7 +47,6 @@ func (self *DiffTriggers) DiffTriggersTable(ofs output.OutputFileSegmenter, oldS
 
 		oldTrigger := oldSchema.TryGetTriggerMatching(newTrigger)
 		if oldTrigger == nil || !oldTrigger.Equals(newTrigger) {
-			GlobalOperations.SetContextReplicaSetId(oldTrigger.SlonySetId)
 			ofs.WriteSql(GlobalTrigger.GetCreationSql(newSchema, newTrigger)...)
 		}
 	}

@@ -22,7 +22,7 @@ func TestXmlParser_Process(t *testing.T) {
 				Tables: []*model.Table{
 					&model.Table{
 						Name:       "test_table",
-						PrimaryKey: model.DelimitedList{"primary_id"},
+						PrimaryKey: []string{"primary_id"},
 						Owner:      "ROLE_OWNER",
 						Partitioning: &model.TablePartition{
 							Type: model.TablePartitionTypeModulo,
@@ -61,7 +61,7 @@ func TestXmlParser_Process(t *testing.T) {
 				Tables: []*model.Table{
 					&model.Table{
 						Name:       "test_table",
-						PrimaryKey: model.DelimitedList{"primary_id"},
+						PrimaryKey: []string{"primary_id"},
 						Owner:      "ROLE_OWNER",
 						Partitioning: &model.TablePartition{
 							Type: model.TablePartitionTypeModulo,
@@ -80,7 +80,7 @@ func TestXmlParser_Process(t *testing.T) {
 					&model.Trigger{
 						Name:      "test_table_part_trg",
 						SqlFormat: model.SqlFormatPgsql8,
-						Events:    model.DelimitedList{"INSERT"},
+						Events:    []string{"INSERT"},
 						Timing:    model.TriggerTimingBefore,
 						ForEach:   model.TriggerForEachRow,
 						Table:     "test_table",
@@ -127,7 +127,7 @@ END;`,
 							},
 						},
 						Grants: []*model.Grant{
-							{Roles: model.DelimitedList{"ROLE_APPLICATION"}, Permissions: model.CommaDelimitedList{"EXECUTE"}},
+							{Roles: []string{"ROLE_APPLICATION"}, Permissions: []string{"EXECUTE"}},
 						},
 					},
 				},
@@ -141,7 +141,7 @@ END;`,
 		child := &model.Table{
 			Name:           fmt.Sprintf("partition_%d", i),
 			Owner:          "ROLE_OWNER",
-			PrimaryKey:     model.DelimitedList{"primary_id"},
+			PrimaryKey:     []string{"primary_id"},
 			InheritsSchema: "test_schema",
 			InheritsTable:  "test_table",
 			Constraints: []*model.Constraint{

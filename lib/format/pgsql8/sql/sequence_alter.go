@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dbsteward/dbsteward/lib/output"
+	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 type SequenceAlterParts struct {
@@ -34,49 +35,43 @@ func (self *SequenceAlterParts) ToSql(q output.Quoter) string {
 }
 
 type SequenceAlterPartIncrement struct {
-	Value *int
+	Value util.Opt[int]
 }
 
 func (self *SequenceAlterPartIncrement) GetSequenceAlterPartSql(q output.Quoter) string {
-	inc := 1 // 1 is default increment. if we're altering and omitting, that means to go back to default
-	if self.Value != nil {
-		inc = *self.Value
-	}
-	return fmt.Sprintf("INCREMENT BY %d", inc)
+	// 1 is default increment. if we're altering and omitting, that means to go back to default
+	return fmt.Sprintf("INCREMENT BY %d", self.Value.GetOr(1))
 }
 
 type SequenceAlterPartMinValue struct {
-	Value *int
+	Value util.Opt[int]
 }
 
 func (self *SequenceAlterPartMinValue) GetSequenceAlterPartSql(q output.Quoter) string {
-	if self.Value == nil {
-		return "NO MINVALUE"
+	if val, ok := self.Value.Maybe(); ok {
+		return fmt.Sprintf("MINVALUE %d", val)
 	}
-	return fmt.Sprintf("MINVALUE %d", *self.Value)
+	return "NO MINVALUE"
 }
 
 type SequenceAlterPartMaxValue struct {
-	Value *int
+	Value util.Opt[int]
 }
 
 func (self *SequenceAlterPartMaxValue) GetSequenceAlterPartSql(q output.Quoter) string {
-	if self.Value == nil {
-		return "NO MAXVALUE"
+	if val, ok := self.Value.Maybe(); ok {
+		return fmt.Sprintf("MAXVALUE %d", val)
 	}
-	return fmt.Sprintf("MAXVALUE %d", *self.Value)
+	return "NO MAXVALUE"
 }
 
 type SequenceAlterPartCache struct {
-	Value *int
+	Value util.Opt[int]
 }
 
 func (self *SequenceAlterPartCache) GetSequenceAlterPartSql(q output.Quoter) string {
-	cache := 1 // 1 is default cache. if we're altering and omitting, that means to go back to default
-	if self.Value != nil {
-		cache = *self.Value
-	}
-	return fmt.Sprintf("CACHE %d", cache)
+	// 1 is default cache. if we're altering and omitting, that means to go back to default
+	return fmt.Sprintf("CACHE %d", self.Value.GetOr(1))
 }
 
 type SequenceAlterPartRestartWith struct {

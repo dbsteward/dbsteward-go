@@ -16,12 +16,11 @@ func NewSequence() *Sequence {
 }
 
 func (self *Sequence) GetCreationSql(schema *model.Schema, sequence *model.Sequence) []output.ToSql {
-	GlobalOperations.SetContextReplicaSetId(sequence.SlonySetId)
-
 	// TODO(go,3) put validation elsewhere
 
-	if sequence.Cache != nil && *sequence.Cache < 1 {
-		lib.GlobalDBSteward.Fatal("Sequence %s.%s must have cache value >= 1, %d was given", schema.Name, sequence.Name, sequence.Cache)
+	if cache, ok := sequence.Cache.Maybe(); !ok || cache < 1 {
+		// TODO better formatting for optional value?
+		lib.GlobalDBSteward.Fatal("Sequence %s.%s must have cache value >= 1, %d was given", schema.Name, sequence.Name, cache)
 	}
 
 	ref := sql.SequenceRef{schema.Name, sequence.Name}
@@ -58,7 +57,6 @@ func (self *Sequence) GetCreationSql(schema *model.Schema, sequence *model.Seque
 }
 
 func (self *Sequence) GetDropSql(schema *model.Schema, sequence *model.Sequence) []output.ToSql {
-	GlobalOperations.SetContextReplicaSetId(sequence.SlonySetId)
 	return []output.ToSql{
 		&sql.SequenceDrop{
 			Sequence: sql.SequenceRef{schema.Name, sequence.Name},
@@ -67,8 +65,6 @@ func (self *Sequence) GetDropSql(schema *model.Schema, sequence *model.Sequence)
 }
 
 func (self *Sequence) GetGrantSql(doc *model.Definition, schema *model.Schema, seq *model.Sequence, grant *model.Grant) []output.ToSql {
-	GlobalOperations.SetContextReplicaSetId(seq.SlonySetId)
-
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
 		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)

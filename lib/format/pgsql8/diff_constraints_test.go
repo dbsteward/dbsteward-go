@@ -106,7 +106,7 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "test",
-				PrimaryKey: model.DelimitedList{"pka"},
+				PrimaryKey: []string{"pka"},
 				Columns: []*model.Column{
 					{Name: "pka", Type: "int"},
 				},
@@ -118,7 +118,7 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:          "newtable",
-				PrimaryKey:    model.DelimitedList{"pkb"},
+				PrimaryKey:    []string{"pkb"},
 				OldSchemaName: "public",
 				OldTableName:  "test",
 				Columns: []*model.Column{
@@ -170,7 +170,7 @@ func TestDiffConstraints_DropCreate_AutoIncrement(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "test",
-				PrimaryKey: model.DelimitedList{"pka"},
+				PrimaryKey: []string{"pka"},
 				Columns: []*model.Column{
 					{Name: "pka", Type: "int auto_increment"},
 				},
@@ -182,7 +182,7 @@ func TestDiffConstraints_DropCreate_AutoIncrement(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "newtable",
-				PrimaryKey: model.DelimitedList{"pka"},
+				PrimaryKey: []string{"pka"},
 				Columns: []*model.Column{
 					{Name: "pka", Type: "int"},
 				},
@@ -202,7 +202,7 @@ func TestDiffConstraints_DropCreate_ChangeColumnTypeWithFK(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "test",
-				PrimaryKey: model.DelimitedList{"pka"},
+				PrimaryKey: []string{"pka"},
 				Columns: []*model.Column{
 					{Name: "pka", Type: "int"},
 					{Name: "ifkd", ForeignTable: "other", ForeignColumn: "pka", ForeignKeyName: "test_ifkd_fk"},
@@ -210,7 +210,7 @@ func TestDiffConstraints_DropCreate_ChangeColumnTypeWithFK(t *testing.T) {
 			},
 			&model.Table{
 				Name:       "other",
-				PrimaryKey: model.DelimitedList{"pka"},
+				PrimaryKey: []string{"pka"},
 				Columns: []*model.Column{
 					{Name: "pka", Type: "int"},
 				},
@@ -223,7 +223,7 @@ func TestDiffConstraints_DropCreate_ChangeColumnTypeWithFK(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "test",
-				PrimaryKey: model.DelimitedList{"pka"},
+				PrimaryKey: []string{"pka"},
 				Columns: []*model.Column{
 					{Name: "pka", Type: "int"},
 					{Name: "ifkd", ForeignTable: "other", ForeignColumn: "pka", ForeignKeyName: "test_ifkd_fk"},
@@ -231,7 +231,7 @@ func TestDiffConstraints_DropCreate_ChangeColumnTypeWithFK(t *testing.T) {
 			},
 			&model.Table{
 				Name:       "other",
-				PrimaryKey: model.DelimitedList{"pka"},
+				PrimaryKey: []string{"pka"},
 				Columns: []*model.Column{
 					{Name: "pka", Type: "text"},
 				},
@@ -260,7 +260,7 @@ var diffConstraintsSchemaPka = &model.Schema{
 	Tables: []*model.Table{
 		&model.Table{
 			Name:       "test",
-			PrimaryKey: model.DelimitedList{"pka"},
+			PrimaryKey: []string{"pka"},
 			Columns: []*model.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
@@ -277,7 +277,7 @@ var diffConstraintsSchemaPkb = &model.Schema{
 	Tables: []*model.Table{
 		&model.Table{
 			Name:       "test",
-			PrimaryKey: model.DelimitedList{"pkb"},
+			PrimaryKey: []string{"pkb"},
 			Columns: []*model.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
@@ -294,7 +294,7 @@ var diffConstraintsSchemaPkaUqc = &model.Schema{
 	Tables: []*model.Table{
 		&model.Table{
 			Name:       "test",
-			PrimaryKey: model.DelimitedList{"pka"},
+			PrimaryKey: []string{"pka"},
 			Columns: []*model.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
@@ -314,7 +314,7 @@ var diffConstraintsSchemaPkbCfke = &model.Schema{
 	Tables: []*model.Table{
 		&model.Table{
 			Name:       "test",
-			PrimaryKey: model.DelimitedList{"pkb"},
+			PrimaryKey: []string{"pkb"},
 			Columns: []*model.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
@@ -328,7 +328,7 @@ var diffConstraintsSchemaPkbCfke = &model.Schema{
 		},
 		&model.Table{
 			Name:       "other",
-			PrimaryKey: model.DelimitedList{"pka"},
+			PrimaryKey: []string{"pka"},
 			Columns: []*model.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
@@ -345,7 +345,7 @@ var diffConstraintsSchemaPkaUqcIfkdCfke = &model.Schema{
 	Tables: []*model.Table{
 		&model.Table{
 			Name:       "test",
-			PrimaryKey: model.DelimitedList{"pka"},
+			PrimaryKey: []string{"pka"},
 			Columns: []*model.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
@@ -360,7 +360,7 @@ var diffConstraintsSchemaPkaUqcIfkdCfke = &model.Schema{
 		},
 		&model.Table{
 			Name:       "other",
-			PrimaryKey: model.DelimitedList{"pka"},
+			PrimaryKey: []string{"pka"},
 			Columns: []*model.Column{
 				{Name: "pka"},
 				{Name: "pkb"},

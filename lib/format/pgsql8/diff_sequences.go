@@ -4,7 +4,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
-	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 type DiffSequences struct {
@@ -34,16 +33,16 @@ func (self *DiffSequences) DiffSequences(ofs output.OutputFileSegmenter, oldSche
 
 		parts := []sql.SequenceAlterPart{}
 
-		if !util.PtrEq(oldSeq.Increment, newSeq.Increment) {
+		if !oldSeq.Increment.Equals(newSeq.Increment) {
 			parts = append(parts, &sql.SequenceAlterPartIncrement{newSeq.Increment})
 		}
-		if !util.PtrEq(oldSeq.Min, newSeq.Min) {
+		if !oldSeq.Min.Equals(newSeq.Min) {
 			parts = append(parts, &sql.SequenceAlterPartMinValue{newSeq.Min})
 		}
-		if !util.PtrEq(oldSeq.Max, newSeq.Max) {
+		if !oldSeq.Max.Equals(newSeq.Max) {
 			parts = append(parts, &sql.SequenceAlterPartMaxValue{newSeq.Max})
 		}
-		if !util.PtrEq(oldSeq.Cache, newSeq.Cache) {
+		if !oldSeq.Cache.Equals(newSeq.Cache) {
 			parts = append(parts, &sql.SequenceAlterPartCache{newSeq.Cache})
 		}
 		if oldSeq.Cycle != newSeq.Cycle {

@@ -16,7 +16,7 @@ func TestTable_GetCreationSql_TableOptions(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:        "test",
-				PrimaryKey:  model.DelimitedList{"id"},
+				PrimaryKey:  []string{"id"},
 				Description: "test description",
 				Columns: []*model.Column{
 					{Name: "id", Type: "int"},

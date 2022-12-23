@@ -43,12 +43,6 @@ func newModuloPartition(schema *model.Schema, table *model.Table) *moduloPartiti
 func (self *moduloPartition) tableName(i int) string {
 	return fmt.Sprintf("partition_%0*d", util.NumDigits(self.parts), i)
 }
-func (self *moduloPartition) slonyId(i int) *int {
-	if self.slonyRange == nil {
-		return nil
-	}
-	return util.Ptr(self.slonyRange.first + i)
-}
 
 func (self *XmlParser) expandModuloParitionedTable(doc *model.Definition, schema *model.Schema, table *model.Table) {
 	util.Assert(table.Partitioning != nil, "Table.Partitioning must not be nil")
@@ -85,8 +79,6 @@ func (self *XmlParser) createModuloPartitionTables(schema *model.Schema, table *
 			PrimaryKey:     table.PrimaryKey,
 			InheritsTable:  table.Name,
 			InheritsSchema: schema.Name,
-			SlonySetId:     table.SlonySetId,
-			SlonyId:        opts.slonyId(i),
 		}
 		partSchema.AddTable(partTable)
 

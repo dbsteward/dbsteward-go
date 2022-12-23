@@ -21,13 +21,13 @@ func TestDiffTables_GetDataSql_EscapeCharacters(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "i_test",
-				PrimaryKey: model.DelimitedList{"pk"},
+				PrimaryKey: []string{"pk"},
 				Columns: []*model.Column{
 					{Name: "pk", Type: "int"},
 					{Name: "col1", Type: "char(10)"},
 				},
 				Rows: &model.DataRows{
-					Columns: model.DelimitedList{"pk", "col1"},
+					Columns: []string{"pk", "col1"},
 					Rows: []*model.DataRow{
 						&model.DataRow{
 							Columns: []*model.DataCol{

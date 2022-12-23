@@ -18,14 +18,14 @@ func TestDBX_ResolveForeignKey_InheritedColumn(t *testing.T) {
 				Tables: []*model.Table{
 					&model.Table{
 						Name:       "parent",
-						PrimaryKey: model.DelimitedList{"foo"},
+						PrimaryKey: []string{"foo"},
 						Columns: []*model.Column{
 							{Name: "foo", Type: "varchar(255)"},
 						},
 					},
 					&model.Table{
 						Name:           "child",
-						PrimaryKey:     model.DelimitedList{"foo"},
+						PrimaryKey:     []string{"foo"},
 						InheritsSchema: "test",
 						InheritsTable:  "parent",
 						Columns: []*model.Column{
@@ -39,7 +39,7 @@ func TestDBX_ResolveForeignKey_InheritedColumn(t *testing.T) {
 				Tables: []*model.Table{
 					&model.Table{
 						Name:       "baz",
-						PrimaryKey: model.DelimitedList{"footoo"},
+						PrimaryKey: []string{"footoo"},
 						Columns: []*model.Column{
 							{Name: "footoo", ForeignSchema: "test", ForeignTable: "child", ForeignColumn: "foo"},
 						},

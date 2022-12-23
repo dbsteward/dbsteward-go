@@ -245,7 +245,7 @@ func TestDiffTypes_Domain_DependentColumn(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "some_table",
-				PrimaryKey: model.DelimitedList{"col1"},
+				PrimaryKey: []string{"col1"},
 				Columns: []*model.Column{
 					{Name: "col1", Type: "int", Nullable: false},
 					{Name: "mycol", Type: "my_domain"},
@@ -271,7 +271,7 @@ func TestDiffTypes_Domain_DependentColumn(t *testing.T) {
 		Tables: []*model.Table{
 			&model.Table{
 				Name:       "some_table",
-				PrimaryKey: model.DelimitedList{"col1"},
+				PrimaryKey: []string{"col1"},
 				Columns: []*model.Column{
 					{Name: "col1", Type: "int", Nullable: false},
 					{Name: "mycol", Type: "domains.my_domain"},

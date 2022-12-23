@@ -510,10 +510,10 @@ func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 	assert.Equal(t, []*model.ForeignKey{
 		&model.ForeignKey{
 			ConstraintName: "test_foo_fkey",
-			Columns:        model.DelimitedList{"foo", "bar"},
+			Columns:        []string{"foo", "bar"},
 			ForeignSchema:  "public",
 			ForeignTable:   "dummy",
-			ForeignColumns: model.DelimitedList{"feux", "barf"},
+			ForeignColumns: []string{"feux", "barf"},
 			OnUpdate:       model.ForeignKeyActionNoAction,
 			OnDelete:       model.ForeignKeyActionSetNull,
 		},
@@ -549,10 +549,10 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 		{Name: "blah", Owner: "owner"},
 	}, nil)
 	introspector.EXPECT().GetSequencesForRel("public", "test_seq").Return([]live.SequenceEntry{
-		{Start: util.Ptr(1), Increment: util.Ptr(1), Cache: util.Ptr(1), Max: util.Ptr(15)},
+		{Start: util.Some(1), Increment: util.Some(1), Cache: util.Some(1), Max: util.Some(15)},
 	}, nil)
 	introspector.EXPECT().GetSequencesForRel("public", "blah").Return([]live.SequenceEntry{
-		{Cache: util.Ptr(5), Min: util.Ptr(3), Max: util.Ptr(10)},
+		{Cache: util.Some(5), Min: util.Some(3), Max: util.Some(10)},
 	}, nil)
 	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
@@ -579,9 +579,9 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 		&model.Sequence{
 			Name:  "blah",
 			Owner: "owner",
-			Cache: util.Ptr(5),
-			Min:   util.Ptr(3),
-			Max:   util.Ptr(10),
+			Cache: util.Some(5),
+			Min:   util.Some(3),
+			Max:   util.Some(10),
 		},
 	}, schema.Sequences)
 }
