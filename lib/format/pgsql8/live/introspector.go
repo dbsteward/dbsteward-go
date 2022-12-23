@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-//go:generate $PWD/run _mockgen lib/format/pgsql8/live Introspector
+//go:generate $ROOTDIR/run _mockgen Introspector
 
 // TODO(go, pgsql) Add unit tests for all of this... somehow
 

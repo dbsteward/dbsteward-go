@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-//go:generate $PWD/run _mockgen lib/format/pgsql8/live Connection
+//go:generate $ROOTDIR/run _mockgen Connection
 
 type Connection interface {
 	Version() (VersionNum, error)

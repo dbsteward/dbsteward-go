@@ -5,26 +5,35 @@
 # make sure the `..relpath..` is a path relative to the script
 # the #follow ensures the auto-help picks up any variables or tasks in the sourced file
 
-if [ -n "$DEBUG_RUN" ]; then
+if [ -n "$RUN_DEBUG_X" ]; then
   set -x
 fi
 
 set -e -o pipefail
+export ORIGDIR="$PWD"
 orig_args=("$@")
 scriptpath="${BASH_SOURCE[1]}"
 script="$(basename "$scriptpath")"
-rootdir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+ROOTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+export ROOTDIR
+export ORELDIR="${ORIGDIR##"$ROOTDIR"/}"
 
 cd "$( dirname "$scriptpath" )" >/dev/null 2>&1
 
 function cmd {
-  echo $'\e[0;37m>' "$*" $'\e[0m'
+  echo $'\e[0;30m>' "$*" $'\e[0m'
   command "$@"
   echo
 }
 
 function info {
-  echo $'\e[1;37m•' "$*" $'\e[0m'
+  echo $'\e[1;30m•' "$*" $'\e[0m'
+}
+
+function dbg {
+  if [ -n "$RUN_DEBUG" ]; then
+    echo $'\e[0;37m•' "$*" $'\e[0m'
+  fi
 }
 
 function task_exists {
@@ -61,7 +70,7 @@ function main {
 : "${USE_DEV_DOCKER:=yes}" # if no, don't invoke the command inside the dev docker container
 : "${FORCE_DOCKER_REBUILD:=no}" # if yes, rebuild the dev docker image
 
-dev_img="dbsteward-dev-docker:1"
+dev_img="dbsteward-dev-docker:2"
 function run-in-docker {
   if [[ $USE_DEV_DOCKER == "yes" ]]; then
     build-dev-docker
@@ -87,6 +96,6 @@ function run-in-docker {
 function build-dev-docker {
   if [[ $FORCE_DOCKER_REBUILD == yes || -z "$(docker images -q "$dev_img")" ]]; then
     info "Building dev docker image"
-    docker build -f "$rootdir/dev/dev.Dockerfile" -t "$dev_img" .
+    docker build -f "$ROOTDIR/dev/dev.Dockerfile" -t "$dev_img" .
   fi
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-//go:generate $PWD/run _mockgen lib/output OutputFileSegmenter
+//go:generate $ROOTDIR/run _mockgen OutputFileSegmenter
 
 const CommentLinePrefix = "--"
 

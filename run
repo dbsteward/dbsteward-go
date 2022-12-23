@@ -11,14 +11,13 @@ function generate { #: Generates code for e.g. mocks
 function _mockgen {
   # this is usually invoked indirectly via //go:generate commands in the source, downstream from `./run generate` and/or `go generate ./...`
   # this lets us have much terser/clearer mockgen commands, plus automatically run in docker if needed
-  # usage: //go:generate $PWD/run _mockgen lib/output OutputFileSegmenter
+  # usage: //go:generate $ROOTDIR/run _mockgen OutputFileSegmenter
   # runs:  mockgen -destination lib/output/output_file_segmenter_mock.go -package output -self_package github.com/dbsteward/dbsteward/lib/output github.com/dbsteward/dbsteward/lib/output OutputFileSegmenter
 
-  # TODO(go,nth) can we automatically figure out what $1 is instead of requiring we pass it?
   # TODO(go,nth) we can skip this if the output mock file is newer than the input file!
-  echo "go:generate mockgen $*"
-  pkg="github.com/dbsteward/dbsteward/$1"
-  cmd mockgen -destination "$1/${GOFILE%%.go}_mock.go" -package "$GOPACKAGE" -self_package "$pkg" "$pkg" "${@:2}"
+  info "go:generate mockgen $*"
+  pkg="github.com/dbsteward/dbsteward/$ORELDIR"
+  cmd mockgen -destination "$ORIGDIR/${GOFILE%%.go}_mock.go" -package "$GOPACKAGE" -self_package "$pkg" "$pkg" "${@:1}"
 }
 
 function test { #: Runs all tests
