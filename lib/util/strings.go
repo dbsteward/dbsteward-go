@@ -117,5 +117,5 @@ func IIntersectStrs(a, b []string) []string {
 }
 
 func IDifferenceStrs(a, b []string) []string {
-	return IntersectFunc(a, b, strings.EqualFold)
+	return DifferenceFunc(a, b, strings.EqualFold)
 }
