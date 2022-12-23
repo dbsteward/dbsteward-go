@@ -16,26 +16,26 @@ func StrictEqual[T comparable](l, r T) bool {
 // OrderedMap implements a simple map data structure that maintains its insertion order.
 type OrderedMap[K comparable, V any] struct {
 	data map[K]V
-	ind  map[int]K
+	ind  []K
 }
 
 func NewOrderedMap[K comparable, V any]() *OrderedMap[K, V] {
 	return &OrderedMap[K, V]{
 		data: make(map[K]V),
-		ind:  make(map[int]K),
+		ind:  make([]K, 0),
 	}
 }
 func NewOrderedMapOfSize[K comparable, V any](n int) *OrderedMap[K, V] {
 	return &OrderedMap[K, V]{
 		data: make(map[K]V, n),
-		ind:  make(map[int]K, n),
+		ind:  make([]K, 0, n),
 	}
 }
 
 func (self *OrderedMap[K, V]) ShallowClone() *OrderedMap[K, V] {
 	out := NewOrderedMapOfSize[K, V](self.Len())
-	for i, k := range self.ind {
-		out.ind[i] = k
+	for _, k := range self.ind {
+		out.ind = append(out.ind, k) // OfSize creates a slice with cap=N, not len=N
 		out.data[k] = self.data[k]
 	}
 	return out
@@ -50,8 +50,7 @@ func (self *OrderedMap[K, V]) Insert(keyvals ...interface{}) *OrderedMap[K, V] {
 	for i, ii := 0, len(keyvals); i < ii; i += 2 {
 		k := keyvals[i].(K)
 		v := keyvals[i+1].(V)
-		idx := len(self.data)
-		self.ind[idx] = k
+		self.ind = append(self.ind, k)
 		self.data[k] = v
 	}
 	return self
@@ -78,13 +77,8 @@ func (self *OrderedMap[K, V]) GetIndex(idx int) (K, V) {
 func (self *OrderedMap[K, V]) Delete(key K) V {
 	v := self.data[key]
 	delete(self.data, key)
-	for i, k := range self.ind {
-		if k == key {
-			delete(self.ind, i)
-			return v
-		}
-	}
-	panic("self.data and self.ind are out of sync")
+	self.ind = Remove(self.ind, key)
+	return v
 }
 func (self *OrderedMap[K, V]) ForEach(f func(i int, key K, val V)) {
 	for i, ii := 0, self.Len(); i < ii; i++ {

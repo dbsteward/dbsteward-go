@@ -304,9 +304,7 @@ func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
 	*/
 
 	out := []*model.TableRef{}
-	i := 0
 	for forward.Len() > 0 {
-		i += 1
 		toRemove := []model.TableRef{}
 		for _, entry := range forward.Entries() {
 			local := entry.Key
