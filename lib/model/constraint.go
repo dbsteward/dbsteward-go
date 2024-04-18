@@ -1,6 +1,9 @@
 package model
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type ConstraintType string
 
@@ -10,8 +13,22 @@ const (
 	ConstraintTypeForeign ConstraintType = "FOREIGN KEY"
 )
 
-func (self ConstraintType) Equals(other ConstraintType) bool {
-	return strings.EqualFold(string(self), string(other))
+func NewConstraintType(s string) (ConstraintType, error) {
+	v := ConstraintType(s)
+	if v.Equals(ConstraintTypeCheck) {
+		return ConstraintTypeCheck, nil
+	}
+	if v.Equals(ConstraintTypeUnique) {
+		return ConstraintTypeUnique, nil
+	}
+	if v.Equals(ConstraintTypeForeign) {
+		return ConstraintTypeForeign, nil
+	}
+	return "", fmt.Errorf("invalid constriant type '%s'", s)
+}
+
+func (ct ConstraintType) Equals(other ConstraintType) bool {
+	return strings.EqualFold(string(ct), string(other))
 }
 
 type Constraint struct {

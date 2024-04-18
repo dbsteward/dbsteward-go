@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -10,8 +11,16 @@ const (
 	TablePartitionTypeModulo TablePartitionType = "MODULO"
 )
 
-func (self TablePartitionType) Equals(other TablePartitionType) bool {
-	return strings.EqualFold(string(self), string(other))
+func NewTablePartitionType(s string) (TablePartitionType, error) {
+	rv := TablePartitionType(s)
+	if rv.Equals(TablePartitionTypeModulo) {
+		return rv, nil
+	}
+	return "", fmt.Errorf("invalid TablePartitionType '%s'", s)
+}
+
+func (tpt TablePartitionType) Equals(other TablePartitionType) bool {
+	return strings.EqualFold(string(tpt), string(other))
 }
 
 type TablePartition struct {

@@ -1,6 +1,10 @@
 package xml
 
-import "github.com/dbsteward/dbsteward/lib/model"
+import (
+	"fmt"
+
+	"github.com/dbsteward/dbsteward/lib/model"
+)
 
 type Table struct {
 	Name           string          `xml:"name,attr"`
@@ -31,6 +35,81 @@ type TableOption struct {
 	Value     string `xml:"value"`
 }
 
-func (self *Table) ToModel() (*model.Table, error) {
-	panic("todo")
+func (topt TableOption) ToModel() (*model.TableOption, error) {
+	sqlFormat, err := model.NewSqlFormat(topt.SqlFormat)
+	if err != nil {
+		return nil, err
+	}
+	return &model.TableOption{
+		SqlFormat: sqlFormat,
+		Name:      topt.Name,
+		Value:     topt.Value,
+	}, nil
+}
+
+func (table *Table) ToModel() (*model.Table, error) {
+	m := model.Table{
+		Name:           table.Name,
+		Description:    table.Description,
+		Owner:          table.Owner,
+		PrimaryKey:     []string(table.PrimaryKey),
+		PrimaryKeyName: table.PrimaryKeyName,
+		ClusterIndex:   table.ClusterIndex,
+		InheritsTable:  table.InheritsTable,
+		InheritsSchema: table.InheritsSchema,
+		OldTableName:   table.OldTableName,
+		OldSchemaName:  table.OldSchemaName,
+	}
+	for _, to := range table.TableOptions {
+		n, err := to.ToModel()
+		if err != nil {
+			return nil, fmt.Errorf("table '%s' invalid: %w", table.Name, err)
+		}
+		m.TableOptions = append(m.TableOptions, n)
+	}
+	tp, err := table.Partitioning.ToModel()
+	if err != nil {
+		return nil, fmt.Errorf("table '%s' invalid: %w", table.Name, err)
+	}
+	m.Partitioning = tp
+	for _, col := range table.Columns {
+		nCol, err := col.ToModel()
+		if err != nil {
+			return nil, fmt.Errorf("table '%s' invalid: %w", table.Name, err)
+		}
+		m.Columns = append(m.Columns, nCol)
+	}
+	for _, fk := range table.ForeignKeys {
+		nFK, err := fk.ToModel()
+		if err != nil {
+			return nil, fmt.Errorf("table '%s' invalid: %w", table.Name, err)
+		}
+		m.ForeignKeys = append(m.ForeignKeys, nFK)
+	}
+	for _, idx := range table.Indexes {
+		nIdx, err := idx.ToModel()
+		if err != nil {
+			return nil, fmt.Errorf("table '%s' invalid: %w", table.Name, err)
+		}
+		m.Indexes = append(m.Indexes, nIdx)
+	}
+	for _, c := range table.Constraints {
+		nc, err := c.ToModel()
+		if err != nil {
+			return nil, fmt.Errorf("table '%s' invalid: %w", table.Name, err)
+		}
+		m.Constraints = append(m.Constraints, nc)
+	}
+	for _, g := range table.Grants {
+		ng, err := g.ToModel()
+		if err != nil {
+			return nil, fmt.Errorf("table '%s' invalid: %w", table.Name, err)
+		}
+		m.Grants = append(m.Grants, ng)
+	}
+	m.Rows, err = table.Rows.ToModel()
+	if err != nil {
+		return nil, fmt.Errorf("table '%s' invalid: %w", table.Name, err)
+	}
+	return &m, nil
 }

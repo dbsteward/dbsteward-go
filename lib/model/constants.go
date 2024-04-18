@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -13,8 +14,16 @@ const (
 	SqlFormatMysql5  SqlFormat = "mysql5"
 )
 
-func (self SqlFormat) Equals(other SqlFormat) bool {
-	return strings.EqualFold(string(self), string(other))
+func NewSqlFormat(from string) (SqlFormat, error) {
+	to := SqlFormat(from)
+	if to.Equals(SqlFormatUnknown) || to.Equals(SqlFormatPgsql8) || to.Equals(SqlFormatMysql5) || to.Equals(SqlFormatMssql10) {
+		return to, nil
+	}
+	return to, fmt.Errorf("unknown SqlFormat: '%s'", from)
+}
+
+func (sf SqlFormat) Equals(other SqlFormat) bool {
+	return strings.EqualFold(string(sf), string(other))
 }
 
 type SqlStage string

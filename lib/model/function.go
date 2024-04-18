@@ -15,6 +15,23 @@ const (
 	FuncParamDirInOut FuncParamDir = "INOUT"
 )
 
+func NewFuncParamDir(s string) (FuncParamDir, error) {
+	if s == "" {
+		return FuncParamDirIn, nil
+	}
+	v := FuncParamDir(s)
+	if v.Equals(FuncParamDirIn) {
+		return FuncParamDirIn, nil
+	}
+	if v.Equals(FuncParamDirOut) {
+		return FuncParamDirOut, nil
+	}
+	if v.Equals(FuncParamDirInOut) {
+		return FuncParamDirInOut, nil
+	}
+	return FuncParamDirIn, fmt.Errorf("invalid function parameter direction '%s'", s)
+}
+
 func (self FuncParamDir) Equals(other FuncParamDir) bool {
 	return strings.EqualFold(string(self), string(other))
 }

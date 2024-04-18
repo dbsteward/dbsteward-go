@@ -43,7 +43,7 @@ function task_exists {
 # To be invoked by callers like `main "$@"`
 function main {
   # find include files (probably this one)
-  read -ra files < <(sed -En 's/source "\$\(dirname "\$0")\/(.+)".*#follow/\1/p' "$script")
+  read -ra files < <(sed -En 's/source "\$\(dirname "\$0"\)\/(.+)".*#follow/\1/p' "$script")
   # echo "${files[@]}"
 
   if [[ "$1" == "-t" ]]; then

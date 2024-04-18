@@ -1,6 +1,11 @@
 package xml
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/dbsteward/dbsteward/lib/model"
+)
 
 type Constraint struct {
 	Name             string `xml:"name,attr,omitempty"`
@@ -9,6 +14,22 @@ type Constraint struct {
 	ForeignIndexName string `xml:"foreignIndexName,attr,omitempty"`
 	ForeignSchema    string `xml:"foreignSchema,attr,omitempty"`
 	ForeignTable     string `xml:"foreignTable,attr,omitempty"`
+}
+
+func (c *Constraint) ToModel() (*model.Constraint, error) {
+	rv := model.Constraint{
+		Name:             c.Name,
+		Definition:       c.Definition,
+		ForeignIndexName: c.ForeignIndexName,
+		ForeignSchema:    c.ForeignSchema,
+		ForeignTable:     c.ForeignTable,
+	}
+	var err error
+	rv.Type, err = model.NewConstraintType(c.Type)
+	if err != nil {
+		return nil, fmt.Errorf("invalid constraint '%s': %w", c.Name, err)
+	}
+	return &rv, nil
 }
 
 func (self *Constraint) IdentityMatches(other *Constraint) bool {

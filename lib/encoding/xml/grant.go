@@ -8,6 +8,11 @@ type Grant struct {
 	With        string             `xml:"with,attr,omitempty"`
 }
 
-func (self *Grant) ToModel() (*model.Grant, error) {
-	panic("todo")
+func (g *Grant) ToModel() (*model.Grant, error) {
+	rv := model.Grant{
+		Roles:       g.Roles,
+		Permissions: g.Permissions,
+		With:        g.With,
+	}
+	return &rv, nil
 }

@@ -14,8 +14,25 @@ const (
 	IndexTypeGist  IndexType = "gist"
 )
 
-func (self IndexType) Equals(other IndexType) bool {
-	return strings.EqualFold(string(self), string(other))
+func NewIndexType(s string) (IndexType, error) {
+	v := IndexType(s)
+	if v.Equals(IndexTypeBtree) {
+		return IndexTypeBtree, nil
+	}
+	if v.Equals(IndexTypeHash) {
+		return IndexTypeHash, nil
+	}
+	if v.Equals(IndexTypeGin) {
+		return IndexTypeGin, nil
+	}
+	if v.Equals(IndexTypeGist) {
+		return IndexTypeGist, nil
+	}
+	return "", fmt.Errorf("invalid index type '%s'", s)
+}
+
+func (it IndexType) Equals(other IndexType) bool {
+	return strings.EqualFold(string(it), string(other))
 }
 
 type Index struct {

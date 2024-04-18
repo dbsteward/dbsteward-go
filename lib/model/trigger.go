@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/util"
@@ -13,8 +14,22 @@ const (
 	TriggerForEachStatement TriggerForEach = "STATEMENT"
 )
 
-func (self TriggerForEach) Equals(other TriggerForEach) bool {
-	return strings.EqualFold(string(self), string(other))
+func NewTriggerForEach(s string) (TriggerForEach, error) {
+	if s == "" {
+		return TriggerForEachStatement, nil
+	}
+	v := TriggerForEach(s)
+	if v.Equals(TriggerForEachRow) {
+		return TriggerForEachRow, nil
+	}
+	if v.Equals(TriggerForEachStatement) {
+		return TriggerForEachStatement, nil
+	}
+	return "", fmt.Errorf("invalid trigger for each '%s'", s)
+}
+
+func (tfe TriggerForEach) Equals(other TriggerForEach) bool {
+	return strings.EqualFold(string(tfe), string(other))
 }
 
 type TriggerTiming string
@@ -25,8 +40,22 @@ const (
 	TriggerTimingInsteadOf TriggerTiming = "INSTEAD OF"
 )
 
-func (self TriggerTiming) Equals(other TriggerTiming) bool {
-	return strings.EqualFold(string(self), string(other))
+func NewTriggerTiming(s string) (TriggerTiming, error) {
+	v := TriggerTiming(s)
+	if v.Equals(TriggerTimingBefore) {
+		return TriggerTimingBefore, nil
+	}
+	if v.Equals(TriggerTimingAfter) {
+		return TriggerTimingAfter, nil
+	}
+	if v.Equals(TriggerTimingInsteadOf) {
+		return TriggerTimingInsteadOf, nil
+	}
+	return "", fmt.Errorf("invalid trigger timing '%s'", s)
+}
+
+func (tt TriggerTiming) Equals(other TriggerTiming) bool {
+	return strings.EqualFold(string(tt), string(other))
 }
 
 // TODO(go,mysql) TODO(go,mssql) are there other constants here?

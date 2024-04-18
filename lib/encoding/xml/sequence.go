@@ -1,6 +1,11 @@
 package xml
 
-import "github.com/dbsteward/dbsteward/lib/model"
+import (
+	"fmt"
+
+	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/util"
+)
 
 type Sequence struct {
 	Name          string   `xml:"name,attr"`
@@ -18,6 +23,26 @@ type Sequence struct {
 	Grants        []*Grant `xml:"grant"`
 }
 
-func (self *Sequence) ToModel() (*model.Sequence, error) {
-	panic("todo")
+func (s *Sequence) ToModel() (*model.Sequence, error) {
+	rv := model.Sequence{
+		Name:          s.Name,
+		Owner:         s.Owner,
+		Description:   s.Description,
+		Cache:         util.SomePtr(s.Cache),
+		Start:         util.SomePtr(s.Start),
+		Min:           util.SomePtr(s.Min),
+		Max:           util.SomePtr(s.Max),
+		Increment:     util.SomePtr(s.Increment),
+		Cycle:         s.Cycle,
+		OwnedByColumn: s.OwnedByColumn,
+	}
+
+	for _, g := range s.Grants {
+		ng, err := g.ToModel()
+		if err != nil {
+			return nil, fmt.Errorf("sequence '%s' invalid: %w", s.Name, err)
+		}
+		rv.Grants = append(rv.Grants, ng)
+	}
+	return &rv, nil
 }

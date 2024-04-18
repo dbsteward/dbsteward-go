@@ -2,6 +2,9 @@ package xml
 
 import (
 	"encoding/xml"
+	"fmt"
+
+	"github.com/dbsteward/dbsteward/lib/model"
 )
 
 type Column struct {
@@ -52,4 +55,42 @@ func (self *Column) UnmarshalXML(decoder *xml.Decoder, start xml.StartElement) e
 	}
 	*self = Column(*col)
 	return nil
+}
+
+func (col *Column) ToModel() (*model.Column, error) {
+	// skipping DEPRICATED fields
+	rv := model.Column{
+		Name:             col.Name,
+		Type:             col.Type,
+		Nullable:         col.Nullable,
+		Default:          col.Default,
+		Description:      col.Description,
+		Unique:           col.Unique,
+		Check:            col.Check,
+		OldColumnName:    col.OldColumnName,
+		ConvertUsing:     col.ConvertUsing,
+		ForeignSchema:    col.ForeignSchema,
+		ForeignTable:     col.ForeignTable,
+		ForeignColumn:    col.ForeignColumn,
+		ForeignKeyName:   col.ForeignKeyName,
+		ForeignIndexName: col.ForeignIndexName,
+		BeforeAddStage1:  col.BeforeAddStage1,
+		AfterAddStage1:   col.AfterAddStage1,
+		BeforeAddStage2:  col.BeforeAddStage2,
+		AfterAddStage2:   col.AfterAddStage2,
+		BeforeAddStage3:  col.BeforeAddStage3,
+		AfterAddStage3:   col.AfterAddStage3,
+		SerialStart:      col.SerialStart,
+		Statistics:       col.Statistics,
+	}
+	var err error
+	rv.ForeignOnUpdate, err = model.NewForeignKeyAction(col.ForeignOnUpdate)
+	if err != nil {
+		return nil, fmt.Errorf("column '%s' invalid: %w", col.Name, err)
+	}
+	rv.ForeignOnDelete, err = model.NewForeignKeyAction(col.ForeignOnDelete)
+	if err != nil {
+		return nil, fmt.Errorf("column '%s' invalid: %w", col.Name, err)
+	}
+	return &rv, nil
 }

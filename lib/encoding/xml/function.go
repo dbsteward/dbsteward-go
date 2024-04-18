@@ -1,6 +1,10 @@
 package xml
 
-import "github.com/dbsteward/dbsteward/lib/model"
+import (
+	"fmt"
+
+	"github.com/dbsteward/dbsteward/lib/model"
+)
 
 type Function struct {
 	Name            string                `xml:"name,attr"`
@@ -22,12 +26,77 @@ type FunctionParameter struct {
 	Direction string `xml:"direction,attr,omitempty"`
 }
 
+func (fp *FunctionParameter) ToModel() (*model.FunctionParameter, error) {
+	if fp == nil {
+		return nil, nil
+	}
+	rv := model.FunctionParameter{
+		Name: fp.Name,
+		Type: fp.Type,
+	}
+	var err error
+	rv.Direction, err = model.NewFuncParamDir(fp.Direction)
+	if err != nil {
+		return nil, fmt.Errorf("function parameter '%s' invalid: %w", fp.Name, err)
+	}
+	return &rv, nil
+}
+
 type FunctionDefinition struct {
 	SqlFormat string `xml:"sqlFormat,attr,omitempty"`
 	Language  string `xml:"language,attr,omitempty"`
 	Text      string `xml:",cdata"`
 }
 
-func (self *Function) ToModel() (*model.Function, error) {
-	panic("todo")
+func (fd *FunctionDefinition) ToModel() (*model.FunctionDefinition, error) {
+	if fd == nil {
+		return nil, nil
+	}
+	rv := model.FunctionDefinition{
+		Language: fd.Language,
+		Text:     fd.Text,
+	}
+	var err error
+	rv.SqlFormat, err = model.NewSqlFormat(fd.SqlFormat)
+	if err != nil {
+		return nil, err
+	}
+	return &rv, nil
+}
+
+func (f *Function) ToModel() (*model.Function, error) {
+	if f == nil {
+		return nil, nil
+	}
+	rv := model.Function{
+		Name:            f.Name,
+		Owner:           f.Owner,
+		Description:     f.Description,
+		Returns:         f.Returns,
+		CachePolicy:     f.CachePolicy,
+		ForceRedefine:   f.ForceRedefine,
+		SecurityDefiner: f.SecurityDefiner,
+	}
+	for _, p := range f.Parameters {
+		np, err := p.ToModel()
+		if err != nil {
+			return nil, fmt.Errorf("function '%s' invalid: %w", f.Name, err)
+		}
+		rv.Parameters = append(rv.Parameters, np)
+	}
+	for _, d := range f.Definitions {
+		nd, err := d.ToModel()
+		if err != nil {
+			return nil, fmt.Errorf("function '%s' invalid: %w", f.Name, err)
+		}
+		rv.Definitions = append(rv.Definitions, nd)
+	}
+	for _, g := range f.Grants {
+		ng, err := g.ToModel()
+		if err != nil {
+			return nil, fmt.Errorf("function '%s' invalid: %w", f.Name, err)
+		}
+		rv.Grants = append(rv.Grants, ng)
+	}
+	return &rv, nil
 }

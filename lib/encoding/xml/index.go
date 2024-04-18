@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
@@ -21,9 +22,24 @@ type IndexDim struct {
 	Sql   bool   `xml:"sql,attr,omitempty"`
 	Value string `xml:",chardata"`
 }
+
 type IndexCond struct {
 	SqlFormat string `xml:"sqlFormat,attr,omitempty"`
 	Condition string `xml:",chardata"`
+}
+
+func (idx *Index) ToModel() (*model.Index, error) {
+	rv := model.Index{
+		Name:         idx.Name,
+		Unique:       idx.Unique,
+		Concurrently: idx.Concurrently,
+	}
+	var err error
+	rv.Using, err = model.NewIndexType(idx.Using)
+	if err != nil {
+		return nil, fmt.Errorf("index '%s' invalid: %s", idx.Name, err)
+	}
+	return &rv, nil
 }
 
 func (self *Index) AddDimensionNamed(name, value string) {

@@ -15,8 +15,31 @@ const (
 	ForeignKeyActionSetDefault ForeignKeyAction = "SET_DEFAULT"
 )
 
-func (self ForeignKeyAction) Equals(other ForeignKeyAction) bool {
-	return strings.EqualFold(string(self), string(other))
+func NewForeignKeyAction(s string) (ForeignKeyAction, error) {
+	if s == "" {
+		return ForeignKeyActionNoAction, nil
+	}
+	fka := ForeignKeyAction(s)
+	if fka.Equals(ForeignKeyActionNoAction) {
+		return ForeignKeyActionNoAction, nil
+	}
+	if fka.Equals(ForeignKeyActionRestrict) {
+		return ForeignKeyActionRestrict, nil
+	}
+	if fka.Equals(ForeignKeyActionCascade) {
+		return ForeignKeyActionCascade, nil
+	}
+	if fka.Equals(ForeignKeyActionSetNull) {
+		return ForeignKeyActionSetNull, nil
+	}
+	if fka.Equals(ForeignKeyActionSetDefault) {
+		return ForeignKeyActionSetDefault, nil
+	}
+	return "", fmt.Errorf("invalid Foreign Key Action: '%s'", s)
+}
+
+func (fka ForeignKeyAction) Equals(other ForeignKeyAction) bool {
+	return strings.EqualFold(string(fka), string(other))
 }
 
 type ForeignKey struct {

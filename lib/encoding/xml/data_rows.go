@@ -3,6 +3,7 @@ package xml
 import (
 	"strings"
 
+	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/pkg/errors"
 )
@@ -14,9 +15,45 @@ type DataRows struct {
 	TabRows         []string      `xml:"tabrow"`
 }
 
+func (dr *DataRows) ToModel() (*model.DataRows, error) {
+	if dr == nil {
+		return nil, nil
+	}
+	rv := model.DataRows{
+		TabRowDelimiter: dr.TabRowDelimiter,
+		Columns:         dr.Columns,
+		TabRows:         dr.TabRows,
+	}
+	for _, row := range dr.Rows {
+		nRow, err := row.ToModel()
+		if err != nil {
+			return nil, err
+		}
+		rv.Rows = append(rv.Rows, nRow)
+	}
+	return &rv, nil
+}
+
 type DataRow struct {
 	Columns []*DataCol `xml:"col"`
 	Delete  bool       `xml:"delete,attr,omitempty"` // TODO(go,core) does this un/marshal properly?
+}
+
+func (dr *DataRow) ToModel() (*model.DataRow, error) {
+	if dr == nil {
+		return nil, nil
+	}
+	rv := model.DataRow{
+		Delete: dr.Delete,
+	}
+	for _, dc := range dr.Columns {
+		nDC, err := dc.ToModel()
+		if err != nil {
+			return nil, err
+		}
+		rv.Columns = append(rv.Columns, nDC)
+	}
+	return &rv, nil
 }
 
 type DataCol struct {
@@ -24,6 +61,19 @@ type DataCol struct {
 	Empty bool   `xml:"empty,attr,omitempty"`
 	Sql   bool   `xml:"sql,attr,omitempty"`
 	Text  string `xml:",chardata"`
+}
+
+func (dc *DataCol) ToModel() (*model.DataCol, error) {
+	if dc == nil {
+		return nil, nil
+	}
+	rv := model.DataCol{
+		Null:  dc.Null,
+		Empty: dc.Empty,
+		Sql:   dc.Sql,
+		Text:  dc.Text,
+	}
+	return &rv, nil
 }
 
 func (self *DataRows) AddColumn(name string, value string) error {
