@@ -1,6 +1,6 @@
 module github.com/dbsteward/dbsteward
 
-go 1.18
+go 1.22
 
 require (
 	github.com/alexflint/go-arg v1.3.0
