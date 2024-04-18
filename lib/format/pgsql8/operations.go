@@ -379,11 +379,11 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				schema.AddSequence(&model.Sequence{
 					Name:      seqListRow.Name,
 					Owner:     seqListRow.Owner, // TODO(feat) should this have a translateRoleName call?
-					Cache:     seqRow.Cache,
-					Start:     seqRow.Start,
-					Min:       seqRow.Min,
-					Max:       seqRow.Max,
-					Increment: seqRow.Increment,
+					Cache:     util.OptFromSQLNullInt64(seqRow.Cache),
+					Start:     util.OptFromSQLNullInt64(seqRow.Start),
+					Min:       util.OptFromSQLNullInt64(seqRow.Min),
+					Max:       util.OptFromSQLNullInt64(seqRow.Max),
+					Increment: util.OptFromSQLNullInt64(seqRow.Increment),
 					Cycle:     seqRow.Cycled,
 				})
 			}

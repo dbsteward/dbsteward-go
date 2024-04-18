@@ -1,10 +1,20 @@
 package util
 
-import "fmt"
+import (
+	"database/sql"
+	"fmt"
+)
 
 type Opt[T any] struct {
 	hasValue bool
 	value    T
+}
+
+func OptFromSQLNullInt64(t sql.NullInt64) Opt[int] {
+	if t.Valid {
+		return Opt[int]{true, int(t.Int64)}
+	}
+	return Opt[int]{false, 0}
 }
 
 func Some[T any](t T) Opt[T] {

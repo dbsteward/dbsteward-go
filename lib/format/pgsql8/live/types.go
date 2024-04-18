@@ -1,7 +1,8 @@
 package live
 
 import (
-	"github.com/dbsteward/dbsteward/lib/util"
+	"database/sql"
+
 	"github.com/jackc/pgtype"
 )
 
@@ -36,11 +37,11 @@ type SequenceRelEntry struct {
 }
 
 type SequenceEntry struct {
-	Cache     util.Opt[int]
-	Start     util.Opt[int]
-	Min       util.Opt[int]
-	Max       util.Opt[int]
-	Increment util.Opt[int]
+	Cache     sql.NullInt64
+	Start     sql.NullInt64
+	Min       sql.NullInt64
+	Max       sql.NullInt64
+	Increment sql.NullInt64
 	Cycled    bool
 }
 

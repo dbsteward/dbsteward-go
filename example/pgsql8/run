@@ -53,9 +53,9 @@ function pgsql-start { #: Starts and initializes a postgres docker container
 
 function pgsql-init { #: Initializes a postgres db
   info "Initializing db"
-  psql -d postgres -c 'CREATE ROLE someapp' || continue
-  psql -d postgres -c 'CREATE ROLE someapp_readonly' || continue
-  psql -d postgres -c 'CREATE ROLE pgsql' || continue
+  psql -d postgres -c 'CREATE ROLE someapp' || true
+  psql -d postgres -c 'CREATE ROLE someapp_readonly' || true
+  psql -d postgres -c 'CREATE ROLE pgsql' || true
 }
 
 function pgsql-reset { #: Resets the postgres db to a fresh state
@@ -90,9 +90,7 @@ function init-db { #: Initializes the database
   if [[ "$docker" = "enable" ]]; then
     pgsql-start
   else
-    echo "init local DB"
     pgsql-init
-    echo "Reset local DB"
     pgsql-reset
   fi
 }

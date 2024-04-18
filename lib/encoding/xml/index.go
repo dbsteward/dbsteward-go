@@ -23,9 +23,29 @@ type IndexDim struct {
 	Value string `xml:",chardata"`
 }
 
+func (id *IndexDim) ToModel() (*model.IndexDim, error) {
+	return &model.IndexDim{
+		Name:  id.Name,
+		Sql:   id.Sql,
+		Value: id.Value,
+	}, nil
+}
+
 type IndexCond struct {
 	SqlFormat string `xml:"sqlFormat,attr,omitempty"`
 	Condition string `xml:",chardata"`
+}
+
+func (id *IndexCond) ToModel() (*model.IndexCond, error) {
+	rv := model.IndexCond{
+		Condition: id.Condition,
+	}
+	var err error
+	rv.SqlFormat, err = model.NewSqlFormat(id.SqlFormat)
+	if err != nil {
+		return nil, err
+	}
+	return &rv, nil
 }
 
 func (idx *Index) ToModel() (*model.Index, error) {
@@ -38,6 +58,20 @@ func (idx *Index) ToModel() (*model.Index, error) {
 	rv.Using, err = model.NewIndexType(idx.Using)
 	if err != nil {
 		return nil, fmt.Errorf("index '%s' invalid: %s", idx.Name, err)
+	}
+	for _, d := range idx.Dimensions {
+		nd, err := d.ToModel()
+		if err != nil {
+			return nil, fmt.Errorf("index '%s' invalid: %s", idx.Name, err)
+		}
+		rv.Dimensions = append(rv.Dimensions, nd)
+	}
+	for _, c := range idx.Conditions {
+		nc, err := c.ToModel()
+		if err != nil {
+			return nil, fmt.Errorf("index '%s' invalid: %s", idx.Name, err)
+		}
+		rv.Conditions = append(rv.Conditions, nc)
 	}
 	return &rv, nil
 }

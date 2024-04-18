@@ -2,6 +2,7 @@ package pgsql8
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -90,6 +91,9 @@ func (self *XmlParser) createModuloPartitionTables(schema *model.Schema, table *
 		})
 
 		for _, index := range table.Indexes {
+			if len(index.Dimensions) == 0 {
+				log.Panicf("Index %s has no dimensions", index.Name)
+			}
 			indexCopy := *index
 			indexCopy.Name = simpleBuildIdentifier("", index.Name, "_p"+partNum)
 			partTable.AddIndex(&indexCopy)

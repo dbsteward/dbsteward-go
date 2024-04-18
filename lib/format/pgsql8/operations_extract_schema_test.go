@@ -1,6 +1,7 @@
 package pgsql8_test
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -549,10 +550,10 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 		{Name: "blah", Owner: "owner"},
 	}, nil)
 	introspector.EXPECT().GetSequencesForRel("public", "test_seq").Return([]live.SequenceEntry{
-		{Start: util.Some(1), Increment: util.Some(1), Cache: util.Some(1), Max: util.Some(15)},
+		{Start: sql.NullInt64{1, true}, Increment: sql.NullInt64{1, true}, Cache: sql.NullInt64{1, true}, Max: sql.NullInt64{15, true}},
 	}, nil)
 	introspector.EXPECT().GetSequencesForRel("public", "blah").Return([]live.SequenceEntry{
-		{Cache: util.Some(5), Min: util.Some(3), Max: util.Some(10)},
+		{Cache: sql.NullInt64{5, true}, Min: sql.NullInt64{3, true}, Max: sql.NullInt64{10, true}},
 	}, nil)
 	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
