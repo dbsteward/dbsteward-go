@@ -57,7 +57,7 @@ func (self *Column) UnmarshalXML(decoder *xml.Decoder, start xml.StartElement) e
 	return nil
 }
 
-func (col *Column) ToModel() (*ir.Column, error) {
+func (col *Column) ToIR() (*ir.Column, error) {
 	// skipping DEPRICATED fields
 	rv := ir.Column{
 		Name:             col.Name,

@@ -47,7 +47,7 @@ func ReadDef(r io.Reader) (*ir.Definition, error) {
 	if err != nil {
 		return nil, err
 	}
-	return doc.ToModel()
+	return doc.ToIR()
 }
 
 func WriteDef(w io.Writer, def *ir.Definition) error {

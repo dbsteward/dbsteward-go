@@ -23,7 +23,7 @@ type IndexDim struct {
 	Value string `xml:",chardata"`
 }
 
-func (id *IndexDim) ToModel() (*ir.IndexDim, error) {
+func (id *IndexDim) ToIR() (*ir.IndexDim, error) {
 	return &ir.IndexDim{
 		Name:  id.Name,
 		Sql:   id.Sql,
@@ -36,7 +36,7 @@ type IndexCond struct {
 	Condition string `xml:",chardata"`
 }
 
-func (id *IndexCond) ToModel() (*ir.IndexCond, error) {
+func (id *IndexCond) ToIR() (*ir.IndexCond, error) {
 	rv := ir.IndexCond{
 		Condition: id.Condition,
 	}
@@ -48,7 +48,7 @@ func (id *IndexCond) ToModel() (*ir.IndexCond, error) {
 	return &rv, nil
 }
 
-func (idx *Index) ToModel() (*ir.Index, error) {
+func (idx *Index) ToIR() (*ir.Index, error) {
 	rv := ir.Index{
 		Name:         idx.Name,
 		Unique:       idx.Unique,
@@ -60,14 +60,14 @@ func (idx *Index) ToModel() (*ir.Index, error) {
 		return nil, fmt.Errorf("index '%s' invalid: %s", idx.Name, err)
 	}
 	for _, d := range idx.Dimensions {
-		nd, err := d.ToModel()
+		nd, err := d.ToIR()
 		if err != nil {
 			return nil, fmt.Errorf("index '%s' invalid: %s", idx.Name, err)
 		}
 		rv.Dimensions = append(rv.Dimensions, nd)
 	}
 	for _, c := range idx.Conditions {
-		nc, err := c.ToModel()
+		nc, err := c.ToIR()
 		if err != nil {
 			return nil, fmt.Errorf("index '%s' invalid: %s", idx.Name, err)
 		}

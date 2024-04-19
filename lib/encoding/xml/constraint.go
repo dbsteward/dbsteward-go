@@ -16,7 +16,7 @@ type Constraint struct {
 	ForeignTable     string `xml:"foreignTable,attr,omitempty"`
 }
 
-func (c *Constraint) ToModel() (*ir.Constraint, error) {
+func (c *Constraint) ToIR() (*ir.Constraint, error) {
 	rv := ir.Constraint{
 		Name:             c.Name,
 		Definition:       c.Definition,

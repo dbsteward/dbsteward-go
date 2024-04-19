@@ -23,7 +23,7 @@ type Sequence struct {
 	Grants        []*Grant `xml:"grant"`
 }
 
-func (s *Sequence) ToModel() (*ir.Sequence, error) {
+func (s *Sequence) ToIR() (*ir.Sequence, error) {
 	rv := ir.Sequence{
 		Name:          s.Name,
 		Owner:         s.Owner,
@@ -38,7 +38,7 @@ func (s *Sequence) ToModel() (*ir.Sequence, error) {
 	}
 
 	for _, g := range s.Grants {
-		ng, err := g.ToModel()
+		ng, err := g.ToIR()
 		if err != nil {
 			return nil, fmt.Errorf("sequence '%s' invalid: %w", s.Name, err)
 		}

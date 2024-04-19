@@ -27,7 +27,7 @@ type ConfigParam struct {
 	Value string `xml:"value,attr"`
 }
 
-func (db *Database) ToModel() (*ir.Database, error) {
+func (db *Database) ToIR() (*ir.Database, error) {
 	if db == nil {
 		return nil, nil
 	}

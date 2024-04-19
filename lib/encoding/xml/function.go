@@ -26,7 +26,7 @@ type FunctionParameter struct {
 	Direction string `xml:"direction,attr,omitempty"`
 }
 
-func (fp *FunctionParameter) ToModel() (*ir.FunctionParameter, error) {
+func (fp *FunctionParameter) ToIR() (*ir.FunctionParameter, error) {
 	if fp == nil {
 		return nil, nil
 	}
@@ -48,7 +48,7 @@ type FunctionDefinition struct {
 	Text      string `xml:",cdata"`
 }
 
-func (fd *FunctionDefinition) ToModel() (*ir.FunctionDefinition, error) {
+func (fd *FunctionDefinition) ToIR() (*ir.FunctionDefinition, error) {
 	if fd == nil {
 		return nil, nil
 	}
@@ -64,7 +64,7 @@ func (fd *FunctionDefinition) ToModel() (*ir.FunctionDefinition, error) {
 	return &rv, nil
 }
 
-func (f *Function) ToModel() (*ir.Function, error) {
+func (f *Function) ToIR() (*ir.Function, error) {
 	if f == nil {
 		return nil, nil
 	}
@@ -78,21 +78,21 @@ func (f *Function) ToModel() (*ir.Function, error) {
 		SecurityDefiner: f.SecurityDefiner,
 	}
 	for _, p := range f.Parameters {
-		np, err := p.ToModel()
+		np, err := p.ToIR()
 		if err != nil {
 			return nil, fmt.Errorf("function '%s' invalid: %w", f.Name, err)
 		}
 		rv.Parameters = append(rv.Parameters, np)
 	}
 	for _, d := range f.Definitions {
-		nd, err := d.ToModel()
+		nd, err := d.ToIR()
 		if err != nil {
 			return nil, fmt.Errorf("function '%s' invalid: %w", f.Name, err)
 		}
 		rv.Definitions = append(rv.Definitions, nd)
 	}
 	for _, g := range f.Grants {
-		ng, err := g.ToModel()
+		ng, err := g.ToIR()
 		if err != nil {
 			return nil, fmt.Errorf("function '%s' invalid: %w", f.Name, err)
 		}

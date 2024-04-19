@@ -36,38 +36,38 @@ type Sql struct {
 	Text       string `xml:",chardata"`
 }
 
-// ToModel converts this Document to a ir.Definition, if possible.
+// ToIR converts this Document to a ir.Definition, if possible.
 //
 // Errors may arise if this operation cannot be completed for some reason.
 // No semantic validation is performed at this point, as that's outside
 // of the scope of an "xml" package - see `ir.Definition.Validate()`
-func (self *Document) ToModel() (*ir.Definition, error) {
-	includeFiles, err := util.MapErr(self.IncludeFiles, (*IncludeFile).ToModel)
+func (self *Document) ToIR() (*ir.Definition, error) {
+	includeFiles, err := util.MapErr(self.IncludeFiles, (*IncludeFile).ToIR)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process includeFile tags")
 	}
 
-	inlineAssembly, err := util.MapErr(self.InlineAssembly, (*InlineAssembly).ToModel)
+	inlineAssembly, err := util.MapErr(self.InlineAssembly, (*InlineAssembly).ToIR)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process inlineAssembly tags")
 	}
 
-	database, err := self.Database.ToModel()
+	database, err := self.Database.ToIR()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process database tag")
 	}
 
-	schemas, err := util.MapErr(self.Schemas, (*Schema).ToModel)
+	schemas, err := util.MapErr(self.Schemas, (*Schema).ToIR)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process schema tags")
 	}
 
-	languages, err := util.MapErr(self.Languages, (*Language).ToModel)
+	languages, err := util.MapErr(self.Languages, (*Language).ToIR)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process language tags")
 	}
 
-	sql, err := util.MapErr(self.Sql, (*Sql).ToModel)
+	sql, err := util.MapErr(self.Sql, (*Sql).ToIR)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process sql tags")
 	}
@@ -91,14 +91,14 @@ func (self *Document) FromModel(def *ir.Definition) error {
 }
 
 // TODO should there be a ir.IncludeFile, or should we always overlay when converting to model?
-func (self *IncludeFile) ToModel() (*ir.IncludeFile, error) {
+func (self *IncludeFile) ToIR() (*ir.IncludeFile, error) {
 	return &ir.IncludeFile{Name: self.Name}, nil
 }
 
-func (self *InlineAssembly) ToModel() (*ir.InlineAssembly, error) {
+func (self *InlineAssembly) ToIR() (*ir.InlineAssembly, error) {
 	return &ir.InlineAssembly{Name: self.Name}, nil
 }
 
-func (self *Sql) ToModel() (*ir.Sql, error) {
+func (self *Sql) ToIR() (*ir.Sql, error) {
 	panic("todo")
 }

@@ -11,6 +11,6 @@ type Language struct {
 	Validator  string `xml:"validator,attr,omitempty"`
 }
 
-func (self *Language) ToModel() (*ir.Language, error) {
+func (self *Language) ToIR() (*ir.Language, error) {
 	panic("todo")
 }

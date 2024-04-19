@@ -13,7 +13,7 @@ type TablePartition struct {
 	Segments  []*TablePartitionSegment `xml:"tablePartitionSegment"`
 }
 
-func (tp *TablePartition) ToModel() (*ir.TablePartition, error) {
+func (tp *TablePartition) ToIR() (*ir.TablePartition, error) {
 	if tp == nil {
 		return nil, nil
 	}
@@ -28,10 +28,10 @@ func (tp *TablePartition) ToModel() (*ir.TablePartition, error) {
 		return nil, fmt.Errorf("inavalid table partition: %w", err)
 	}
 	for _, opt := range tp.Options {
-		rv.Options = append(rv.Options, opt.ToModel())
+		rv.Options = append(rv.Options, opt.ToIR())
 	}
 	for _, seg := range tp.Segments {
-		rv.Segments = append(rv.Segments, seg.ToModel())
+		rv.Segments = append(rv.Segments, seg.ToIR())
 	}
 	return &rv, nil
 }
@@ -41,7 +41,7 @@ type TablePartitionOption struct {
 	Value string `xml:"value,attr"`
 }
 
-func (tpo *TablePartitionOption) ToModel() *ir.TablePartitionOption {
+func (tpo *TablePartitionOption) ToIR() *ir.TablePartitionOption {
 	return &ir.TablePartitionOption{
 		Name:  tpo.Name,
 		Value: tpo.Value,
@@ -53,7 +53,7 @@ type TablePartitionSegment struct {
 	Value string `xml:"value,attr"`
 }
 
-func (seg *TablePartitionSegment) ToModel() *ir.TablePartitionSegment {
+func (seg *TablePartitionSegment) ToIR() *ir.TablePartitionSegment {
 	return &ir.TablePartitionSegment{
 		Name:  seg.Name,
 		Value: seg.Value,

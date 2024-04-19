@@ -17,7 +17,7 @@ type Trigger struct {
 	SlonySetId *int          `xml:"slonySetId,attr,omitempty"`
 }
 
-func (t *Trigger) ToModel() (*ir.Trigger, error) {
+func (t *Trigger) ToIR() (*ir.Trigger, error) {
 	if t == nil {
 		return nil, nil
 	}

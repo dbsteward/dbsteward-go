@@ -21,7 +21,7 @@ type ViewQuery struct {
 	Text      string `xml:",cdata"`
 }
 
-func (vq *ViewQuery) ToModel() (*ir.ViewQuery, error) {
+func (vq *ViewQuery) ToIR() (*ir.ViewQuery, error) {
 	if vq == nil {
 		return nil, nil
 	}
@@ -36,7 +36,7 @@ func (vq *ViewQuery) ToModel() (*ir.ViewQuery, error) {
 	return &rv, nil
 }
 
-func (v *View) ToModel() (*ir.View, error) {
+func (v *View) ToIR() (*ir.View, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -47,14 +47,14 @@ func (v *View) ToModel() (*ir.View, error) {
 		DependsOnViews: v.DependsOnViews,
 	}
 	for _, g := range v.Grants {
-		ng, err := g.ToModel()
+		ng, err := g.ToIR()
 		if err != nil {
 			return nil, fmt.Errorf("invalid view '%s': %w", v.Name, err)
 		}
 		rv.Grants = append(rv.Grants, ng)
 	}
 	for _, q := range v.Queries {
-		nq, err := q.ToModel()
+		nq, err := q.ToIR()
 		if err != nil {
 			return nil, fmt.Errorf("invalid view '%s': %w", v.Name, err)
 		}

@@ -15,7 +15,7 @@ type DataRows struct {
 	TabRows         []string      `xml:"tabrow"`
 }
 
-func (dr *DataRows) ToModel() (*ir.DataRows, error) {
+func (dr *DataRows) ToIR() (*ir.DataRows, error) {
 	if dr == nil {
 		return nil, nil
 	}
@@ -25,7 +25,7 @@ func (dr *DataRows) ToModel() (*ir.DataRows, error) {
 		TabRows:         dr.TabRows,
 	}
 	for _, row := range dr.Rows {
-		nRow, err := row.ToModel()
+		nRow, err := row.ToIR()
 		if err != nil {
 			return nil, err
 		}
@@ -39,7 +39,7 @@ type DataRow struct {
 	Delete  bool       `xml:"delete,attr,omitempty"` // TODO(go,core) does this un/marshal properly?
 }
 
-func (dr *DataRow) ToModel() (*ir.DataRow, error) {
+func (dr *DataRow) ToIR() (*ir.DataRow, error) {
 	if dr == nil {
 		return nil, nil
 	}
@@ -47,7 +47,7 @@ func (dr *DataRow) ToModel() (*ir.DataRow, error) {
 		Delete: dr.Delete,
 	}
 	for _, dc := range dr.Columns {
-		nDC, err := dc.ToModel()
+		nDC, err := dc.ToIR()
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +63,7 @@ type DataCol struct {
 	Text  string `xml:",chardata"`
 }
 
-func (dc *DataCol) ToModel() (*ir.DataCol, error) {
+func (dc *DataCol) ToIR() (*ir.DataCol, error) {
 	if dc == nil {
 		return nil, nil
 	}

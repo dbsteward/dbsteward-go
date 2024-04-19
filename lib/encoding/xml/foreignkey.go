@@ -17,7 +17,7 @@ type ForeignKey struct {
 	OnDelete       string        `xml:"onDelete,attr,omitempty"`
 }
 
-func (fk *ForeignKey) ToModel() (*ir.ForeignKey, error) {
+func (fk *ForeignKey) ToIR() (*ir.ForeignKey, error) {
 	rv := ir.ForeignKey{
 		Columns:        fk.Columns,
 		ForeignSchema:  fk.ForeignSchema,

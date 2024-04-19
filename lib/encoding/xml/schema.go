@@ -20,32 +20,32 @@ type Schema struct {
 	Views       []*View     `xml:"view"`
 }
 
-func (self *Schema) ToModel() (*ir.Schema, error) {
-	tables, err := util.MapErr(self.Tables, (*Table).ToModel)
+func (self *Schema) ToIR() (*ir.Schema, error) {
+	tables, err := util.MapErr(self.Tables, (*Table).ToIR)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process schema table tags")
 	}
-	grants, err := util.MapErr(self.Grants, (*Grant).ToModel)
+	grants, err := util.MapErr(self.Grants, (*Grant).ToIR)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process schema grant tags")
 	}
-	types, err := util.MapErr(self.Types, (*DataType).ToModel)
+	types, err := util.MapErr(self.Types, (*DataType).ToIR)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process schema type tags")
 	}
-	sequences, err := util.MapErr(self.Sequences, (*Sequence).ToModel)
+	sequences, err := util.MapErr(self.Sequences, (*Sequence).ToIR)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process schema sequence tags")
 	}
-	functions, err := util.MapErr(self.Functions, (*Function).ToModel)
+	functions, err := util.MapErr(self.Functions, (*Function).ToIR)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process schema function tags")
 	}
-	triggers, err := util.MapErr(self.Triggers, (*Trigger).ToModel)
+	triggers, err := util.MapErr(self.Triggers, (*Trigger).ToIR)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process schema trigger tags")
 	}
-	views, err := util.MapErr(self.Views, (*View).ToModel)
+	views, err := util.MapErr(self.Views, (*View).ToIR)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process schema view tags")
 	}

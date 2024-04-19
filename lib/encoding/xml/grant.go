@@ -8,7 +8,7 @@ type Grant struct {
 	With        string             `xml:"with,attr,omitempty"`
 }
 
-func (g *Grant) ToModel() (*ir.Grant, error) {
+func (g *Grant) ToIR() (*ir.Grant, error) {
 	rv := ir.Grant{
 		Roles:       g.Roles,
 		Permissions: g.Permissions,

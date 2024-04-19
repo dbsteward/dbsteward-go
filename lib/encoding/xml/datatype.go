@@ -32,6 +32,6 @@ type DataTypeDomainConstraint struct {
 	Check string `xml:",chardata"`
 }
 
-func (self *DataType) ToModel() (*ir.DataType, error) {
+func (self *DataType) ToIR() (*ir.DataType, error) {
 	panic("todo")
 }
