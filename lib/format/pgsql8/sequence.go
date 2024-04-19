@@ -3,7 +3,7 @@ package pgsql8
 import (
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -15,7 +15,7 @@ func NewSequence() *Sequence {
 	return &Sequence{}
 }
 
-func (self *Sequence) GetCreationSql(schema *model.Schema, sequence *model.Sequence) []output.ToSql {
+func (self *Sequence) GetCreationSql(schema *ir.Schema, sequence *ir.Sequence) []output.ToSql {
 	// TODO(go,3) put validation elsewhere
 
 	if cache, ok := sequence.Cache.Maybe(); !ok || cache < 1 {
@@ -56,7 +56,7 @@ func (self *Sequence) GetCreationSql(schema *model.Schema, sequence *model.Seque
 	return ddl
 }
 
-func (self *Sequence) GetDropSql(schema *model.Schema, sequence *model.Sequence) []output.ToSql {
+func (self *Sequence) GetDropSql(schema *ir.Schema, sequence *ir.Sequence) []output.ToSql {
 	return []output.ToSql{
 		&sql.SequenceDrop{
 			Sequence: sql.SequenceRef{schema.Name, sequence.Name},
@@ -64,17 +64,17 @@ func (self *Sequence) GetDropSql(schema *model.Schema, sequence *model.Sequence)
 	}
 }
 
-func (self *Sequence) GetGrantSql(doc *model.Definition, schema *model.Schema, seq *model.Sequence, grant *model.Grant) []output.ToSql {
+func (self *Sequence) GetGrantSql(doc *ir.Definition, schema *ir.Schema, seq *ir.Sequence, grant *ir.Grant) []output.ToSql {
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
 		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)
 	}
 
-	perms := util.IIntersectStrs(grant.Permissions, model.PermissionListAllPgsql8)
+	perms := util.IIntersectStrs(grant.Permissions, ir.PermissionListAllPgsql8)
 	if len(perms) == 0 {
 		lib.GlobalDBSteward.Fatal("No format-compatible permissions on sequence %s.%s grant: %v", schema.Name, seq.Name, grant.Permissions)
 	}
-	invalidPerms := util.IDifferenceStrs(perms, model.PermissionListValidSequence)
+	invalidPerms := util.IDifferenceStrs(perms, ir.PermissionListValidSequence)
 	if len(invalidPerms) > 0 {
 		lib.GlobalDBSteward.Fatal("Invalid permissions on sequence grant: %v", invalidPerms)
 	}
@@ -93,11 +93,11 @@ func (self *Sequence) GetGrantSql(doc *model.Definition, schema *model.Schema, s
 	// SEQUENCE IMPLICIT GRANTS
 	// READYONLY USER PROVISION: generate a SELECT on the sequence for the readonly user
 	// TODO(go,3) move this out of here, let this create just a single grant
-	roRole := lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, model.RoleReadOnly)
+	roRole := lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
 	if roRole != "" {
 		ddl = append(ddl, &sql.SequenceGrant{
 			Sequence: seqRef,
-			Perms:    []string{model.PermissionSelect}, // TODO(feat) doesn't this need to have usage too?
+			Perms:    []string{ir.PermissionSelect}, // TODO(feat) doesn't this need to have usage too?
 			Roles:    []string{roRole},
 			CanGrant: false,
 		})

@@ -1,17 +1,17 @@
 package config
 
 import (
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 // sourced from dbsteward::arg_parse() and usage.php
 
 type Args struct {
 	// Global Switches and Flags
-	SqlFormat model.SqlFormat `arg:"--sqlformat" help:"change the SQL dialect to operate in. If not specified or cannot be derived"`
-	Verbose   []bool          `arg:"-v" help:"see more detail (verbose). -vvv is not advised for normal use."`
-	Quiet     []bool          `arg:"-q" help:"see less detail (quiet)."`
-	Debug     bool            `arg:"--debug" help:"display extended information about errors. Automatically implies -vv."`
+	SqlFormat ir.SqlFormat `arg:"--sqlformat" help:"change the SQL dialect to operate in. If not specified or cannot be derived"`
+	Verbose   []bool       `arg:"-v" help:"see more detail (verbose). -vvv is not advised for normal use."`
+	Quiet     []bool       `arg:"-q" help:"see less detail (quiet)."`
+	Debug     bool         `arg:"--debug" help:"display extended information about errors. Automatically implies -vv."`
 	// Handled by go-arg
 	// Help bool `arg:"-h,--help" help:"show this usage information"`
 	QuoteSchemaNames bool `arg:"--quoteschemanames" help:"quote schema names in SQL output"`

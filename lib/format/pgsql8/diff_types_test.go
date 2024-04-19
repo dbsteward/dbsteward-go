@@ -10,44 +10,44 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "test",
-		Functions: []*model.Function{
-			&model.Function{
+		Functions: []*ir.Function{
+			&ir.Function{
 				Name:    "test_arch_type_in_return",
 				Returns: "test.arch_type",
-				Definitions: []*model.FunctionDefinition{
-					&model.FunctionDefinition{
+				Definitions: []*ir.FunctionDefinition{
+					&ir.FunctionDefinition{
 						Language:  "plpgsql",
-						SqlFormat: model.SqlFormatPgsql8,
+						SqlFormat: ir.SqlFormatPgsql8,
 						Text:      "BEGIN\nRETURN 1;\nEND",
 					},
 				},
 			},
-			&model.Function{
+			&ir.Function{
 				Name:    "test_arch_type_in_param",
 				Returns: "bigint",
-				Parameters: []*model.FunctionParameter{
+				Parameters: []*ir.FunctionParameter{
 					{Name: "testparam", Type: "test.arch_type"},
 				},
-				Definitions: []*model.FunctionDefinition{
-					&model.FunctionDefinition{
+				Definitions: []*ir.FunctionDefinition{
+					&ir.FunctionDefinition{
 						Language:  "plpgsql",
-						SqlFormat: model.SqlFormatPgsql8,
+						SqlFormat: ir.SqlFormatPgsql8,
 						Text:      "BEGIN\nRETURN 1;\nEND",
 					},
 				},
 			},
 		},
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "arch_type",
-				Kind: model.DataTypeKindComposite,
-				CompositeFields: []*model.DataTypeCompositeField{
+				Kind: ir.DataTypeKindComposite,
+				CompositeFields: []*ir.DataTypeCompositeField{
 					{Name: "uh_phrasing", Type: "text"},
 					{Name: "boom_phrasing", Type: "text"},
 				},
@@ -55,40 +55,40 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 		},
 	}
 
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "test",
-		Functions: []*model.Function{
-			&model.Function{
+		Functions: []*ir.Function{
+			&ir.Function{
 				Name:    "test_arch_type_in_return",
 				Returns: "test.arch_type",
-				Definitions: []*model.FunctionDefinition{
-					&model.FunctionDefinition{
+				Definitions: []*ir.FunctionDefinition{
+					&ir.FunctionDefinition{
 						Language:  "plpgsql",
-						SqlFormat: model.SqlFormatPgsql8,
+						SqlFormat: ir.SqlFormatPgsql8,
 						Text:      "BEGIN\nRETURN 1;\nEND",
 					},
 				},
 			},
-			&model.Function{
+			&ir.Function{
 				Name:    "test_arch_type_in_param",
 				Returns: "bigint",
-				Parameters: []*model.FunctionParameter{
+				Parameters: []*ir.FunctionParameter{
 					{Name: "testparam", Type: "test.arch_type"},
 				},
-				Definitions: []*model.FunctionDefinition{
-					&model.FunctionDefinition{
+				Definitions: []*ir.FunctionDefinition{
+					&ir.FunctionDefinition{
 						Language:  "plpgsql",
-						SqlFormat: model.SqlFormatPgsql8,
+						SqlFormat: ir.SqlFormatPgsql8,
 						Text:      "BEGIN\nRETURN 1;\nEND",
 					},
 				},
 			},
 		},
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "arch_type",
-				Kind: model.DataTypeKindComposite,
-				CompositeFields: []*model.DataTypeCompositeField{
+				Kind: ir.DataTypeKindComposite,
+				CompositeFields: []*ir.DataTypeCompositeField{
 					{Name: "uh_phrasing", Type: "text"},
 					{Name: "boom_phrasing", Type: "text"},
 					{Name: "ummmm_phrasing", Type: "text"},

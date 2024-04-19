@@ -3,7 +3,7 @@ package xml
 import (
 	"fmt"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 type Table struct {
@@ -35,20 +35,20 @@ type TableOption struct {
 	Value     string `xml:"value"`
 }
 
-func (topt TableOption) ToModel() (*model.TableOption, error) {
-	sqlFormat, err := model.NewSqlFormat(topt.SqlFormat)
+func (topt TableOption) ToModel() (*ir.TableOption, error) {
+	sqlFormat, err := ir.NewSqlFormat(topt.SqlFormat)
 	if err != nil {
 		return nil, err
 	}
-	return &model.TableOption{
+	return &ir.TableOption{
 		SqlFormat: sqlFormat,
 		Name:      topt.Name,
 		Value:     topt.Value,
 	}, nil
 }
 
-func (table *Table) ToModel() (*model.Table, error) {
-	m := model.Table{
+func (table *Table) ToModel() (*ir.Table, error) {
+	m := ir.Table{
 		Name:           table.Name,
 		Description:    table.Description,
 		Owner:          table.Owner,

@@ -8,7 +8,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 func TestMain(m *testing.M) {
@@ -18,7 +18,7 @@ func TestMain(m *testing.M) {
 
 func resetGlobalDBSteward() {
 	lib.GlobalDBSteward = lib.NewDBSteward(format.LookupMap{
-		model.SqlFormatPgsql8: pgsql8.GlobalLookup,
+		ir.SqlFormatPgsql8: pgsql8.GlobalLookup,
 	})
-	lib.GlobalDBSteward.SqlFormat = model.SqlFormatPgsql8
+	lib.GlobalDBSteward.SqlFormat = ir.SqlFormatPgsql8
 }

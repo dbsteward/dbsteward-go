@@ -3,7 +3,7 @@ package xml
 import (
 	"fmt"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 type Function struct {
@@ -26,16 +26,16 @@ type FunctionParameter struct {
 	Direction string `xml:"direction,attr,omitempty"`
 }
 
-func (fp *FunctionParameter) ToModel() (*model.FunctionParameter, error) {
+func (fp *FunctionParameter) ToModel() (*ir.FunctionParameter, error) {
 	if fp == nil {
 		return nil, nil
 	}
-	rv := model.FunctionParameter{
+	rv := ir.FunctionParameter{
 		Name: fp.Name,
 		Type: fp.Type,
 	}
 	var err error
-	rv.Direction, err = model.NewFuncParamDir(fp.Direction)
+	rv.Direction, err = ir.NewFuncParamDir(fp.Direction)
 	if err != nil {
 		return nil, fmt.Errorf("function parameter '%s' invalid: %w", fp.Name, err)
 	}
@@ -48,27 +48,27 @@ type FunctionDefinition struct {
 	Text      string `xml:",cdata"`
 }
 
-func (fd *FunctionDefinition) ToModel() (*model.FunctionDefinition, error) {
+func (fd *FunctionDefinition) ToModel() (*ir.FunctionDefinition, error) {
 	if fd == nil {
 		return nil, nil
 	}
-	rv := model.FunctionDefinition{
+	rv := ir.FunctionDefinition{
 		Language: fd.Language,
 		Text:     fd.Text,
 	}
 	var err error
-	rv.SqlFormat, err = model.NewSqlFormat(fd.SqlFormat)
+	rv.SqlFormat, err = ir.NewSqlFormat(fd.SqlFormat)
 	if err != nil {
 		return nil, err
 	}
 	return &rv, nil
 }
 
-func (f *Function) ToModel() (*model.Function, error) {
+func (f *Function) ToModel() (*ir.Function, error) {
 	if f == nil {
 		return nil, nil
 	}
-	rv := model.Function{
+	rv := ir.Function{
 		Name:            f.Name,
 		Owner:           f.Owner,
 		Description:     f.Description,

@@ -6,7 +6,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -18,9 +18,9 @@ func NewDataType() *DataType {
 	return &DataType{}
 }
 
-func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataType) ([]output.ToSql, error) {
+func (self *DataType) GetCreationSql(schema *ir.Schema, datatype *ir.DataType) ([]output.ToSql, error) {
 	switch datatype.Kind {
-	case model.DataTypeKindEnum:
+	case ir.DataTypeKindEnum:
 		// TODO(go,3) put validation elsewhere
 		if len(datatype.EnumValues) == 0 {
 			return nil, fmt.Errorf("Enum type %s.%s contains no enum children", schema.Name, datatype.Name)
@@ -35,7 +35,7 @@ func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataT
 				Values: vals,
 			},
 		}, nil
-	case model.DataTypeKindComposite:
+	case ir.DataTypeKindComposite:
 		// TODO(go,3) put validation elsewhere
 		if len(datatype.CompositeFields) == 0 {
 			return nil, fmt.Errorf("Composite type %s.%s contains no typeCompositeElement children", schema.Name, datatype.Name)
@@ -53,7 +53,7 @@ func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataT
 				Fields: fields,
 			},
 		}, nil
-	case model.DataTypeKindDomain:
+	case ir.DataTypeKindDomain:
 		// TODO(go,3) put validation elsewhere
 		if datatype.DomainType == nil {
 			return nil, fmt.Errorf("Domain type %s.%s contains no domainType child", schema.Name, datatype.Name)
@@ -97,8 +97,8 @@ func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataT
 	return nil, fmt.Errorf("Unknown type %s type %s", datatype.Name, datatype.Kind)
 }
 
-func (self *DataType) GetDropSql(schema *model.Schema, datatype *model.DataType) []output.ToSql {
-	if datatype.Kind.Equals(model.DataTypeKindDomain) {
+func (self *DataType) GetDropSql(schema *ir.Schema, datatype *ir.DataType) []output.ToSql {
+	if datatype.Kind.Equals(ir.DataTypeKindDomain) {
 		return []output.ToSql{
 			&sql.TypeDomainDrop{
 				Type: sql.TypeRef{schema.Name, datatype.Name},
@@ -126,9 +126,9 @@ func (self *DataType) IsIntType(spec string) bool {
 }
 
 // Change all table columns that are the given datatype to a placeholder type
-func (self *DataType) AlterColumnTypePlaceholder(schema *model.Schema, datatype *model.DataType) ([]*model.ColumnRef, []output.ToSql) {
+func (self *DataType) AlterColumnTypePlaceholder(schema *ir.Schema, datatype *ir.DataType) ([]*ir.ColumnRef, []output.ToSql) {
 	ddl := []output.ToSql{}
-	cols := []*model.ColumnRef{}
+	cols := []*ir.ColumnRef{}
 	for _, newTableRef := range GlobalDiff.NewTableDependency {
 		for _, newColumn := range newTableRef.Table.Columns {
 			columnType := GlobalColumn.GetColumnType(lib.GlobalDBSteward.NewDatabase, newTableRef.Schema, newTableRef.Table, newColumn)
@@ -145,11 +145,11 @@ func (self *DataType) AlterColumnTypePlaceholder(schema *model.Schema, datatype 
 	return cols, ddl
 }
 
-func (self *DataType) alterColumnTypePlaceholderType(datatype *model.DataType) sql.TypeRef {
-	if datatype.Kind.Equals(model.DataTypeKindEnum) {
+func (self *DataType) alterColumnTypePlaceholderType(datatype *ir.DataType) sql.TypeRef {
+	if datatype.Kind.Equals(ir.DataTypeKindEnum) {
 		return sql.BuiltinTypeRef("text")
 	}
-	if datatype.Kind.Equals(model.DataTypeKindDomain) {
+	if datatype.Kind.Equals(ir.DataTypeKindDomain) {
 		return sql.ParseTypeRef(datatype.DomainType.BaseType)
 	}
 	util.Assert(false, "Unexpected data type kind %s", string(datatype.Kind))
@@ -157,7 +157,7 @@ func (self *DataType) alterColumnTypePlaceholderType(datatype *model.DataType) s
 }
 
 // restores types changed by AlterColumnTypePlaceholder
-func (self *DataType) AlterColumnTypeRestore(columns []*model.ColumnRef, schema *model.Schema, datatype *model.DataType) []output.ToSql {
+func (self *DataType) AlterColumnTypeRestore(columns []*ir.ColumnRef, schema *ir.Schema, datatype *ir.DataType) []output.ToSql {
 	ddl := []output.ToSql{}
 	// do the columns backwards to maintain dependency ordering
 	for i := len(columns) - 1; i >= 0; i-- {

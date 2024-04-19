@@ -1,7 +1,7 @@
 package xml
 
 import (
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/pkg/errors"
 )
@@ -20,7 +20,7 @@ type Schema struct {
 	Views       []*View     `xml:"view"`
 }
 
-func (self *Schema) ToModel() (*model.Schema, error) {
+func (self *Schema) ToModel() (*ir.Schema, error) {
 	tables, err := util.MapErr(self.Tables, (*Table).ToModel)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process schema table tags")
@@ -50,7 +50,7 @@ func (self *Schema) ToModel() (*model.Schema, error) {
 		return nil, errors.Wrap(err, "could not process schema view tags")
 	}
 
-	return &model.Schema{
+	return &ir.Schema{
 		Name:        self.Name,
 		Description: self.Description,
 		Owner:       self.Owner,

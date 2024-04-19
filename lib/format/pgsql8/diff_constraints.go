@@ -3,7 +3,7 @@ package pgsql8
 import (
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -14,9 +14,9 @@ func NewDiffConstraints() *DiffConstraints {
 	return &DiffConstraints{}
 }
 
-func (self *DiffConstraints) CreateConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, constraintType sql99.ConstraintType) {
+func (self *DiffConstraints) CreateConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, constraintType sql99.ConstraintType) {
 	for _, newTable := range newSchema.Tables {
-		var oldTable *model.Table
+		var oldTable *ir.Table
 		if oldSchema != nil {
 			// TODO(feat) what about renames?
 			oldTable = oldSchema.TryGetTableNamed(newTable.Name)
@@ -25,7 +25,7 @@ func (self *DiffConstraints) CreateConstraints(ofs output.OutputFileSegmenter, o
 	}
 }
 
-func (self *DiffConstraints) CreateConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType sql99.ConstraintType) {
+func (self *DiffConstraints) CreateConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) {
 	isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
 	lib.GlobalDBSteward.FatalIfError(err, "while checking if table was renamed")
 	if isRenamed {
@@ -52,9 +52,9 @@ func (self *DiffConstraints) CreateConstraintsTable(ofs output.OutputFileSegment
 	}
 }
 
-func (self *DiffConstraints) DropConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, constraintType sql99.ConstraintType) {
+func (self *DiffConstraints) DropConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, constraintType sql99.ConstraintType) {
 	for _, newTable := range newSchema.Tables {
-		var oldTable *model.Table
+		var oldTable *ir.Table
 		if oldSchema != nil {
 			// TODO(feat) what about renames?
 			oldTable = oldSchema.TryGetTableNamed(newTable.Name)
@@ -63,13 +63,13 @@ func (self *DiffConstraints) DropConstraints(ofs output.OutputFileSegmenter, old
 	}
 }
 
-func (self *DiffConstraints) DropConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType sql99.ConstraintType) {
+func (self *DiffConstraints) DropConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) {
 	for _, constraint := range self.GetOldConstraints(oldSchema, oldTable, newSchema, newTable, constraintType) {
 		ofs.WriteSql(GlobalConstraint.GetDropSql(constraint)...)
 	}
 }
 
-func (self *DiffConstraints) GetOldConstraints(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType sql99.ConstraintType) []*sql99.TableConstraint {
+func (self *DiffConstraints) GetOldConstraints(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) []*sql99.TableConstraint {
 	out := []*sql99.TableConstraint{}
 	if newTable != nil && oldTable != nil {
 		oldDb := lib.GlobalDBSteward.OldDatabase
@@ -84,7 +84,7 @@ func (self *DiffConstraints) GetOldConstraints(oldSchema *model.Schema, oldTable
 	return out
 }
 
-func (self *DiffConstraints) GetNewConstraints(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table, constraintType sql99.ConstraintType) []*sql99.TableConstraint {
+func (self *DiffConstraints) GetNewConstraints(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) []*sql99.TableConstraint {
 	out := []*sql99.TableConstraint{}
 	if newTable != nil {
 		oldDb := lib.GlobalDBSteward.OldDatabase

@@ -1,6 +1,6 @@
 package xml
 
-import "github.com/dbsteward/dbsteward/lib/model"
+import "github.com/dbsteward/dbsteward/lib/ir"
 
 type Grant struct {
 	Roles       DelimitedList      `xml:"role,attr,omitempty"`
@@ -8,8 +8,8 @@ type Grant struct {
 	With        string             `xml:"with,attr,omitempty"`
 }
 
-func (g *Grant) ToModel() (*model.Grant, error) {
-	rv := model.Grant{
+func (g *Grant) ToModel() (*ir.Grant, error) {
+	rv := ir.Grant{
 		Roles:       g.Roles,
 		Permissions: g.Permissions,
 		With:        g.With,

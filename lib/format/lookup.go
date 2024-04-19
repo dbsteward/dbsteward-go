@@ -1,8 +1,8 @@
 package format
 
-import "github.com/dbsteward/dbsteward/lib/model"
+import "github.com/dbsteward/dbsteward/lib/ir"
 
-type LookupMap map[model.SqlFormat]*Lookup
+type LookupMap map[ir.SqlFormat]*Lookup
 
 type Lookup struct {
 	Operations Operations

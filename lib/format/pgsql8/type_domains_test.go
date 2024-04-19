@@ -7,7 +7,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -16,13 +16,13 @@ import (
 // Also the testDiff* tests were split to diff_types_domains_test.go
 
 func TestType_Domain_GetCreationSql_NoDomainTypeThrows(t *testing.T) {
-	dt := &model.DataType{
+	dt := &ir.DataType{
 		Name: "my_domain",
-		Kind: model.DataTypeKindDomain,
+		Kind: ir.DataTypeKindDomain,
 	}
-	schema := &model.Schema{
+	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*model.DataType{dt},
+		Types: []*ir.DataType{dt},
 	}
 
 	_, err := pgsql8.GlobalDataType.GetCreationSql(schema, dt)
@@ -32,16 +32,16 @@ func TestType_Domain_GetCreationSql_NoDomainTypeThrows(t *testing.T) {
 }
 
 func TestType_Domain_GetCreationSql(t *testing.T) {
-	dt := &model.DataType{
+	dt := &ir.DataType{
 		Name: "my_domain",
-		Kind: model.DataTypeKindDomain,
-		DomainType: &model.DataTypeDomainType{
+		Kind: ir.DataTypeKindDomain,
+		DomainType: &ir.DataTypeDomainType{
 			BaseType: "int",
 		},
 	}
-	schema := &model.Schema{
+	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*model.DataType{dt},
+		Types: []*ir.DataType{dt},
 	}
 
 	ddl, err := pgsql8.GlobalDataType.GetCreationSql(schema, dt)
@@ -56,18 +56,18 @@ func TestType_Domain_GetCreationSql(t *testing.T) {
 }
 
 func TestType_Domain_GetCreationSql_DefaultNotNull(t *testing.T) {
-	dt := &model.DataType{
+	dt := &ir.DataType{
 		Name: "my_domain",
-		Kind: model.DataTypeKindDomain,
-		DomainType: &model.DataTypeDomainType{
+		Kind: ir.DataTypeKindDomain,
+		DomainType: &ir.DataTypeDomainType{
 			BaseType: "int",
 			Default:  "5",
 			Nullable: false,
 		},
 	}
-	schema := &model.Schema{
+	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*model.DataType{dt},
+		Types: []*ir.DataType{dt},
 	}
 
 	ddl, err := pgsql8.GlobalDataType.GetCreationSql(schema, dt)
@@ -84,22 +84,22 @@ func TestType_Domain_GetCreationSql_DefaultNotNull(t *testing.T) {
 }
 
 func TestType_Domain_GetCreationSql_Constraint(t *testing.T) {
-	dt := &model.DataType{
+	dt := &ir.DataType{
 		Name: "my_domain",
-		Kind: model.DataTypeKindDomain,
-		DomainType: &model.DataTypeDomainType{
+		Kind: ir.DataTypeKindDomain,
+		DomainType: &ir.DataTypeDomainType{
 			BaseType: "int",
 		},
-		DomainConstraints: []*model.DataTypeDomainConstraint{
-			&model.DataTypeDomainConstraint{
+		DomainConstraints: []*ir.DataTypeDomainConstraint{
+			&ir.DataTypeDomainConstraint{
 				Name:  "gt_five",
 				Check: "VALUE > 5",
 			},
 		},
 	}
-	schema := &model.Schema{
+	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*model.DataType{dt},
+		Types: []*ir.DataType{dt},
 	}
 
 	ddl, err := pgsql8.GlobalDataType.GetCreationSql(schema, dt)
@@ -119,27 +119,27 @@ func TestType_Domain_GetCreationSql_Constraint(t *testing.T) {
 }
 
 func TestType_Domain_GetCreationSql_MultipleConstraintsAndExplicitCheck(t *testing.T) {
-	dt := &model.DataType{
+	dt := &ir.DataType{
 		Name: "my_domain",
-		Kind: model.DataTypeKindDomain,
-		DomainType: &model.DataTypeDomainType{
+		Kind: ir.DataTypeKindDomain,
+		DomainType: &ir.DataTypeDomainType{
 			BaseType: "int",
 		},
-		DomainConstraints: []*model.DataTypeDomainConstraint{
-			&model.DataTypeDomainConstraint{
+		DomainConstraints: []*ir.DataTypeDomainConstraint{
+			&ir.DataTypeDomainConstraint{
 				Name: "lt_ten",
 				// should support all kinds of weird but equivalent spacing and casing
 				Check: " CHEck ( VALUE < 10)",
 			},
-			&model.DataTypeDomainConstraint{
+			&ir.DataTypeDomainConstraint{
 				Name:  "gt_five",
 				Check: "VALUE > 5",
 			},
 		},
 	}
-	schema := &model.Schema{
+	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*model.DataType{dt},
+		Types: []*ir.DataType{dt},
 	}
 
 	ddl, err := pgsql8.GlobalDataType.GetCreationSql(schema, dt)
@@ -167,17 +167,17 @@ func TestType_Domain_GetCreationSql_QuotedDefault(t *testing.T) {
 	// into a quoted value. In v2+, that behavior has been mostly pushed to
 	// the sql layer. So, in effect this test now verifies that we _don't_ do
 	// anything in the diff/build layer.
-	dt := &model.DataType{
+	dt := &ir.DataType{
 		Name: "my_domain",
-		Kind: model.DataTypeKindDomain,
-		DomainType: &model.DataTypeDomainType{
+		Kind: ir.DataTypeKindDomain,
+		DomainType: &ir.DataTypeDomainType{
 			BaseType: "varchar(20)",
 			Default:  "abc",
 		},
 	}
-	schema := &model.Schema{
+	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*model.DataType{dt},
+		Types: []*ir.DataType{dt},
 	}
 
 	ddl, err := pgsql8.GlobalDataType.GetCreationSql(schema, dt)
@@ -193,17 +193,17 @@ func TestType_Domain_GetCreationSql_QuotedDefault(t *testing.T) {
 }
 
 func TestType_Domain_GetDropSql(t *testing.T) {
-	dt := &model.DataType{
+	dt := &ir.DataType{
 		Name: "my_domain",
-		Kind: model.DataTypeKindDomain,
-		DomainType: &model.DataTypeDomainType{
+		Kind: ir.DataTypeKindDomain,
+		DomainType: &ir.DataTypeDomainType{
 			BaseType: "varchar(20)",
 			Default:  "abc",
 		},
 	}
-	schema := &model.Schema{
+	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*model.DataType{dt},
+		Types: []*ir.DataType{dt},
 	}
 
 	ddl := pgsql8.GlobalDataType.GetDropSql(schema, dt)

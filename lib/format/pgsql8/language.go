@@ -3,7 +3,7 @@ package pgsql8
 import (
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -14,7 +14,7 @@ func NewLanguage() *Language {
 	return &Language{}
 }
 
-func (self *Language) GetCreationSql(lang *model.Language) []output.ToSql {
+func (self *Language) GetCreationSql(lang *ir.Language) []output.ToSql {
 	out := []output.ToSql{
 		&sql.LanguageCreate{
 			Language:   lang.Name,
@@ -36,7 +36,7 @@ func (self *Language) GetCreationSql(lang *model.Language) []output.ToSql {
 	return out
 }
 
-func (self *Language) GetDropSql(lang *model.Language) []output.ToSql {
+func (self *Language) GetDropSql(lang *ir.Language) []output.ToSql {
 	return []output.ToSql{
 		&sql.LanguageDrop{
 			Language:   lang.Name,

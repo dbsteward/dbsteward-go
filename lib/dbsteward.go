@@ -8,7 +8,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib/config"
 	"github.com/dbsteward/dbsteward/lib/format"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 
 	"github.com/alexflint/go-arg"
@@ -28,7 +28,7 @@ type DBSteward struct {
 	logger    zerolog.Logger
 	lookupMap format.LookupMap
 
-	SqlFormat model.SqlFormat
+	SqlFormat ir.SqlFormat
 
 	CreateLanguages                bool
 	requireSlonyId                 bool
@@ -58,8 +58,8 @@ type DBSteward struct {
 	AlwaysRecreateViews            bool
 
 	// TODO(go,3) just pass these explicitly!
-	OldDatabase *model.Definition
-	NewDatabase *model.Definition
+	OldDatabase *ir.Definition
+	NewDatabase *ir.Definition
 }
 
 func NewDBSteward(lookupMap format.LookupMap) *DBSteward {
@@ -67,7 +67,7 @@ func NewDBSteward(lookupMap format.LookupMap) *DBSteward {
 		logger:    zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
 		lookupMap: lookupMap,
 
-		SqlFormat: model.SqlFormatUnknown,
+		SqlFormat: ir.SqlFormatUnknown,
 
 		CreateLanguages:                false,
 		requireSlonyId:                 false,
@@ -240,14 +240,14 @@ func (self *DBSteward) ArgParse() {
 
 	// For the appropriate modes, composite the input xml
 	// and figure out the sql format of it
-	targetSqlFormat := model.SqlFormatUnknown
+	targetSqlFormat := ir.SqlFormatUnknown
 	switch mode {
 	case ModeBuild:
 		targetSqlFormat = GlobalXmlParser.GetSqlFormat(args.XmlFiles)
 	case ModeDiff:
 		// prefer new format over old
 		targetSqlFormat = GlobalXmlParser.GetSqlFormat(args.NewXmlFiles)
-		if targetSqlFormat == model.SqlFormatUnknown {
+		if targetSqlFormat == ir.SqlFormatUnknown {
 			targetSqlFormat = GlobalXmlParser.GetSqlFormat(args.OldXmlFiles)
 		}
 	}
@@ -383,9 +383,9 @@ func (self *DBSteward) setVerbosity(args *config.Args) {
 	self.logger = self.logger.Level(level)
 }
 
-func (self *DBSteward) reconcileSqlFormat(target, requested model.SqlFormat) model.SqlFormat {
-	if target != model.SqlFormatUnknown {
-		if requested != model.SqlFormatUnknown {
+func (self *DBSteward) reconcileSqlFormat(target, requested ir.SqlFormat) ir.SqlFormat {
+	if target != ir.SqlFormatUnknown {
+		if requested != ir.SqlFormatUnknown {
 			if target == requested {
 				return target
 			}
@@ -398,16 +398,16 @@ func (self *DBSteward) reconcileSqlFormat(target, requested model.SqlFormat) mod
 		return target
 	}
 
-	if requested != model.SqlFormatUnknown {
+	if requested != ir.SqlFormatUnknown {
 		return requested
 	}
 
 	return DefaultSqlFormat
 }
 
-func (self *DBSteward) defineSqlFormatDefaultValues(SqlFormat model.SqlFormat, args *config.Args) {
+func (self *DBSteward) defineSqlFormatDefaultValues(SqlFormat ir.SqlFormat, args *config.Args) {
 	switch SqlFormat {
-	case model.SqlFormatPgsql8:
+	case ir.SqlFormatPgsql8:
 		self.CreateLanguages = true
 		self.QuoteSchemaNames = false
 		self.QuoteTableNames = false
@@ -416,24 +416,24 @@ func (self *DBSteward) defineSqlFormatDefaultValues(SqlFormat model.SqlFormat, a
 			args.DbPort = 5432
 		}
 
-	case model.SqlFormatMssql10:
+	case ir.SqlFormatMssql10:
 		self.QuoteTableNames = true
 		self.QuoteColumnNames = true
 		if args.DbPort == 0 {
 			args.DbPort = 1433
 		}
 
-	case model.SqlFormatMysql5:
+	case ir.SqlFormatMysql5:
 		self.QuoteSchemaNames = true
 		self.QuoteTableNames = true
 		self.QuoteColumnNames = true
 		if args.DbPort == 0 {
 			args.DbPort = 3306
 		}
-		self.lookupMap[model.SqlFormatMysql5].Operations.SetConfig(args)
+		self.lookupMap[ir.SqlFormatMysql5].Operations.SetConfig(args)
 	}
 
-	if SqlFormat != model.SqlFormatPgsql8 {
+	if SqlFormat != ir.SqlFormatPgsql8 {
 		if len(args.PgDataXml) > 0 {
 			self.Fatal("pgdataxml parameter is not supported by %s driver", SqlFormat)
 		}
@@ -489,7 +489,7 @@ func (self *DBSteward) doXmlDataInsert(defFile string, dataFile string) {
 				self.Info("Adding rows column %s to definition table %s", newColumn, defTable.Name)
 
 				if defTable.Rows == nil {
-					defTable.Rows = &model.DataRows{}
+					defTable.Rows = &ir.DataRows{}
 				}
 				err = defTable.Rows.AddColumn(newColumn, dataRows.Columns[i])
 				self.FatalIfError(err, "Could not add column %s to %s in %s", newColumn, dataTable.Name, dataFile)
@@ -645,8 +645,8 @@ func (self *DBSteward) doSlonikConvert(file string, outputFile string) {
 	}
 }
 func (self *DBSteward) doSlonyCompare(file string) {
-	self.lookupMap[model.SqlFormatPgsql8].Operations.(format.SlonyOperations).SlonyCompare(file)
+	self.lookupMap[ir.SqlFormatPgsql8].Operations.(format.SlonyOperations).SlonyCompare(file)
 }
 func (self *DBSteward) doSlonyDiff(oldFile string, newFile string) {
-	self.lookupMap[model.SqlFormatPgsql8].Operations.(format.SlonyOperations).SlonyDiff(oldFile, newFile)
+	self.lookupMap[ir.SqlFormatPgsql8].Operations.(format.SlonyOperations).SlonyDiff(oldFile, newFile)
 }

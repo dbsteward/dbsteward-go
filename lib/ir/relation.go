@@ -1,4 +1,4 @@
-package model
+package ir
 
 type Relation interface {
 	GetOwner() string

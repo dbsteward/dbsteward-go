@@ -1,6 +1,6 @@
 package xml
 
-import "github.com/dbsteward/dbsteward/lib/model"
+import "github.com/dbsteward/dbsteward/lib/ir"
 
 type DataType struct {
 	Name              string                      `xml:"name,attr,omitempty"`
@@ -32,6 +32,6 @@ type DataTypeDomainConstraint struct {
 	Check string `xml:",chardata"`
 }
 
-func (self *DataType) ToModel() (*model.DataType, error) {
+func (self *DataType) ToModel() (*ir.DataType, error) {
 	panic("todo")
 }

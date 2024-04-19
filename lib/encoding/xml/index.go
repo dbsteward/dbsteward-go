@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
@@ -23,8 +23,8 @@ type IndexDim struct {
 	Value string `xml:",chardata"`
 }
 
-func (id *IndexDim) ToModel() (*model.IndexDim, error) {
-	return &model.IndexDim{
+func (id *IndexDim) ToModel() (*ir.IndexDim, error) {
+	return &ir.IndexDim{
 		Name:  id.Name,
 		Sql:   id.Sql,
 		Value: id.Value,
@@ -36,26 +36,26 @@ type IndexCond struct {
 	Condition string `xml:",chardata"`
 }
 
-func (id *IndexCond) ToModel() (*model.IndexCond, error) {
-	rv := model.IndexCond{
+func (id *IndexCond) ToModel() (*ir.IndexCond, error) {
+	rv := ir.IndexCond{
 		Condition: id.Condition,
 	}
 	var err error
-	rv.SqlFormat, err = model.NewSqlFormat(id.SqlFormat)
+	rv.SqlFormat, err = ir.NewSqlFormat(id.SqlFormat)
 	if err != nil {
 		return nil, err
 	}
 	return &rv, nil
 }
 
-func (idx *Index) ToModel() (*model.Index, error) {
-	rv := model.Index{
+func (idx *Index) ToModel() (*ir.Index, error) {
+	rv := ir.Index{
 		Name:         idx.Name,
 		Unique:       idx.Unique,
 		Concurrently: idx.Concurrently,
 	}
 	var err error
-	rv.Using, err = model.NewIndexType(idx.Using)
+	rv.Using, err = ir.NewIndexType(idx.Using)
 	if err != nil {
 		return nil, fmt.Errorf("index '%s' invalid: %s", idx.Name, err)
 	}

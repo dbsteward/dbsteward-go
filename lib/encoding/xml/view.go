@@ -3,7 +3,7 @@ package xml
 import (
 	"fmt"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 type View struct {
@@ -21,26 +21,26 @@ type ViewQuery struct {
 	Text      string `xml:",cdata"`
 }
 
-func (vq *ViewQuery) ToModel() (*model.ViewQuery, error) {
+func (vq *ViewQuery) ToModel() (*ir.ViewQuery, error) {
 	if vq == nil {
 		return nil, nil
 	}
-	rv := model.ViewQuery{
+	rv := ir.ViewQuery{
 		Text: vq.Text,
 	}
 	var err error
-	rv.SqlFormat, err = model.NewSqlFormat(vq.SqlFormat)
+	rv.SqlFormat, err = ir.NewSqlFormat(vq.SqlFormat)
 	if err != nil {
 		return nil, err
 	}
 	return &rv, nil
 }
 
-func (v *View) ToModel() (*model.View, error) {
+func (v *View) ToModel() (*ir.View, error) {
 	if v == nil {
 		return nil, nil
 	}
-	rv := model.View{
+	rv := ir.View{
 		Name:           v.Name,
 		Description:    v.Description,
 		Owner:          v.Owner,

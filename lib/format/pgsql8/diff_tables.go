@@ -6,7 +6,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/pkg/errors"
@@ -22,7 +22,7 @@ func NewDiffTables() *DiffTables {
 // TODO(go,core) lift much of this up to sql99
 
 // applies transformations to tables that exist in both old and new
-func (self *DiffTables) DiffTables(stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) error {
+func (self *DiffTables) DiffTables(stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) error {
 	// note: old dbsteward called create_tables here, but because we split out DiffTable, we can't call it both places,
 	// so callers were updated to call CreateTables or CreateTable just before calling DiffTables or DiffTable, respectively
 
@@ -40,7 +40,7 @@ func (self *DiffTables) DiffTables(stage1, stage3 output.OutputFileSegmenter, ol
 	return nil
 }
 
-func (self *DiffTables) DiffTable(stage1, stage3 output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
+func (self *DiffTables) DiffTable(stage1, stage3 output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	if oldTable == nil || newTable == nil {
 		// create and drop are handled elsewhere
 		return nil
@@ -70,12 +70,12 @@ func (self *DiffTables) DiffTable(stage1, stage3 output.OutputFileSegmenter, old
 	return nil
 }
 
-func (self *DiffTables) updateTableOptions(stage1 output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
+func (self *DiffTables) updateTableOptions(stage1 output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	util.Assert(oldTable != nil, "expect oldTable to not be nil")
 	util.Assert(newTable != nil, "expect newTable to not be nil")
 
-	oldOpts := oldTable.GetTableOptionStrMap(model.SqlFormatPgsql8)
-	newOpts := newTable.GetTableOptionStrMap(model.SqlFormatPgsql8)
+	oldOpts := oldTable.GetTableOptionStrMap(ir.SqlFormatPgsql8)
+	newOpts := newTable.GetTableOptionStrMap(ir.SqlFormatPgsql8)
 
 	// dropped options are those present in old table but not new
 	deleteOpts := oldOpts.DifferenceFunc(newOpts, strings.EqualFold)
@@ -91,7 +91,7 @@ func (self *DiffTables) updateTableOptions(stage1 output.OutputFileSegmenter, ol
 	return self.applyTableOptionsDiff(stage1, newSchema, newTable, updateOpts, createOpts, deleteOpts)
 }
 
-func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *model.Schema, table *model.Table, updateOpts, createOpts, deleteOpts *util.OrderedMap[string, string]) error {
+func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *ir.Schema, table *ir.Table, updateOpts, createOpts, deleteOpts *util.OrderedMap[string, string]) error {
 	alters := []sql.TableAlterPart{}
 	ref := sql.TableRef{schema.Name, table.Name}
 
@@ -165,7 +165,7 @@ type updateTableColumnsAgg struct {
 	after3  []output.ToSql
 }
 
-func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
+func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegmenter, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	agg := &updateTableColumnsAgg{}
 
 	// TODO(go,pgsql) old dbsteward interleaved commands into a single list, and output in the same order
@@ -192,7 +192,7 @@ func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegme
 	ref := sql.TableRef{newSchema.Name, newTable.Name}
 	ownRole := newTable.Owner
 	if ownRole == "" {
-		ownRole = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, model.RoleOwner)
+		ownRole = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, ir.RoleOwner)
 	}
 	if len(agg.stage1) > 0 {
 		stage1.WriteSql(&sql.TableAlterParts{
@@ -213,7 +213,7 @@ func (self *DiffTables) updateTableColumns(stage1, stage3 output.OutputFileSegme
 	return nil
 }
 
-func (self *DiffTables) addDropTableColumns(agg *updateTableColumnsAgg, oldTable, newTable *model.Table) error {
+func (self *DiffTables) addDropTableColumns(agg *updateTableColumnsAgg, oldTable, newTable *ir.Table) error {
 	for _, oldColumn := range oldTable.Columns {
 		if newTable.TryGetColumnNamed(oldColumn.Name) != nil {
 			// new column exists, not dropping it
@@ -233,7 +233,7 @@ func (self *DiffTables) addDropTableColumns(agg *updateTableColumnsAgg, oldTable
 	return nil
 }
 
-func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
+func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	// note that postgres treats identifiers as case-sensitive when quoted
 	// TODO(go,3) find a way to generalize/streamline this
 	caseSensitive := lib.GlobalDBSteward.QuoteAllNames || lib.GlobalDBSteward.QuoteColumnNames
@@ -331,7 +331,7 @@ func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTab
 	return nil
 }
 
-func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
+func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	dbsteward := lib.GlobalDBSteward
 
 	// note that postgres treats identifiers as case-sensitive when quoted
@@ -430,7 +430,7 @@ func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTab
 	return nil
 }
 
-func (self *DiffTables) checkPartition(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
+func (self *DiffTables) checkPartition(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	if oldTable.Partitioning == nil && newTable.Partitioning == nil {
 		return nil
 	}
@@ -446,7 +446,7 @@ func (self *DiffTables) checkPartition(oldSchema *model.Schema, oldTable *model.
 	return GlobalXmlParser.CheckPartitionChange(oldSchema, oldTable, newSchema, newTable)
 }
 
-func (self *DiffTables) checkInherits(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
+func (self *DiffTables) checkInherits(stage1 output.OutputFileSegmenter, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	if oldTable.InheritsSchema == "" && oldTable.InheritsTable == "" && newTable.InheritsSchema == "" && newTable.InheritsTable == "" {
 		return nil
 	}
@@ -458,7 +458,7 @@ func (self *DiffTables) checkInherits(stage1 output.OutputFileSegmenter, oldTabl
 	return nil
 }
 
-func (self *DiffTables) addAlterStatistics(stage1 output.OutputFileSegmenter, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
+func (self *DiffTables) addAlterStatistics(stage1 output.OutputFileSegmenter, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	for _, newColumn := range newTable.Columns {
 		oldColumn := oldTable.TryGetColumnNamed(newColumn.Name)
 		if oldColumn == nil {
@@ -480,14 +480,14 @@ func (self *DiffTables) addAlterStatistics(stage1 output.OutputFileSegmenter, ol
 	return nil
 }
 
-func (self *DiffTables) IsRenamedColumn(oldTable, newTable *model.Table, newColumn *model.Column) (bool, error) {
+func (self *DiffTables) IsRenamedColumn(oldTable, newTable *ir.Table, newColumn *ir.Column) (bool, error) {
 	dbsteward := lib.GlobalDBSteward
 	if dbsteward.IgnoreOldNames {
 		return false, nil
 	}
 
 	caseSensitive := false
-	if dbsteward.QuoteColumnNames || dbsteward.QuoteAllNames || dbsteward.SqlFormat.Equals(model.SqlFormatMysql5) {
+	if dbsteward.QuoteColumnNames || dbsteward.QuoteAllNames || dbsteward.SqlFormat.Equals(ir.SqlFormatMysql5) {
 		for _, oldColumn := range oldTable.Columns {
 			if strings.EqualFold(oldColumn.Name, newColumn.Name) {
 				if oldColumn.Name != newColumn.Name && newColumn.OldColumnName == "" {
@@ -522,7 +522,7 @@ func (self *DiffTables) IsRenamedColumn(oldTable, newTable *model.Table, newColu
 	return false, nil
 }
 
-func (self *DiffTables) CreateTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) error {
+func (self *DiffTables) CreateTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) error {
 	if newSchema == nil {
 		// if the new schema is nil, there's no tables to create
 		return nil
@@ -536,7 +536,7 @@ func (self *DiffTables) CreateTables(ofs output.OutputFileSegmenter, oldSchema, 
 	return nil
 }
 
-func (self *DiffTables) CreateTable(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema, newTable *model.Table) error {
+func (self *DiffTables) CreateTable(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, newTable *ir.Table) error {
 	if newTable == nil {
 		// TODO(go,nth) we shouldn't be here? should this be an Assert?
 		return nil
@@ -581,7 +581,7 @@ func (self *DiffTables) CreateTable(ofs output.OutputFileSegmenter, oldSchema, n
 	return nil
 }
 
-func (self *DiffTables) DropTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
+func (self *DiffTables) DropTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) {
 	// if newSchema is nil, we'll have already dropped all the tables in it
 	if oldSchema != nil && newSchema != nil {
 		for _, oldTable := range oldSchema.Tables {
@@ -590,7 +590,7 @@ func (self *DiffTables) DropTables(ofs output.OutputFileSegmenter, oldSchema, ne
 	}
 }
 
-func (self *DiffTables) DropTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema) {
+func (self *DiffTables) DropTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema) {
 	newTable := newSchema.TryGetTableNamed(oldTable.Name)
 	if newTable != nil {
 		// table exists, nothing to do
@@ -607,14 +607,14 @@ func (self *DiffTables) DropTable(ofs output.OutputFileSegmenter, oldSchema *mod
 	ofs.WriteSql(GlobalTable.GetDropSql(oldSchema, oldTable)...)
 }
 
-func (self *DiffTables) DiffClusters(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
+func (self *DiffTables) DiffClusters(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) {
 	for _, newTable := range newSchema.Tables {
 		oldTable := oldSchema.TryGetTableNamed(newTable.Name)
 		self.DiffClustersTable(ofs, oldSchema, oldTable, newSchema, newTable)
 	}
 }
 
-func (self *DiffTables) DiffClustersTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *DiffTables) DiffClustersTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) {
 	if (oldTable == nil && newTable.ClusterIndex != "") || (oldTable != nil && oldTable.ClusterIndex != newTable.ClusterIndex) {
 		ofs.WriteSql(&sql.TableAlterClusterOn{
 			Table: sql.TableRef{newSchema.Name, newTable.Name},
@@ -623,7 +623,7 @@ func (self *DiffTables) DiffClustersTable(ofs output.OutputFileSegmenter, oldSch
 	}
 }
 
-func (self *DiffTables) DiffData(ofs output.OutputFileSegmenter, oldSchema, newSchema *model.Schema) {
+func (self *DiffTables) DiffData(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) {
 	for _, newTable := range newSchema.Tables {
 		isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
 		lib.GlobalDBSteward.FatalIfError(err, "while diffing data")
@@ -639,7 +639,7 @@ func (self *DiffTables) DiffData(ofs output.OutputFileSegmenter, oldSchema, newS
 	}
 }
 
-func (self *DiffTables) GetCreateDataSql(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) []output.ToSql {
+func (self *DiffTables) GetCreateDataSql(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) []output.ToSql {
 	newRows, updatedRows := self.getNewAndChangedRows(oldTable, newTable)
 	// cut back on allocations - we know that there's going to be _at least_ one statement for every new and updated row, and likely 1 for the serial start
 	out := make([]output.ToSql, 0, len(newRows)+len(updatedRows)+1)
@@ -661,7 +661,7 @@ func (self *DiffTables) GetCreateDataSql(oldSchema *model.Schema, oldTable *mode
 	return out
 }
 
-func (self *DiffTables) GetDeleteDataSql(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) []output.ToSql {
+func (self *DiffTables) GetDeleteDataSql(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) []output.ToSql {
 	oldRows := self.getOldRows(oldTable, newTable)
 	out := make([]output.ToSql, len(oldRows))
 	for i, oldRow := range oldRows {
@@ -676,11 +676,11 @@ func (self *DiffTables) GetDeleteDataSql(oldSchema *model.Schema, oldTable *mode
 // TODO(go,3) move this to model
 type changedRow struct {
 	oldCols []string
-	oldRow  *model.DataRow
-	newRow  *model.DataRow
+	oldRow  *ir.DataRow
+	newRow  *ir.DataRow
 }
 
-func (self *DiffTables) getNewAndChangedRows(oldTable, newTable *model.Table) ([]*model.DataRow, []*changedRow) {
+func (self *DiffTables) getNewAndChangedRows(oldTable, newTable *ir.Table) ([]*ir.DataRow, []*changedRow) {
 	if newTable == nil || newTable.Rows == nil || len(newTable.Rows.Rows) == 0 || len(newTable.Rows.Columns) == 0 {
 		// there are no new rows at all, so nothing is new or changed
 		return nil, nil
@@ -688,12 +688,12 @@ func (self *DiffTables) getNewAndChangedRows(oldTable, newTable *model.Table) ([
 
 	if oldTable == nil || oldTable.Rows == nil || len(oldTable.Rows.Rows) == 0 || len(oldTable.Rows.Columns) == 0 {
 		// there are no old rows at all, so everything is new, nothing is changed
-		newRows := make([]*model.DataRow, len(newTable.Rows.Rows))
+		newRows := make([]*ir.DataRow, len(newTable.Rows.Rows))
 		copy(newRows, newTable.Rows.Rows)
 		return newRows, nil
 	}
 
-	newRows := []*model.DataRow{}
+	newRows := []*ir.DataRow{}
 	updatedRows := []*changedRow{}
 	for _, newRow := range newTable.Rows.Rows {
 		if newRow.Delete {
@@ -718,19 +718,19 @@ func (self *DiffTables) getNewAndChangedRows(oldTable, newTable *model.Table) ([
 
 // returns the rows in oldTable that are no longer in newTable
 // TODO(go,3) move this to model?
-func (self *DiffTables) getOldRows(oldTable, newTable *model.Table) []*model.DataRow {
+func (self *DiffTables) getOldRows(oldTable, newTable *ir.Table) []*ir.DataRow {
 	if oldTable == nil || oldTable.Rows == nil || len(oldTable.Rows.Rows) == 0 || len(oldTable.Rows.Columns) == 0 {
 		// there are no old rows at all
 		return nil
 	}
 	if newTable == nil || newTable.Rows == nil || len(newTable.Rows.Rows) == 0 || len(newTable.Rows.Columns) == 0 {
 		// there are no new rows at all, so everything is old
-		oldRows := make([]*model.DataRow, len(oldTable.Rows.Rows))
+		oldRows := make([]*ir.DataRow, len(oldTable.Rows.Rows))
 		copy(oldRows, oldTable.Rows.Rows)
 		return oldRows
 	}
 
-	oldRows := []*model.DataRow{}
+	oldRows := []*ir.DataRow{}
 	for _, oldRow := range oldTable.Rows.Rows {
 		if oldRow.Delete {
 			// don't consider this row if it was deleted in old, regardless of status in new
@@ -749,7 +749,7 @@ func (self *DiffTables) getOldRows(oldTable, newTable *model.Table) []*model.Dat
 	return oldRows
 }
 
-func (self *DiffTables) buildDataInsert(schema *model.Schema, table *model.Table, row *model.DataRow) output.ToSql {
+func (self *DiffTables) buildDataInsert(schema *ir.Schema, table *ir.Table, row *ir.DataRow) output.ToSql {
 	util.Assert(table.Rows != nil, "table.Rows should not be nil when calling buildDataInsert")
 	util.Assert(!row.Delete, "do not call buildDataInsert for a row marked for deletion")
 	values := make([]sql.ToSqlValue, len(row.Columns))
@@ -763,7 +763,7 @@ func (self *DiffTables) buildDataInsert(schema *model.Schema, table *model.Table
 	}
 }
 
-func (self *DiffTables) buildDataUpdate(schema *model.Schema, table *model.Table, change *changedRow) output.ToSql {
+func (self *DiffTables) buildDataUpdate(schema *ir.Schema, table *ir.Table, change *changedRow) output.ToSql {
 	// TODO(feat) deal with column renames
 	util.Assert(table.Rows != nil, "table.Rows should not be nil when calling buildDataUpdate")
 	util.Assert(!change.newRow.Delete, "do not call buildDataUpdate for a row marked for deletion")
@@ -796,7 +796,7 @@ func (self *DiffTables) buildDataUpdate(schema *model.Schema, table *model.Table
 	}
 }
 
-func (self *DiffTables) buildDataDelete(schema *model.Schema, table *model.Table, row *model.DataRow) output.ToSql {
+func (self *DiffTables) buildDataDelete(schema *ir.Schema, table *ir.Table, row *ir.DataRow) output.ToSql {
 	keyVals := []sql.ToSqlValue{}
 	pkColMap := table.Rows.GetColMapKeys(row, table.PrimaryKey)
 	for name, col := range pkColMap {

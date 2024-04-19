@@ -8,7 +8,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib"
 
 	"github.com/dbsteward/dbsteward/lib/format"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -24,7 +24,7 @@ func NewDiff(lookup *format.Lookup) *Diff {
 	}
 }
 
-func (self *Diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *model.Definition, upgradePrefix string) {
+func (self *Diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *ir.Definition, upgradePrefix string) {
 	dbsteward := lib.GlobalDBSteward
 	timestamp := time.Now().Format(time.RFC1123Z)
 	oldSetNewSet := fmt.Sprintf("-- Old definition: %s\n-- New definition %s\n", oldFile, newFile)

@@ -3,7 +3,7 @@ package xml
 import (
 	"encoding/xml"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/pkg/errors"
 )
@@ -36,12 +36,12 @@ type Sql struct {
 	Text       string `xml:",chardata"`
 }
 
-// ToModel converts this Document to a model.Definition, if possible.
+// ToModel converts this Document to a ir.Definition, if possible.
 //
 // Errors may arise if this operation cannot be completed for some reason.
 // No semantic validation is performed at this point, as that's outside
-// of the scope of an "xml" package - see `model.Definition.Validate()`
-func (self *Document) ToModel() (*model.Definition, error) {
+// of the scope of an "xml" package - see `ir.Definition.Validate()`
+func (self *Document) ToModel() (*ir.Definition, error) {
 	includeFiles, err := util.MapErr(self.IncludeFiles, (*IncludeFile).ToModel)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not process includeFile tags")
@@ -72,7 +72,7 @@ func (self *Document) ToModel() (*model.Definition, error) {
 		return nil, errors.Wrap(err, "could not process sql tags")
 	}
 
-	return &model.Definition{
+	return &ir.Definition{
 		IncludeFiles:   includeFiles,
 		InlineAssembly: inlineAssembly,
 		Database:       database,
@@ -82,23 +82,23 @@ func (self *Document) ToModel() (*model.Definition, error) {
 	}, nil
 }
 
-// FromModel builds a Document from a model.Definition
+// FromModel builds a Document from a ir.Definition
 //
 // Errors may arise if this operation cannot be completed for some reason.
-func (self *Document) FromModel(def *model.Definition) error {
+func (self *Document) FromModel(def *ir.Definition) error {
 	// TODO
 	return nil
 }
 
-// TODO should there be a model.IncludeFile, or should we always overlay when converting to model?
-func (self *IncludeFile) ToModel() (*model.IncludeFile, error) {
-	return &model.IncludeFile{Name: self.Name}, nil
+// TODO should there be a ir.IncludeFile, or should we always overlay when converting to model?
+func (self *IncludeFile) ToModel() (*ir.IncludeFile, error) {
+	return &ir.IncludeFile{Name: self.Name}, nil
 }
 
-func (self *InlineAssembly) ToModel() (*model.InlineAssembly, error) {
-	return &model.InlineAssembly{Name: self.Name}, nil
+func (self *InlineAssembly) ToModel() (*ir.InlineAssembly, error) {
+	return &ir.InlineAssembly{Name: self.Name}, nil
 }
 
-func (self *Sql) ToModel() (*model.Sql, error) {
+func (self *Sql) ToModel() (*ir.Sql, error) {
 	panic("todo")
 }

@@ -6,7 +6,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -20,14 +20,14 @@ func NewColumn() *Column {
 type Column struct {
 }
 
-func (self *Column) GetReducedDefinition(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) sql.ColumnDefinition {
+func (self *Column) GetReducedDefinition(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column) sql.ColumnDefinition {
 	return sql.ColumnDefinition{
 		Name: column.Name,
 		Type: sql.ParseTypeRef(self.GetColumnType(doc, schema, table, column)),
 	}
 }
 
-func (self *Column) GetFullDefinition(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column, includeNullDefinition, includeDefaultNextval bool) sql.ColumnDefinition {
+func (self *Column) GetFullDefinition(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column, includeNullDefinition, includeDefaultNextval bool) sql.ColumnDefinition {
 	colType := self.GetColumnType(doc, schema, table, column)
 	out := sql.ColumnDefinition{
 		Name:     column.Name,
@@ -61,7 +61,7 @@ func (self *Column) GetFullDefinition(doc *model.Definition, schema *model.Schem
 	return out
 }
 
-func (self *Column) GetSetupSql(schema *model.Schema, table *model.Table, column *model.Column) []output.ToSql {
+func (self *Column) GetSetupSql(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
 	ddl := []output.ToSql{}
 	colref := sql.ColumnRef{schema.Name, table.Name, column.Name}
 	if column.Statistics != nil {
@@ -80,7 +80,7 @@ func (self *Column) GetSetupSql(schema *model.Schema, table *model.Table, column
 	return ddl
 }
 
-func (self *Column) GetColumnDefaultSql(schema *model.Schema, table *model.Table, column *model.Column) []output.ToSql {
+func (self *Column) GetColumnDefaultSql(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
 	if !GlobalTable.IncludeColumnDefaultNextvalInCreateSql && self.HasDefaultNextval(column) {
 		// if the default is a nextval expression, don't specify it in the regular full definition
 		// because if the sequence has not been defined yet,
@@ -125,24 +125,24 @@ func (self *Column) GetDefaultValue(coltype string) sql.ToSqlValue {
 	return nil
 }
 
-func (self *Column) IsSerialType(column *model.Column) bool {
+func (self *Column) IsSerialType(column *ir.Column) bool {
 	return GlobalDataType.IsSerialType(column.Type)
 }
 
-func (self *Column) HasDefaultNextval(column *model.Column) bool {
+func (self *Column) HasDefaultNextval(column *ir.Column) bool {
 	if column.Default != "" {
 		return len(util.IMatch(PatternNextval, column.Default)) > 0
 	}
 	return false
 }
 
-func (self *Column) HasDefaultNow(table *model.Table, column *model.Column) bool {
+func (self *Column) HasDefaultNow(table *ir.Table, column *ir.Column) bool {
 	// TODO(feat) what about expressions with now/current_timestamp?
 	return strings.EqualFold(column.Default, "now()") || strings.EqualFold(column.Default, "current_timestamp")
 }
 
 // TODO(go,3) it would be super if types had dedicated types/values
-func (self *Column) GetColumnType(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) string {
+func (self *Column) GetColumnType(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column) string {
 	// if it is a foreign keyed column, solve for the foreign key type
 	if column.ForeignTable != "" {
 		// TODO(feat) what about compound FKs?
@@ -176,7 +176,7 @@ func (self *Column) GetReferenceType(coltype string) string {
 	return coltype
 }
 
-func (self *Column) GetSerialStartDml(schema *model.Schema, table *model.Table, column *model.Column) []output.ToSql {
+func (self *Column) GetSerialStartDml(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
 	if column.SerialStart == nil {
 		return nil
 	}

@@ -3,7 +3,7 @@ package sql99
 import (
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 type ConstraintType uint
@@ -27,19 +27,19 @@ func (self ConstraintType) Equals(other ConstraintType) bool {
 }
 
 type TableConstraint struct {
-	Schema           *model.Schema
-	Table            *model.Table
-	Columns          []*model.Column
+	Schema           *ir.Schema
+	Table            *ir.Table
+	Columns          []*ir.Column
 	Name             string
 	Type             ConstraintType
-	UnderlyingType   model.ConstraintType
+	UnderlyingType   ir.ConstraintType
 	TextDefinition   string
-	ForeignSchema    *model.Schema
-	ForeignTable     *model.Table
-	ForeignCols      []*model.Column
+	ForeignSchema    *ir.Schema
+	ForeignTable     *ir.Table
+	ForeignCols      []*ir.Column
 	ForeignIndexName string
-	ForeignOnUpdate  model.ForeignKeyAction
-	ForeignOnDelete  model.ForeignKeyAction
+	ForeignOnUpdate  ir.ForeignKeyAction
+	ForeignOnDelete  ir.ForeignKeyAction
 }
 
 func (self *TableConstraint) Equals(other *TableConstraint) bool {

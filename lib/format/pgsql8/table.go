@@ -3,11 +3,11 @@ package pgsql8
 import (
 	"strings"
 
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -19,7 +19,7 @@ func NewTable() *Table {
 	return &Table{}
 }
 
-func (self *Table) GetCreationSql(schema *model.Schema, table *model.Table) []output.ToSql {
+func (self *Table) GetCreationSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	cols := []sql.ColumnDefinition{}
 	colSetup := []output.ToSql{}
 	for _, col := range table.Columns {
@@ -29,7 +29,7 @@ func (self *Table) GetCreationSql(schema *model.Schema, table *model.Table) []ou
 
 	opts := []sql.TableCreateOption{}
 	for _, opt := range table.TableOptions {
-		if opt.SqlFormat == model.SqlFormatPgsql8 {
+		if opt.SqlFormat == ir.SqlFormatPgsql8 {
 			opts = append(opts, sql.TableCreateOption{opt.Name, opt.Value})
 		}
 	}
@@ -84,7 +84,7 @@ func (self *Table) GetCreationSql(schema *model.Schema, table *model.Table) []ou
 	return ddl
 }
 
-func (self *Table) GetDropSql(schema *model.Schema, table *model.Table) []output.ToSql {
+func (self *Table) GetDropSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	return []output.ToSql{
 		&sql.TableDrop{
 			Table: sql.TableRef{schema.Name, table.Name},
@@ -92,7 +92,7 @@ func (self *Table) GetDropSql(schema *model.Schema, table *model.Table) []output
 	}
 }
 
-func (self *Table) GetDefaultNextvalSql(schema *model.Schema, table *model.Table) []output.ToSql {
+func (self *Table) GetDefaultNextvalSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	out := []output.ToSql{}
 	for _, column := range table.Columns {
 		if GlobalColumn.HasDefaultNextval(column) {
@@ -109,7 +109,7 @@ func (self *Table) GetDefaultNextvalSql(schema *model.Schema, table *model.Table
 	return out
 }
 
-func (self *Table) DefineTableColumnDefaults(schema *model.Schema, table *model.Table) []output.ToSql {
+func (self *Table) DefineTableColumnDefaults(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	out := []output.ToSql{}
 	for _, column := range table.Columns {
 		out = append(out, GlobalColumn.GetColumnDefaultSql(schema, table, column)...)
@@ -117,17 +117,17 @@ func (self *Table) DefineTableColumnDefaults(schema *model.Schema, table *model.
 	return out
 }
 
-func (self *Table) GetGrantSql(doc *model.Definition, schema *model.Schema, table *model.Table, grant *model.Grant) []output.ToSql {
+func (self *Table) GetGrantSql(doc *ir.Definition, schema *ir.Schema, table *ir.Table, grant *ir.Grant) []output.ToSql {
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
 		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)
 	}
 
-	perms := util.IIntersectStrs(grant.Permissions, model.PermissionListAllPgsql8)
+	perms := util.IIntersectStrs(grant.Permissions, ir.PermissionListAllPgsql8)
 	if len(perms) == 0 {
 		lib.GlobalDBSteward.Fatal("No format-compatible permissions on table %s.%s grant: %v", schema.Name, table.Name, grant.Permissions)
 	}
-	invalidPerms := util.IDifferenceStrs(perms, model.PermissionListValidTable)
+	invalidPerms := util.IDifferenceStrs(perms, ir.PermissionListValidTable)
 	if len(invalidPerms) > 0 {
 		lib.GlobalDBSteward.Fatal("Invalid permissions on table %s.%s grant: %v", schema.Name, table.Name, invalidPerms)
 	}
@@ -143,11 +143,11 @@ func (self *Table) GetGrantSql(doc *model.Definition, schema *model.Schema, tabl
 	// TABLE IMPLICIT GRANTS
 	// READYONLY USER PROVISION: grant select on the table for the readonly user
 	// TODO(go,3) move this out of here, let this create just a single grant
-	roRole := lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, model.RoleReadOnly)
+	roRole := lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
 	if roRole != "" {
 		ddl = append(ddl, &sql.TableGrant{
 			Table:    sql.TableRef{schema.Name, table.Name},
-			Perms:    []string{model.PermissionSelect},
+			Perms:    []string{ir.PermissionSelect},
 			Roles:    []string{roRole},
 			CanGrant: false,
 		})
@@ -156,7 +156,7 @@ func (self *Table) GetGrantSql(doc *model.Definition, schema *model.Schema, tabl
 	// don't need to grant cascaded serial permissions to the table owner
 	rolesNotOwner := []string{}
 	for _, role := range roles {
-		if !strings.EqualFold(role, model.RoleOwner) {
+		if !strings.EqualFold(role, ir.RoleOwner) {
 			rolesNotOwner = append(rolesNotOwner, role)
 		}
 	}
@@ -170,13 +170,13 @@ func (self *Table) GetGrantSql(doc *model.Definition, schema *model.Schema, tabl
 		// if you can SELECT, INSERT or UPDATE the table, you can SELECT on the sequence
 		// if you can INSERT or UPDATE the table, you can UPDATE the sequence
 		seqPerms := []string{}
-		updatePerms := []string{model.PermissionInsert, model.PermissionUpdate}
-		selectPerms := append(updatePerms, model.PermissionSelect)
+		updatePerms := []string{ir.PermissionInsert, ir.PermissionUpdate}
+		selectPerms := append(updatePerms, ir.PermissionSelect)
 		if len(util.IIntersectStrs(selectPerms, grant.Permissions)) > 0 {
-			seqPerms = append(seqPerms, model.PermissionSelect)
+			seqPerms = append(seqPerms, ir.PermissionSelect)
 		}
 		if len(util.IIntersectStrs(updatePerms, grant.Permissions)) > 0 {
-			seqPerms = append(seqPerms, model.PermissionUpdate)
+			seqPerms = append(seqPerms, ir.PermissionUpdate)
 		}
 
 		seqRef := sql.SequenceRef{
@@ -196,7 +196,7 @@ func (self *Table) GetGrantSql(doc *model.Definition, schema *model.Schema, tabl
 		if roRole != "" {
 			ddl = append(ddl, &sql.SequenceGrant{
 				Sequence: seqRef,
-				Perms:    []string{model.PermissionSelect}, // TODO(feat) doesn't this need to have usage too?
+				Perms:    []string{ir.PermissionSelect}, // TODO(feat) doesn't this need to have usage too?
 				Roles:    []string{roRole},
 				CanGrant: false,
 			})
@@ -206,7 +206,7 @@ func (self *Table) GetGrantSql(doc *model.Definition, schema *model.Schema, tabl
 	return ddl
 }
 
-func (self *Table) GetSerialStartDml(schema *model.Schema, table *model.Table) []output.ToSql {
+func (self *Table) GetSerialStartDml(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	out := []output.ToSql{}
 	for _, column := range table.Columns {
 		out = append(out, GlobalColumn.GetSerialStartDml(schema, table, column)...)

@@ -3,7 +3,7 @@ package xml
 import (
 	"fmt"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
@@ -23,8 +23,8 @@ type Sequence struct {
 	Grants        []*Grant `xml:"grant"`
 }
 
-func (s *Sequence) ToModel() (*model.Sequence, error) {
-	rv := model.Sequence{
+func (s *Sequence) ToModel() (*ir.Sequence, error) {
+	rv := ir.Sequence{
 		Name:          s.Name,
 		Owner:         s.Owner,
 		Description:   s.Description,

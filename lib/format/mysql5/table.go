@@ -1,7 +1,7 @@
 package mysql5
 
 import (
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -12,30 +12,30 @@ func NewTable() *Table {
 	return &Table{}
 }
 
-func (self *Table) GetSequencesNeeded(schema *model.Schema, table *model.Table) []*model.Sequence {
+func (self *Table) GetSequencesNeeded(schema *ir.Schema, table *ir.Table) []*ir.Sequence {
 	// TODO(go,mysql) implement me
 	return nil
 }
-func (self *Table) GetTriggersNeeded(schema *model.Schema, table *model.Table) []*model.Trigger {
+func (self *Table) GetTriggersNeeded(schema *ir.Schema, table *ir.Table) []*ir.Trigger {
 	// TODO(go,mysql) implement me
 	return nil
 }
-func (self *Table) GetCreationSql(schema *model.Schema, table *model.Table) []output.ToSql {
-	// TODO(go,mysql) implement me
-	return nil
-}
-
-func (self *Table) GetDropSql(schema *model.Schema, table *model.Table) []output.ToSql {
+func (self *Table) GetCreationSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	// TODO(go,mysql) implement me
 	return nil
 }
 
-func (self *Table) GetGrantSql(doc *model.Definition, schema *model.Schema, table *model.Table, grant *model.Grant) []output.ToSql {
+func (self *Table) GetDropSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	// TODO(go,mysql) implement me
 	return nil
 }
 
-func (self *Table) GetRevokeSql(doc *model.Definition, schema *model.Schema, table *model.Table, grant *model.Grant) []output.ToSql {
+func (self *Table) GetGrantSql(doc *ir.Definition, schema *ir.Schema, table *ir.Table, grant *ir.Grant) []output.ToSql {
+	// TODO(go,mysql) implement me
+	return nil
+}
+
+func (self *Table) GetRevokeSql(doc *ir.Definition, schema *ir.Schema, table *ir.Table, grant *ir.Grant) []output.ToSql {
 	// TODO(go,mysql) implement me
 	return nil
 }

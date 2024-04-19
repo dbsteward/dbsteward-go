@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 type Constraint struct {
@@ -16,8 +16,8 @@ type Constraint struct {
 	ForeignTable     string `xml:"foreignTable,attr,omitempty"`
 }
 
-func (c *Constraint) ToModel() (*model.Constraint, error) {
-	rv := model.Constraint{
+func (c *Constraint) ToModel() (*ir.Constraint, error) {
+	rv := ir.Constraint{
 		Name:             c.Name,
 		Definition:       c.Definition,
 		ForeignIndexName: c.ForeignIndexName,
@@ -25,7 +25,7 @@ func (c *Constraint) ToModel() (*model.Constraint, error) {
 		ForeignTable:     c.ForeignTable,
 	}
 	var err error
-	rv.Type, err = model.NewConstraintType(c.Type)
+	rv.Type, err = ir.NewConstraintType(c.Type)
 	if err != nil {
 		return nil, fmt.Errorf("invalid constraint '%s': %w", c.Name, err)
 	}

@@ -3,7 +3,7 @@ package xml
 import (
 	"fmt"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 type Database struct {
@@ -27,12 +27,12 @@ type ConfigParam struct {
 	Value string `xml:"value,attr"`
 }
 
-func (db *Database) ToModel() (*model.Database, error) {
+func (db *Database) ToModel() (*ir.Database, error) {
 	if db == nil {
 		return nil, nil
 	}
-	rv := model.Database{
-		Roles: &model.RoleAssignment{
+	rv := ir.Database{
+		Roles: &ir.RoleAssignment{
 			Application: db.Roles.Application,
 			Owner:       db.Roles.Owner,
 			Replication: db.Roles.Replication,
@@ -41,14 +41,14 @@ func (db *Database) ToModel() (*model.Database, error) {
 		},
 	}
 	var err error
-	rv.SqlFormat, err = model.NewSqlFormat(db.SqlFormat)
+	rv.SqlFormat, err = ir.NewSqlFormat(db.SqlFormat)
 	if err != nil {
 		return nil, fmt.Errorf("invalid dababase: %w", err)
 	}
 	for _, param := range db.ConfigParams {
 		rv.ConfigParams = append(
 			rv.ConfigParams,
-			&model.ConfigParam{
+			&ir.ConfigParam{
 				Name:  param.Name,
 				Value: param.Value,
 			},

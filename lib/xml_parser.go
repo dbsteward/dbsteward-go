@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/dbsteward/dbsteward/lib/encoding/xml"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
@@ -24,7 +24,7 @@ func NewXmlParser() *XmlParser {
 	return &XmlParser{}
 }
 
-func (self *XmlParser) LoadDefintion(file string) (*model.Definition, error) {
+func (self *XmlParser) LoadDefintion(file string) (*ir.Definition, error) {
 	f, err := os.Open(file)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not read dbxml file %s", file)
@@ -34,7 +34,7 @@ func (self *XmlParser) LoadDefintion(file string) (*model.Definition, error) {
 	return xml.ReadDef(f)
 }
 
-func (self *XmlParser) SaveDefinition(filename string, def *model.Definition) {
+func (self *XmlParser) SaveDefinition(filename string, def *ir.Definition) {
 	f, err := os.Create(filename)
 	GlobalDBSteward.FatalIfError(err, "Could not open file %s for writing", filename)
 	defer f.Close()
@@ -43,29 +43,29 @@ func (self *XmlParser) SaveDefinition(filename string, def *model.Definition) {
 	GlobalDBSteward.FatalIfError(err, "Could not write XML document to file")
 }
 
-func (self *XmlParser) FormatXml(def *model.Definition) string {
+func (self *XmlParser) FormatXml(def *ir.Definition) string {
 	buf := &bytes.Buffer{}
 	err := xml.WriteDef(buf, def)
 	GlobalDBSteward.FatalIfError(err, "could not marshal definition")
 	return buf.String()
 }
 
-func (self *XmlParser) GetSqlFormat(files []string) model.SqlFormat {
+func (self *XmlParser) GetSqlFormat(files []string) ir.SqlFormat {
 	// TODO(go,core)
-	return model.SqlFormatPgsql8
+	return ir.SqlFormatPgsql8
 }
 
-func (self *XmlParser) XmlComposite(files []string) *model.Definition {
+func (self *XmlParser) XmlComposite(files []string) *ir.Definition {
 	doc, _ := self.XmlCompositeAddendums(files, 0)
 	return doc
 }
 
-func (self *XmlParser) XmlCompositeAddendums(files []string, addendums uint) (*model.Definition, *model.Definition) {
-	var composite, addendumsDoc *model.Definition
+func (self *XmlParser) XmlCompositeAddendums(files []string, addendums uint) (*ir.Definition, *ir.Definition) {
+	var composite, addendumsDoc *ir.Definition
 	startAddendumsIdx := -1
 
 	if addendums > 0 {
-		addendumsDoc = &model.Definition{}
+		addendumsDoc = &ir.Definition{}
 		startAddendumsIdx = len(files) - int(addendums)
 	}
 
@@ -84,11 +84,11 @@ func (self *XmlParser) XmlCompositeAddendums(files []string, addendums uint) (*m
 	return composite, addendumsDoc
 }
 
-func (self *XmlParser) CompositeDoc(base, overlay *model.Definition, file string, startAddendumsIdx int, addendumsDoc *model.Definition) (*model.Definition, error) {
+func (self *XmlParser) CompositeDoc(base, overlay *ir.Definition, file string, startAddendumsIdx int, addendumsDoc *ir.Definition) (*ir.Definition, error) {
 	util.Assert(overlay != nil, "CompositeDoc overlay must not be nil, you probably want CompositeDoc(nil, doc, ...) instead")
 
 	if base == nil {
-		base = &model.Definition{}
+		base = &ir.Definition{}
 	}
 
 	overlay, err := self.expandIncludes(overlay, file)
@@ -120,7 +120,7 @@ func (self *XmlParser) CompositeDoc(base, overlay *model.Definition, file string
 	return base, nil
 }
 
-func (self *XmlParser) expandTabrowData(doc *model.Definition) *model.Definition {
+func (self *XmlParser) expandTabrowData(doc *ir.Definition) *ir.Definition {
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
 			if table.Rows != nil {
@@ -131,7 +131,7 @@ func (self *XmlParser) expandTabrowData(doc *model.Definition) *model.Definition
 	return doc
 }
 
-func (self *XmlParser) expandIncludes(doc *model.Definition, file string) (*model.Definition, error) {
+func (self *XmlParser) expandIncludes(doc *ir.Definition, file string) (*ir.Definition, error) {
 	for _, includeFile := range doc.IncludeFiles {
 		include := includeFile.Name
 		// if the include is relative, make it relative to the parent file
@@ -157,12 +157,12 @@ func (self *XmlParser) expandIncludes(doc *model.Definition, file string) (*mode
 	return doc, nil
 }
 
-func (self *XmlParser) XmlCompositePgData(doc *model.Definition, dataFiles []string) *model.Definition {
+func (self *XmlParser) XmlCompositePgData(doc *ir.Definition, dataFiles []string) *ir.Definition {
 	// TODO(go,pgsql) pgdata compositing
 	return nil
 }
 
-func (self *XmlParser) SqlFormatConvert(doc *model.Definition) (*model.Definition, error) {
+func (self *XmlParser) SqlFormatConvert(doc *ir.Definition) (*ir.Definition, error) {
 	// legacy 1.0 column add directive attribute conversion
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
@@ -174,7 +174,7 @@ func (self *XmlParser) SqlFormatConvert(doc *model.Definition) (*model.Definitio
 
 	// mssql10 sql format conversions
 	// TODO(feat) apply mssql10_type_convert to function parameters/returns as well. see below mysql5 impl
-	if GlobalDBSteward.SqlFormat == model.SqlFormatMssql10 {
+	if GlobalDBSteward.SqlFormat == ir.SqlFormatMssql10 {
 		for _, schema := range doc.Schemas {
 			// if objects are being placed in the public schema, move the schema definition to dbo
 			// TODO(go,4) can we use a "SCHEMA_PUBLIC" macro or something to simplify this?
@@ -201,7 +201,7 @@ func (self *XmlParser) SqlFormatConvert(doc *model.Definition) (*model.Definitio
 	}
 
 	// mysql5 format conversions
-	if GlobalDBSteward.SqlFormat == model.SqlFormatMysql5 {
+	if GlobalDBSteward.SqlFormat == ir.SqlFormatMysql5 {
 		for _, schema := range doc.Schemas {
 			for _, table := range schema.Tables {
 				for _, column := range table.Columns {
@@ -229,7 +229,7 @@ func (self *XmlParser) SqlFormatConvert(doc *model.Definition) (*model.Definitio
 
 // TODO(go,3) push this to mssql package
 // TODO(go,3) should we defer this to sql generation time instead?
-func (self *XmlParser) mssql10TypeConvert(column *model.Column) {
+func (self *XmlParser) mssql10TypeConvert(column *ir.Column) {
 	// all arrays to varchar(896) - our accepted varchar key max for mssql databases
 	// the reason this is done to varchar(896) instead of varchar(MAX)
 	// is that mssql will not allow binary blobs or long string types to be keys of indexes and foreign keys
@@ -297,13 +297,13 @@ func (self *XmlParser) mysql5TypeConvert(typ, def string) (string, string) {
 	return typ, def
 }
 
-func (self *XmlParser) VendorParse(doc *model.Definition) {
+func (self *XmlParser) VendorParse(doc *ir.Definition) {
 	if parser := GlobalDBSteward.Lookup().XmlParser; parser != nil {
 		parser.Process(doc)
 	}
 }
 
-func (self *XmlParser) SlonyIdNumber(doc *model.Definition) *model.Definition {
+func (self *XmlParser) SlonyIdNumber(doc *ir.Definition) *ir.Definition {
 	// TODO(go,slony)
 	return nil
 }
@@ -316,31 +316,31 @@ func (self *XmlParser) ValidateXml(xmlstr string) {
 	// TODO(go,core) validate the given xml against DTD. and/or, do we even need this now that we're serializing straight from structs?
 }
 
-func (self *XmlParser) RoleEnum(doc *model.Definition, role string) string {
-	if role == model.RolePublic && GlobalDBSteward.SqlFormat == model.SqlFormatMysql5 {
-		role = model.RoleApplication
+func (self *XmlParser) RoleEnum(doc *ir.Definition, role string) string {
+	if role == ir.RolePublic && GlobalDBSteward.SqlFormat == ir.SqlFormatMysql5 {
+		role = ir.RoleApplication
 		GlobalDBSteward.Warning("MySQL doesn't support the PUBLIC role, using ROLE_APPLICATION (%s) instead", role)
 	}
 
 	if doc.Database == nil {
 		// TODO(go,nth) somehow was incompletely constructed
-		doc.Database = &model.Database{
-			Roles: &model.RoleAssignment{},
+		doc.Database = &ir.Database{
+			Roles: &ir.RoleAssignment{},
 		}
 	}
 	roles := doc.Database.Roles
 
 	switch role {
-	case model.RolePublic, model.RolePgsql:
+	case ir.RolePublic, ir.RolePgsql:
 		// RolePublic, RolePgsql are their own constants
 		return role
-	case model.RoleApplication:
+	case ir.RoleApplication:
 		return roles.Application
-	case model.RoleOwner:
+	case ir.RoleOwner:
 		return roles.Owner
-	case model.RoleReadOnly:
+	case ir.RoleReadOnly:
 		return roles.ReadOnly
-	case model.RoleReplication:
+	case ir.RoleReplication:
 		return roles.Replication
 	}
 

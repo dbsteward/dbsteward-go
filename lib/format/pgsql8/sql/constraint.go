@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -23,7 +23,7 @@ func (self *ConstraintDrop) ToSql(q output.Quoter) string {
 type ConstraintCreateRaw struct {
 	Table          TableRef
 	Constraint     string
-	ConstraintType model.ConstraintType
+	ConstraintType ir.ConstraintType
 	Definition     string
 }
 
@@ -57,7 +57,7 @@ func (self *ConstraintCreatePrimaryKey) ToSql(q output.Quoter) string {
 	return (&ConstraintCreateRaw{
 		self.Table,
 		self.Constraint,
-		model.ConstraintType("PRIMARY KEY"), // note that it's invalid for this to exist in the xml so we have to make our own constant
+		ir.ConstraintType("PRIMARY KEY"), // note that it's invalid for this to exist in the xml so we have to make our own constant
 		fmt.Sprintf("(%s)", strings.Join(cols, ", ")),
 	}).ToSql(q)
 }
@@ -68,8 +68,8 @@ type ConstraintCreateForeignKey struct {
 	LocalColumns   []string
 	ForeignTable   TableRef
 	ForeignColumns []string
-	OnUpdate       model.ForeignKeyAction
-	OnDelete       model.ForeignKeyAction
+	OnUpdate       ir.ForeignKeyAction
+	OnDelete       ir.ForeignKeyAction
 }
 
 func (self *ConstraintCreateForeignKey) ToSql(q output.Quoter) string {
@@ -94,7 +94,7 @@ func (self *ConstraintCreateForeignKey) ToSql(q output.Quoter) string {
 	return (&ConstraintCreateRaw{
 		self.Table,
 		self.Constraint,
-		model.ConstraintTypeForeign,
+		ir.ConstraintTypeForeign,
 		util.CondJoin(" ",
 			fmt.Sprintf(
 				"(%s) REFERENCES %s (%s)",

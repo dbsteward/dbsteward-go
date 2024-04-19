@@ -6,7 +6,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -17,7 +17,7 @@ func NewDiffTypes() *DiffTypes {
 	return &DiffTypes{}
 }
 
-func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *model.Schema, newSchema *model.Schema) {
+func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	self.dropTypes(ofs, oldSchema, newSchema)
 	self.createTypes(ofs, oldSchema, newSchema)
 
@@ -48,7 +48,7 @@ func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *mode
 		columns, sql := GlobalDataType.AlterColumnTypePlaceholder(oldSchema, oldType)
 		ofs.WriteSql(sql...)
 
-		if newType.Kind.Equals(model.DataTypeKindDomain) {
+		if newType.Kind.Equals(ir.DataTypeKindDomain) {
 			self.diffDomain(ofs, oldSchema, oldType, newSchema, newType)
 		} else {
 			ofs.WriteSql(GlobalDataType.GetDropSql(oldSchema, oldType)...)
@@ -66,7 +66,7 @@ func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *mode
 	}
 }
 
-func (self *DiffTypes) dropTypes(ofs output.OutputFileSegmenter, oldSchema *model.Schema, newSchema *model.Schema) {
+func (self *DiffTypes) dropTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	if oldSchema != nil {
 		for _, oldType := range oldSchema.Types {
 			if newSchema.TryGetTypeNamed(oldType.Name) == nil {
@@ -77,7 +77,7 @@ func (self *DiffTypes) dropTypes(ofs output.OutputFileSegmenter, oldSchema *mode
 	}
 }
 
-func (self *DiffTypes) createTypes(ofs output.OutputFileSegmenter, oldSchema *model.Schema, newSchema *model.Schema) {
+func (self *DiffTypes) createTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	for _, newType := range newSchema.Types {
 		if oldSchema.TryGetTypeNamed(newType.Name) == nil {
 			sql, err := GlobalDataType.GetCreationSql(newSchema, newType)
@@ -87,7 +87,7 @@ func (self *DiffTypes) createTypes(ofs output.OutputFileSegmenter, oldSchema *mo
 	}
 }
 
-func (self *DiffTypes) diffDomain(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldType *model.DataType, newSchema *model.Schema, newType *model.DataType) {
+func (self *DiffTypes) diffDomain(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldType *ir.DataType, newSchema *ir.Schema, newType *ir.DataType) {
 	oldInfo := oldType.DomainType
 	newInfo := newType.DomainType
 

@@ -14,7 +14,7 @@ import (
 	"encoding/xml"
 	"io"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/pkg/errors"
 )
 
@@ -42,7 +42,7 @@ func WriteDoc(w io.Writer, doc *Document) error {
 
 // TODO lift these up
 
-func ReadDef(r io.Reader) (*model.Definition, error) {
+func ReadDef(r io.Reader) (*ir.Definition, error) {
 	doc, err := ReadDoc(r)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func ReadDef(r io.Reader) (*model.Definition, error) {
 	return doc.ToModel()
 }
 
-func WriteDef(w io.Writer, def *model.Definition) error {
+func WriteDef(w io.Writer, def *ir.Definition) error {
 	doc := &Document{}
 	err := doc.FromModel(def)
 	if err != nil {

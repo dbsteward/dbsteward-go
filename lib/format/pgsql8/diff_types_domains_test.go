@@ -8,31 +8,31 @@ import (
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
 func TestDiffTypes_Domain_BaseType(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "domains",
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 				},
 			},
 		},
 	}
 
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "domains",
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "varchar(20)",
 				},
 			},
@@ -51,13 +51,13 @@ func TestDiffTypes_Domain_BaseType(t *testing.T) {
 }
 
 func TestDiffTypes_Domain_ChangeDefault(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "domains",
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 					Default:  "5",
 				},
@@ -65,13 +65,13 @@ func TestDiffTypes_Domain_ChangeDefault(t *testing.T) {
 		},
 	}
 
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "domains",
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 					Default:  "10",
 				},
@@ -89,13 +89,13 @@ func TestDiffTypes_Domain_ChangeDefault(t *testing.T) {
 }
 
 func TestDiffTypes_Domain_DropDefault(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "domains",
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 					Default:  "5",
 				},
@@ -103,13 +103,13 @@ func TestDiffTypes_Domain_DropDefault(t *testing.T) {
 		},
 	}
 
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "domains",
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 				},
 			},
@@ -123,13 +123,13 @@ func TestDiffTypes_Domain_DropDefault(t *testing.T) {
 }
 
 func TestDiffTypes_Domain_MakeNull(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "domains",
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 					Nullable: false,
 				},
@@ -137,13 +137,13 @@ func TestDiffTypes_Domain_MakeNull(t *testing.T) {
 		},
 	}
 
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "domains",
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 					Nullable: true,
 				},
@@ -158,13 +158,13 @@ func TestDiffTypes_Domain_MakeNull(t *testing.T) {
 }
 
 func TestDiffTypes_Domain_MakeNotNull(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "domains",
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 					Nullable: true,
 				},
@@ -172,13 +172,13 @@ func TestDiffTypes_Domain_MakeNotNull(t *testing.T) {
 		},
 	}
 
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "domains",
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 					Nullable: false,
 				},
@@ -193,16 +193,16 @@ func TestDiffTypes_Domain_MakeNotNull(t *testing.T) {
 }
 
 func TestDiffTypes_Domain_AddDropChangeConstraints(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "domains",
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 				},
-				DomainConstraints: []*model.DataTypeDomainConstraint{
+				DomainConstraints: []*ir.DataTypeDomainConstraint{
 					{"gt5", "VALUE > 5"},
 					{"lt10", "VALUE < 10"},
 					{"eq7", "VALUE = 7"},
@@ -211,16 +211,16 @@ func TestDiffTypes_Domain_AddDropChangeConstraints(t *testing.T) {
 		},
 	}
 
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "domains",
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 				},
-				DomainConstraints: []*model.DataTypeDomainConstraint{
+				DomainConstraints: []*ir.DataTypeDomainConstraint{
 					{"gt5", "CHECK(VALUE > 5)"},
 					{"gt4", "VALUE > 4"},
 					{"eq7", "VALUE = 2"},
@@ -240,52 +240,52 @@ func TestDiffTypes_Domain_AddDropChangeConstraints(t *testing.T) {
 }
 
 func TestDiffTypes_Domain_DependentColumn(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "domains",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "some_table",
 				PrimaryKey: []string{"col1"},
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "col1", Type: "int", Nullable: false},
 					{Name: "mycol", Type: "my_domain"},
 				},
 			},
 		},
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 				},
-				DomainConstraints: []*model.DataTypeDomainConstraint{
+				DomainConstraints: []*ir.DataTypeDomainConstraint{
 					{"gt5", "VALUE > 5"},
 				},
 			},
 		},
 	}
 
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "domains",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "some_table",
 				PrimaryKey: []string{"col1"},
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "col1", Type: "int", Nullable: false},
 					{Name: "mycol", Type: "domains.my_domain"},
 				},
 			},
 		},
-		Types: []*model.DataType{
-			&model.DataType{
+		Types: []*ir.DataType{
+			&ir.DataType{
 				Name: "my_domain",
-				Kind: model.DataTypeKindDomain,
-				DomainType: &model.DataTypeDomainType{
+				Kind: ir.DataTypeKindDomain,
+				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 				},
-				DomainConstraints: []*model.DataTypeDomainConstraint{
+				DomainConstraints: []*ir.DataTypeDomainConstraint{
 					{"gt5", "VALUE > 3"},
 				},
 			},
@@ -308,12 +308,12 @@ func TestDiffTypes_Domain_DependentColumn(t *testing.T) {
 	}, ddl)
 }
 
-func diffTypes(oldSchema, newSchema *model.Schema) []output.ToSql {
-	oldDoc := &model.Definition{
-		Schemas: []*model.Schema{oldSchema},
+func diffTypes(oldSchema, newSchema *ir.Schema) []output.ToSql {
+	oldDoc := &ir.Definition{
+		Schemas: []*ir.Schema{oldSchema},
 	}
-	newDoc := &model.Definition{
-		Schemas: []*model.Schema{newSchema},
+	newDoc := &ir.Definition{
+		Schemas: []*ir.Schema{newSchema},
 	}
 	setOldNewDocs(oldDoc, newDoc)
 	ofs := &pgtestutil.RecordingOfs{

@@ -3,7 +3,7 @@ package mysql5
 import (
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -14,7 +14,7 @@ func NewDataType() *DataType {
 	return &DataType{}
 }
 
-func (self *DataType) GetCreationSql(schema *model.Schema, datatype *model.DataType) ([]output.ToSql, error) {
+func (self *DataType) GetCreationSql(schema *ir.Schema, datatype *ir.DataType) ([]output.ToSql, error) {
 	// TODO(go,mysql) implement me
 	return nil, nil
 }

@@ -2,7 +2,7 @@ package pgsql8
 
 import (
 	"github.com/dbsteward/dbsteward/lib"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -13,9 +13,9 @@ func NewDiffIndexes() *DiffIndexes {
 	return &DiffIndexes{}
 }
 
-func (self *DiffIndexes) DiffIndexes(ofs output.OutputFileSegmenter, oldSchema *model.Schema, newSchema *model.Schema) {
+func (self *DiffIndexes) DiffIndexes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	for _, newTable := range newSchema.Tables {
-		var oldTable *model.Table
+		var oldTable *ir.Table
 		if oldSchema != nil {
 			// TODO(feat) what about renames?
 			oldTable = oldSchema.TryGetTableNamed(newTable.Name)
@@ -24,7 +24,7 @@ func (self *DiffIndexes) DiffIndexes(ofs output.OutputFileSegmenter, oldSchema *
 	}
 }
 
-func (self *DiffIndexes) DiffIndexesTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *DiffIndexes) DiffIndexesTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) {
 	for _, oldIndex := range self.getOldIndexes(oldSchema, oldTable, newSchema, newTable) {
 		// TODO(go,pgsql) old code used new schema/table instead of old, but I believe that is incorrect. need to verify this behavior change
 		ofs.WriteSql(GlobalIndex.GetDropSql(oldSchema, oldTable, oldIndex)...)
@@ -36,8 +36,8 @@ func (self *DiffIndexes) DiffIndexesTable(ofs output.OutputFileSegmenter, oldSch
 	}
 }
 
-func (self *DiffIndexes) getOldIndexes(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) []*model.Index {
-	out := []*model.Index{}
+func (self *DiffIndexes) getOldIndexes(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) []*ir.Index {
+	out := []*ir.Index{}
 
 	// if new table is nil we don't need to drop those indexes, they'll be dropped implicitly from the DROP TABLE
 	// if old table is nil, we don't have any indexes to drop at all
@@ -53,7 +53,7 @@ func (self *DiffIndexes) getOldIndexes(oldSchema *model.Schema, oldTable *model.
 		for _, oldIndex := range oldIndexes {
 			newIndex, err := GlobalIndex.TryGetTableIndexNamed(newSchema, newTable, oldIndex.Name)
 			lib.GlobalDBSteward.FatalIfError(err, "While finding new index corresponding to old")
-			if newIndex == nil || !oldIndex.Equals(newIndex, model.SqlFormatPgsql8) {
+			if newIndex == nil || !oldIndex.Equals(newIndex, ir.SqlFormatPgsql8) {
 				out = append(out, oldIndex)
 			}
 		}
@@ -62,8 +62,8 @@ func (self *DiffIndexes) getOldIndexes(oldSchema *model.Schema, oldTable *model.
 	return out
 }
 
-func (self *DiffIndexes) getNewIndexes(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) []*model.Index {
-	out := []*model.Index{}
+func (self *DiffIndexes) getNewIndexes(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) []*ir.Index {
+	out := []*ir.Index{}
 
 	// if new table is nil, there _are_ no indexes to create
 	// TODO(feat) detect index renames because renaming an index is almost certainly cheaper than re-indexing
@@ -74,7 +74,7 @@ func (self *DiffIndexes) getNewIndexes(oldSchema *model.Schema, oldTable *model.
 		for _, newIndex := range newIndexes {
 			oldIndex, err := GlobalIndex.TryGetTableIndexNamed(oldSchema, oldTable, newIndex.Name)
 			lib.GlobalDBSteward.FatalIfError(err, "While finding old index corresponding to new")
-			if oldIndex == nil || !oldIndex.Equals(newIndex, model.SqlFormatPgsql8) {
+			if oldIndex == nil || !oldIndex.Equals(newIndex, ir.SqlFormatPgsql8) {
 				out = append(out, newIndex)
 			}
 		}

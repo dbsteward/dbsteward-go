@@ -4,23 +4,23 @@ import (
 	"testing"
 
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestIndex_GetTableIndexes_DuplicateIndexNameError(t *testing.T) {
-	schema := &model.Schema{
+	schema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "table1",
 				PrimaryKey: []string{"col1"},
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "col1", Type: "int"},
 				},
-				Indexes: []*model.Index{
-					{Name: "index1", Dimensions: []*model.IndexDim{{"index1_1", false, "col1"}}},
-					{Name: "index1", Dimensions: []*model.IndexDim{{"index1_1", false, "col1"}}},
+				Indexes: []*ir.Index{
+					{Name: "index1", Dimensions: []*ir.IndexDim{{"index1_1", false, "col1"}}},
+					{Name: "index1", Dimensions: []*ir.IndexDim{{"index1_1", false, "col1"}}},
 				},
 			},
 		},

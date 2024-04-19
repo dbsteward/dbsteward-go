@@ -10,42 +10,42 @@ import (
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
 func TestDiffTables_DiffTables_ColumnCaseChange(t *testing.T) {
 	defer resetGlobalDBSteward()
-	lower := &model.Schema{
+	lower := &ir.Schema{
 		Name: "test0",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name: "table",
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "column", Type: "int"},
 				},
 			},
 		},
 	}
 
-	upperWithoutOldName := &model.Schema{
+	upperWithoutOldName := &ir.Schema{
 		Name: "test0",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name: "table",
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "CoLuMn", Type: "int"},
 				},
 			},
 		},
 	}
 
-	upperWithOldName := &model.Schema{
+	upperWithOldName := &ir.Schema{
 		Name: "test0",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name: "table",
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "CoLuMn", Type: "int", OldColumnName: "column"},
 				},
 			},
@@ -83,15 +83,15 @@ func TestDiffTables_DiffTables_ColumnCaseChange(t *testing.T) {
 }
 
 func TestDiffTables_DiffTables_TableOptions_NoChange(t *testing.T) {
-	schema := &model.Schema{
+	schema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "test",
 				PrimaryKey: []string{"a"},
-				TableOptions: []*model.TableOption{
-					&model.TableOption{
-						SqlFormat: model.SqlFormatPgsql8,
+				TableOptions: []*ir.TableOption{
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatPgsql8,
 						Name:      "tablespace",
 						Value:     "foo",
 					},
@@ -106,25 +106,25 @@ func TestDiffTables_DiffTables_TableOptions_NoChange(t *testing.T) {
 	assert.NoError(t, err)
 }
 func TestDiffTables_DiffTables_TableOptions_AddWith(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:         "test",
 				PrimaryKey:   []string{"a"},
-				TableOptions: []*model.TableOption{},
+				TableOptions: []*ir.TableOption{},
 			},
 		},
 	}
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "test",
 				PrimaryKey: []string{"a"},
-				TableOptions: []*model.TableOption{
-					&model.TableOption{
-						SqlFormat: model.SqlFormatPgsql8,
+				TableOptions: []*ir.TableOption{
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatPgsql8,
 						Name:      "with",
 						Value:     "(fillfactor=70)",
 					},
@@ -147,15 +147,15 @@ func TestDiffTables_DiffTables_TableOptions_AddWith(t *testing.T) {
 	assert.NoError(t, err)
 }
 func TestDiffTables_DiffTables_TableOptions_AlterWith(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "test",
 				PrimaryKey: []string{"a"},
-				TableOptions: []*model.TableOption{
-					&model.TableOption{
-						SqlFormat: model.SqlFormatPgsql8,
+				TableOptions: []*ir.TableOption{
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatPgsql8,
 						Name:      "with",
 						Value:     "(oids=true,fillfactor=70)",
 					},
@@ -165,15 +165,15 @@ func TestDiffTables_DiffTables_TableOptions_AlterWith(t *testing.T) {
 	}
 
 	// remove oids=true, change fillfactor to 80
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "test",
 				PrimaryKey: []string{"a"},
-				TableOptions: []*model.TableOption{
-					&model.TableOption{
-						SqlFormat: model.SqlFormatPgsql8,
+				TableOptions: []*ir.TableOption{
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatPgsql8,
 						Name:      "with",
 						Value:     "(fillfactor=80)",
 					},
@@ -196,15 +196,15 @@ func TestDiffTables_DiffTables_TableOptions_AlterWith(t *testing.T) {
 	assert.NoError(t, err)
 }
 func TestDiffTables_DiffTables_TableOptions_AddTablespaceAlterWith(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "test",
 				PrimaryKey: []string{"a"},
-				TableOptions: []*model.TableOption{
-					&model.TableOption{
-						SqlFormat: model.SqlFormatPgsql8,
+				TableOptions: []*ir.TableOption{
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatPgsql8,
 						Name:      "with",
 						Value:     "(oids=true,fillfactor=70)",
 					},
@@ -214,20 +214,20 @@ func TestDiffTables_DiffTables_TableOptions_AddTablespaceAlterWith(t *testing.T)
 	}
 
 	// remove oids=true, change fillfactor to 80, add tablespace
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "test",
 				PrimaryKey: []string{"a"},
-				TableOptions: []*model.TableOption{
-					&model.TableOption{
-						SqlFormat: model.SqlFormatPgsql8,
+				TableOptions: []*ir.TableOption{
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatPgsql8,
 						Name:      "with",
 						Value:     "(fillfactor=80)",
 					},
-					&model.TableOption{
-						SqlFormat: model.SqlFormatPgsql8,
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatPgsql8,
 						Name:      "tablespace",
 						Value:     "foo",
 					},
@@ -255,20 +255,20 @@ func TestDiffTables_DiffTables_TableOptions_AddTablespaceAlterWith(t *testing.T)
 	assert.NoError(t, err)
 }
 func TestDiffTables_DiffTables_TableOptions_DropTablespace(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "test",
 				PrimaryKey: []string{"a"},
-				TableOptions: []*model.TableOption{
-					&model.TableOption{
-						SqlFormat: model.SqlFormatPgsql8,
+				TableOptions: []*ir.TableOption{
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatPgsql8,
 						Name:      "with",
 						Value:     "(oids=false,fillfactor=70)",
 					},
-					&model.TableOption{
-						SqlFormat: model.SqlFormatPgsql8,
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatPgsql8,
 						Name:      "tablespace",
 						Value:     "foo",
 					},
@@ -278,15 +278,15 @@ func TestDiffTables_DiffTables_TableOptions_DropTablespace(t *testing.T) {
 	}
 
 	// remove oids=true, change fillfactor to 80, add tablespace
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "test",
 				PrimaryKey: []string{"a"},
-				TableOptions: []*model.TableOption{
-					&model.TableOption{
-						SqlFormat: model.SqlFormatPgsql8,
+				TableOptions: []*ir.TableOption{
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatPgsql8,
 						Name:      "with",
 						Value:     "(oids=false,fillfactor=70)",
 					},
@@ -306,42 +306,42 @@ func TestDiffTables_DiffTables_TableOptions_DropTablespace(t *testing.T) {
 }
 
 func TestDiffTables_GetDeleteCreateDataSql_AddSerialColumn(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "test",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "serial_test",
 				PrimaryKey: []string{"test_string"},
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "test_string", Type: "text"},
 					{Name: "test_number", Type: "integer"},
 				},
-				Rows: &model.DataRows{
+				Rows: &ir.DataRows{
 					Columns: []string{"test_string", "test_number"},
 					// NOTE original test used tabrows, but that's already been expanded by this point
-					Rows: []*model.DataRow{
-						{Columns: []*model.DataCol{{Text: "testtest"}, {Text: "12345"}}},
+					Rows: []*ir.DataRow{
+						{Columns: []*ir.DataCol{{Text: "testtest"}, {Text: "12345"}}},
 					},
 				},
 			},
 		},
 	}
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "test",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "serial_test",
 				PrimaryKey: []string{"test_string"},
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "test_serial", Type: "serial"},
 					{Name: "test_string", Type: "text"},
 					{Name: "test_number", Type: "integer"},
 				},
-				Rows: &model.DataRows{
+				Rows: &ir.DataRows{
 					Columns: []string{"test_serial", "test_string", "test_number"},
 					// NOTE original test used tabrows, but that's already been expanded by this point
-					Rows: []*model.DataRow{
-						{Columns: []*model.DataCol{{Text: "1"}, {Text: "testtest"}, {Text: "12345"}}},
+					Rows: []*ir.DataRow{
+						{Columns: []*ir.DataCol{{Text: "1"}, {Text: "testtest"}, {Text: "12345"}}},
 					},
 				},
 			},
@@ -362,12 +362,12 @@ func TestDiffTables_GetDeleteCreateDataSql_AddSerialColumn(t *testing.T) {
 	}, addddl)
 }
 
-func diffTablesCommon(oldSchema, newSchema *model.Schema) ([]output.ToSql, []output.ToSql, error) {
-	oldDoc := &model.Definition{
-		Schemas: []*model.Schema{oldSchema},
+func diffTablesCommon(oldSchema, newSchema *ir.Schema) ([]output.ToSql, []output.ToSql, error) {
+	oldDoc := &ir.Definition{
+		Schemas: []*ir.Schema{oldSchema},
 	}
-	newDoc := &model.Definition{
-		Schemas: []*model.Schema{newSchema},
+	newDoc := &ir.Definition{
+		Schemas: []*ir.Schema{newSchema},
 	}
 	setOldNewDocs(oldDoc, newDoc)
 	ofs1 := &pgtestutil.RecordingOfs{

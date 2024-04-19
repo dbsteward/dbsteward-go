@@ -3,14 +3,14 @@ package mysql5
 import (
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
 type Diff struct {
 	*sql99.Diff
-	OldTableDependency []*model.TableRef
-	NewTableDependency []*model.TableRef
+	OldTableDependency []*ir.TableRef
+	NewTableDependency []*ir.TableRef
 }
 
 func NewDiff() *Diff {
@@ -170,7 +170,7 @@ func (self *Diff) updateStructure(stage1, stage3 output.OutputFileSegmenter) {
 			oldTable := oldEntry.Table
 
 			newSchema := dbsteward.NewDatabase.TryGetSchemaNamed(oldSchema.Name)
-			var newTable *model.Table
+			var newTable *ir.Table
 			if newSchema != nil {
 				newTable = newSchema.TryGetTableNamed(oldTable.Name)
 			}
@@ -195,7 +195,7 @@ func (self *Diff) updateStructure(stage1, stage3 output.OutputFileSegmenter) {
 			}
 
 			newTable := newEntry.Table
-			var oldTable *model.Table
+			var oldTable *ir.Table
 			if oldSchema != nil {
 				oldTable = oldSchema.TryGetTableNamed(newTable.Name)
 			}

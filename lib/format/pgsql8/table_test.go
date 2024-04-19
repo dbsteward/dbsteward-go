@@ -5,36 +5,36 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTable_GetCreationSql_TableOptions(t *testing.T) {
-	schema := &model.Schema{
+	schema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:        "test",
 				PrimaryKey:  []string{"id"},
 				Description: "test description",
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "id", Type: "int"},
 					{Name: "foo", Type: "int"},
 				},
-				TableOptions: []*model.TableOption{
-					&model.TableOption{
-						SqlFormat: model.SqlFormatPgsql8,
+				TableOptions: []*ir.TableOption{
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatPgsql8,
 						Name:      "tablespace",
 						Value:     "schmableschpace",
 					},
-					&model.TableOption{
-						SqlFormat: model.SqlFormatPgsql8,
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatPgsql8,
 						Name:      "with",
 						Value:     "(oids=true,fillfactor=70)",
 					},
-					&model.TableOption{
-						SqlFormat: model.SqlFormatMysql5,
+					&ir.TableOption{
+						SqlFormat: ir.SqlFormatMysql5,
 						Name:      "auto_increment",
 						Value:     "5",
 					},

@@ -7,14 +7,14 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 func TestOperations_ColumnValueDefault_NullReturnsNull(t *testing.T) {
-	val := getColumnValueDefault(&model.Column{
+	val := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "text",
-	}, &model.DataCol{
+	}, &ir.DataCol{
 		Null: true,
 		Text: "asdf",
 	})
@@ -22,10 +22,10 @@ func TestOperations_ColumnValueDefault_NullReturnsNull(t *testing.T) {
 }
 
 func TestOperations_ColumnValueDefault_EmptyReturnsEmpty(t *testing.T) {
-	val := getColumnValueDefault(&model.Column{
+	val := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "text",
-	}, &model.DataCol{
+	}, &ir.DataCol{
 		Empty: true,
 		Text:  "asdf",
 	})
@@ -33,10 +33,10 @@ func TestOperations_ColumnValueDefault_EmptyReturnsEmpty(t *testing.T) {
 }
 
 func TestOperations_ColumnValueDefault_SqlReturnsWrapped(t *testing.T) {
-	val := getColumnValueDefault(&model.Column{
+	val := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "text",
-	}, &model.DataCol{
+	}, &ir.DataCol{
 		Sql:  true,
 		Text: "some_function()",
 	})
@@ -44,10 +44,10 @@ func TestOperations_ColumnValueDefault_SqlReturnsWrapped(t *testing.T) {
 }
 
 func TestOperations_ColumnValueDefault_SqlDefaultReturnsWrapped(t *testing.T) {
-	val := getColumnValueDefault(&model.Column{
+	val := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "text",
-	}, &model.DataCol{
+	}, &ir.DataCol{
 		Sql:  true,
 		Text: "DEFAULT",
 	})
@@ -55,19 +55,19 @@ func TestOperations_ColumnValueDefault_SqlDefaultReturnsWrapped(t *testing.T) {
 }
 
 func TestOperations_ColumnValueDefault_UsesDefaultIfEmpty(t *testing.T) {
-	val := getColumnValueDefault(&model.Column{
+	val := getColumnValueDefault(&ir.Column{
 		Name:    "foo",
 		Type:    "text",
 		Default: "asdf",
-	}, &model.DataCol{})
+	}, &ir.DataCol{})
 	assert.Equal(t, "asdf", val, `Expected column default if data was empty`)
 }
 
 func TestOperations_ColumnValueDefault_UsesLiteralForInt(t *testing.T) {
-	val := getColumnValueDefault(&model.Column{
+	val := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "int",
-	}, &model.DataCol{
+	}, &ir.DataCol{
 		Text: "42",
 	})
 	assert.Equal(t, "42", val, `Expected literal int value for integers`)
@@ -75,30 +75,30 @@ func TestOperations_ColumnValueDefault_UsesLiteralForInt(t *testing.T) {
 
 func TestOperations_ColumnValueDefaultQuotesStrings(t *testing.T) {
 	defer resetGlobalDBSteward()
-	val := getColumnValueDefault(&model.Column{
+	val := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "text",
-	}, &model.DataCol{
+	}, &ir.DataCol{
 		Text: "asdf",
 	})
 	assert.Equal(t, "E'asdf'", val, `Expected quoted string value for text`)
 }
 
-func getColumnValueDefault(def *model.Column, data *model.DataCol) string {
-	doc := &model.Definition{
-		Schemas: []*model.Schema{
-			&model.Schema{
+func getColumnValueDefault(def *ir.Column, data *ir.DataCol) string {
+	doc := &ir.Definition{
+		Schemas: []*ir.Schema{
+			&ir.Schema{
 				Name: "test_schema",
-				Tables: []*model.Table{
-					&model.Table{
+				Tables: []*ir.Table{
+					&ir.Table{
 						Name:       "test_table",
 						PrimaryKey: []string{def.Name},
-						Columns:    []*model.Column{def},
-						Rows: &model.DataRows{
+						Columns:    []*ir.Column{def},
+						Rows: &ir.DataRows{
 							Columns: []string{def.Name},
-							Rows: []*model.DataRow{
-								&model.DataRow{
-									Columns: []*model.DataCol{data},
+							Rows: []*ir.DataRow{
+								&ir.DataRow{
+									Columns: []*ir.DataCol{data},
 								},
 							},
 						},

@@ -7,7 +7,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 func TestMain(m *testing.M) {
@@ -15,7 +15,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func setOldNewDocs(old, new *model.Definition) {
+func setOldNewDocs(old, new *ir.Definition) {
 	lib.GlobalDBSteward.OldDatabase = old
 	lib.GlobalDBSteward.NewDatabase = new
 	if old != nil {
@@ -28,7 +28,7 @@ func setOldNewDocs(old, new *model.Definition) {
 
 func resetGlobalDBSteward() {
 	lib.GlobalDBSteward = lib.NewDBSteward(format.LookupMap{
-		model.SqlFormatPgsql8: pgsql8.GlobalLookup,
+		ir.SqlFormatPgsql8: pgsql8.GlobalLookup,
 	})
-	lib.GlobalDBSteward.SqlFormat = model.SqlFormatPgsql8
+	lib.GlobalDBSteward.SqlFormat = ir.SqlFormatPgsql8
 }

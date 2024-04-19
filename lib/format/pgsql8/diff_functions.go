@@ -2,7 +2,7 @@ package pgsql8
 
 import (
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -13,7 +13,7 @@ func NewDiffFunctions() *DiffFunctions {
 	return &DiffFunctions{}
 }
 
-func (self *DiffFunctions) DiffFunctions(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter, oldSchema *model.Schema, newSchema *model.Schema) {
+func (self *DiffFunctions) DiffFunctions(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	// drop functions that no longer exist in stage 3
 	if oldSchema != nil {
 		for _, oldFunction := range oldSchema.Functions {
@@ -26,7 +26,7 @@ func (self *DiffFunctions) DiffFunctions(stage1 output.OutputFileSegmenter, stag
 	// add new functions and replace modified functions
 	for _, newFunction := range newSchema.Functions {
 		oldFunction := oldSchema.TryGetFunctionMatching(newFunction)
-		if oldFunction == nil || !oldFunction.Equals(newFunction, model.SqlFormatPgsql8) {
+		if oldFunction == nil || !oldFunction.Equals(newFunction, ir.SqlFormatPgsql8) {
 			stage1.WriteSql(GlobalFunction.GetCreationSql(newSchema, newFunction)...)
 		} else if newFunction.ForceRedefine {
 			stage1.WriteSql(sql.NewComment("Function %s.%s has forceRedefine set to true", newSchema.Name, newFunction.Name))

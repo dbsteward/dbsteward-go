@@ -1,4 +1,4 @@
-package model
+package ir
 
 type Language struct {
 	Name       string

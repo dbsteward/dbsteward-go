@@ -3,3 +3,5 @@ dbsteward
 dbsteward.exe
 __debug_bin
 *.cov
+example/pgsql8/*.xml
+example/pgsql8/*.sql

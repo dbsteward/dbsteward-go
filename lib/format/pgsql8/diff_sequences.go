@@ -2,7 +2,7 @@ package pgsql8
 
 import (
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -13,7 +13,7 @@ func NewDiffSequences() *DiffSequences {
 	return &DiffSequences{}
 }
 
-func (self *DiffSequences) DiffSequences(ofs output.OutputFileSegmenter, oldSchema *model.Schema, newSchema *model.Schema) {
+func (self *DiffSequences) DiffSequences(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	// drop old sequences
 	if oldSchema != nil {
 		for _, oldSeq := range oldSchema.Sequences {

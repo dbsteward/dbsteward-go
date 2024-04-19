@@ -3,7 +3,7 @@ package xml
 import (
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/pkg/errors"
 )
@@ -15,11 +15,11 @@ type DataRows struct {
 	TabRows         []string      `xml:"tabrow"`
 }
 
-func (dr *DataRows) ToModel() (*model.DataRows, error) {
+func (dr *DataRows) ToModel() (*ir.DataRows, error) {
 	if dr == nil {
 		return nil, nil
 	}
-	rv := model.DataRows{
+	rv := ir.DataRows{
 		TabRowDelimiter: dr.TabRowDelimiter,
 		Columns:         dr.Columns,
 		TabRows:         dr.TabRows,
@@ -39,11 +39,11 @@ type DataRow struct {
 	Delete  bool       `xml:"delete,attr,omitempty"` // TODO(go,core) does this un/marshal properly?
 }
 
-func (dr *DataRow) ToModel() (*model.DataRow, error) {
+func (dr *DataRow) ToModel() (*ir.DataRow, error) {
 	if dr == nil {
 		return nil, nil
 	}
-	rv := model.DataRow{
+	rv := ir.DataRow{
 		Delete: dr.Delete,
 	}
 	for _, dc := range dr.Columns {
@@ -63,11 +63,11 @@ type DataCol struct {
 	Text  string `xml:",chardata"`
 }
 
-func (dc *DataCol) ToModel() (*model.DataCol, error) {
+func (dc *DataCol) ToModel() (*ir.DataCol, error) {
 	if dc == nil {
 		return nil, nil
 	}
-	rv := model.DataCol{
+	rv := ir.DataCol{
 		Null:  dc.Null,
 		Empty: dc.Empty,
 		Sql:   dc.Sql,

@@ -2,7 +2,7 @@ package mssql10
 
 import (
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -18,21 +18,21 @@ func NewOperations() *Operations {
 	return ops
 }
 
-func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
+func (self *Operations) Build(outputPrefix string, dbDoc *ir.Definition) {
 	// TODO(go,mssql) implement me
 }
 func (self *Operations) BuildUpgrade(
-	oldOutputPrefix string, oldCompositeFile string, oldDoc *model.Definition, oldFiles []string,
-	newOutputPrefix string, newCompositeFile string, newDoc *model.Definition, newFiles []string,
+	oldOutputPrefix string, oldCompositeFile string, oldDoc *ir.Definition, oldFiles []string,
+	newOutputPrefix string, newCompositeFile string, newDoc *ir.Definition, newFiles []string,
 ) {
 	// TODO(go,mssql) implement me
 }
 
-func (self *Operations) ExtractSchema(host string, port uint, name, user, pass string) *model.Definition {
+func (self *Operations) ExtractSchema(host string, port uint, name, user, pass string) *ir.Definition {
 	// TODO(go,mssql) implement me
 	return nil
 }
-func (self *Operations) CompareDbData(doc *model.Definition, host string, port uint, name, user, pass string) *model.Definition {
+func (self *Operations) CompareDbData(doc *ir.Definition, host string, port uint, name, user, pass string) *ir.Definition {
 	// TODO(go,mssql) implement me
 	return nil
 }

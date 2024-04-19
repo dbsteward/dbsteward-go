@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	"github.com/dbsteward/dbsteward/lib"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/pkg/errors"
 )
@@ -46,7 +46,7 @@ func NewXmlParser() *XmlParser {
 	return &XmlParser{}
 }
 
-func (self *XmlParser) Process(doc *model.Definition) {
+func (self *XmlParser) Process(doc *ir.Definition) {
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
 			if table.Partitioning != nil {
@@ -56,12 +56,12 @@ func (self *XmlParser) Process(doc *model.Definition) {
 	}
 }
 
-func (self *XmlParser) expandPartitionedTable(doc *model.Definition, schema *model.Schema, table *model.Table) {
+func (self *XmlParser) expandPartitionedTable(doc *ir.Definition, schema *ir.Schema, table *ir.Table) {
 	util.Assert(table.Partitioning != nil, "Table.Partitioning must not be nil")
 	// TODO(feat) hash partitions
 	// TODO(feat) native partitioning in recent postgres
 
-	if table.Partitioning.Type.Equals(model.TablePartitionTypeModulo) {
+	if table.Partitioning.Type.Equals(ir.TablePartitionTypeModulo) {
 		self.expandModuloParitionedTable(doc, schema, table)
 		return
 	}
@@ -69,7 +69,7 @@ func (self *XmlParser) expandPartitionedTable(doc *model.Definition, schema *mod
 	lib.GlobalDBSteward.Fatal("Invalid partition type: %s", table.Partitioning.Type)
 }
 
-func (self *XmlParser) CheckPartitionChange(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
+func (self *XmlParser) CheckPartitionChange(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	util.Assert(oldTable.Partitioning != nil, "oldTable.Partitioning must not be nil")
 	util.Assert(newTable.Partitioning != nil, "newTable.Partitioning must not be nil")
 
@@ -81,7 +81,7 @@ func (self *XmlParser) CheckPartitionChange(oldSchema *model.Schema, oldTable *m
 		)
 	}
 
-	if newTable.Partitioning.Type.Equals(model.TablePartitionTypeModulo) {
+	if newTable.Partitioning.Type.Equals(ir.TablePartitionTypeModulo) {
 		return self.checkModuloPartitionChange(oldSchema, oldTable, newSchema, newTable)
 	}
 

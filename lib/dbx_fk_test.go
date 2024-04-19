@@ -6,41 +6,41 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dbsteward/dbsteward/lib"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 func TestDBX_ResolveForeignKey_InheritedColumn(t *testing.T) {
 	// NOTE: In v1 this was tests/pgsql8/FKeyToInheritedTableTest.php
-	doc := &model.Definition{
-		Schemas: []*model.Schema{
-			&model.Schema{
+	doc := &ir.Definition{
+		Schemas: []*ir.Schema{
+			&ir.Schema{
 				Name: "test",
-				Tables: []*model.Table{
-					&model.Table{
+				Tables: []*ir.Table{
+					&ir.Table{
 						Name:       "parent",
 						PrimaryKey: []string{"foo"},
-						Columns: []*model.Column{
+						Columns: []*ir.Column{
 							{Name: "foo", Type: "varchar(255)"},
 						},
 					},
-					&model.Table{
+					&ir.Table{
 						Name:           "child",
 						PrimaryKey:     []string{"foo"},
 						InheritsSchema: "test",
 						InheritsTable:  "parent",
-						Columns: []*model.Column{
+						Columns: []*ir.Column{
 							{Name: "bar", Type: "varchar(255)"},
 						},
 					},
 				},
 			},
-			&model.Schema{
+			&ir.Schema{
 				Name: "other",
-				Tables: []*model.Table{
-					&model.Table{
+				Tables: []*ir.Table{
+					&ir.Table{
 						Name:       "baz",
 						PrimaryKey: []string{"footoo"},
-						Columns: []*model.Column{
+						Columns: []*ir.Column{
 							{Name: "footoo", ForeignSchema: "test", ForeignTable: "child", ForeignColumn: "foo"},
 						},
 					},

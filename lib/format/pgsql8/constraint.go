@@ -6,7 +6,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -22,7 +22,7 @@ func NewConstraint() *Constraint {
 // TODO(go,core) lift this to sql99
 // ConstraintTypeAll includes PrimaryKey,Constraint,Foreign
 // sql99.ConstraintType
-func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model.Schema, table *model.Table, ct sql99.ConstraintType) []*sql99.TableConstraint {
+func (self *Constraint) GetTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table, ct sql99.ConstraintType) []*sql99.TableConstraint {
 	if table == nil {
 		return nil
 	}
@@ -53,8 +53,8 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 	if ct.Includes(sql99.ConstraintTypeConstraint) {
 		// TODO(go,3) move validation elsewhere
 		for _, constraint := range table.Constraints {
-			if ct.Includes(sql99.ConstraintTypeForeign) && constraint.Type.Equals(model.ConstraintTypeForeign) {
-				var fSchema *model.Schema
+			if ct.Includes(sql99.ConstraintTypeForeign) && constraint.Type.Equals(ir.ConstraintTypeForeign) {
+				var fSchema *ir.Schema
 				if constraint.ForeignSchema != "" {
 					fSchema = doc.TryGetSchemaNamed(constraint.ForeignSchema)
 					if fSchema == nil {
@@ -67,7 +67,7 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 						)
 					}
 				}
-				var fTable *model.Table
+				var fTable *ir.Table
 				if constraint.ForeignTable != "" {
 					if fSchema == nil {
 						fSchema = schema
@@ -129,7 +129,7 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 				)
 			}
 
-			localKey := model.Key{
+			localKey := ir.Key{
 				Schema:  schema,
 				Table:   table,
 				Columns: localCols,
@@ -162,7 +162,7 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 					Type:             sql99.ConstraintTypeForeign,
 					Schema:           schema,
 					Table:            table,
-					Columns:          []*model.Column{column},
+					Columns:          []*ir.Column{column},
 					ForeignIndexName: column.ForeignIndexName,
 					ForeignSchema:    ref.Schema,
 					ForeignTable:     ref.Table,
@@ -178,8 +178,8 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 					Type:           sql99.ConstraintTypeConstraint,
 					Schema:         schema,
 					Table:          table,
-					Columns:        []*model.Column{column},
-					UnderlyingType: model.ConstraintTypeCheck,
+					Columns:        []*ir.Column{column},
+					UnderlyingType: ir.ConstraintTypeCheck,
 					TextDefinition: column.Check,
 				})
 			}
@@ -191,7 +191,7 @@ func (self *Constraint) GetTableConstraints(doc *model.Definition, schema *model
 	return constraints
 }
 
-func (self *Constraint) TryGetTableConstraintNamed(doc *model.Definition, schema *model.Schema, table *model.Table, name string, constraintType sql99.ConstraintType) *sql99.TableConstraint {
+func (self *Constraint) TryGetTableConstraintNamed(doc *ir.Definition, schema *ir.Schema, table *ir.Table, name string, constraintType sql99.ConstraintType) *sql99.TableConstraint {
 	// TODO(feat) can make this a little more performant if we pass constraint type in
 	for _, constraint := range self.GetTableConstraints(doc, schema, table, constraintType) {
 		if strings.EqualFold(constraint.Name, name) {
@@ -266,7 +266,7 @@ func (self *Constraint) GetCreationSql(constraint *sql99.TableConstraint) []outp
 	return nil
 }
 
-func (self *Constraint) DependsOnRenamedTable(doc *model.Definition, constraint *sql99.TableConstraint) bool {
+func (self *Constraint) DependsOnRenamedTable(doc *ir.Definition, constraint *sql99.TableConstraint) bool {
 	if lib.GlobalDBSteward.IgnoreOldNames {
 		return false
 	}

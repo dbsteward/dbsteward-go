@@ -3,7 +3,7 @@ package xml
 import (
 	"fmt"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 type Trigger struct {
@@ -17,26 +17,26 @@ type Trigger struct {
 	SlonySetId *int          `xml:"slonySetId,attr,omitempty"`
 }
 
-func (t *Trigger) ToModel() (*model.Trigger, error) {
+func (t *Trigger) ToModel() (*ir.Trigger, error) {
 	if t == nil {
 		return nil, nil
 	}
-	rv := model.Trigger{
+	rv := ir.Trigger{
 		Name:     t.Name,
 		Table:    t.Table,
 		Events:   t.Events,
 		Function: t.Function,
 	}
 	var err error
-	rv.Timing, err = model.NewTriggerTiming(t.Timing)
+	rv.Timing, err = ir.NewTriggerTiming(t.Timing)
 	if err != nil {
 		return nil, fmt.Errorf("invalid trigger '%s': %w", t.Name, err)
 	}
-	rv.ForEach, err = model.NewTriggerForEach(t.ForEach)
+	rv.ForEach, err = ir.NewTriggerForEach(t.ForEach)
 	if err != nil {
 		return nil, fmt.Errorf("invalid trigger '%s': %w", t.Name, err)
 	}
-	rv.SqlFormat, err = model.NewSqlFormat(t.SqlFormat)
+	rv.SqlFormat, err = ir.NewSqlFormat(t.SqlFormat)
 	if err != nil {
 		return nil, fmt.Errorf("invalid trigger '%s': %w", t.Name, err)
 	}

@@ -5,7 +5,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -17,9 +17,9 @@ func NewView() *View {
 	return &View{}
 }
 
-func (self *View) GetCreationSql(schema *model.Schema, view *model.View) []output.ToSql {
+func (self *View) GetCreationSql(schema *ir.Schema, view *ir.View) []output.ToSql {
 	ref := sql.ViewRef{schema.Name, view.Name}
-	query := view.TryGetViewQuery(model.SqlFormatPgsql8)
+	query := view.TryGetViewQuery(ir.SqlFormatPgsql8)
 	util.Assert(query != nil, "Calling View.GetCreationSql for a view not defined for this sqlformat")
 
 	out := []output.ToSql{
@@ -45,7 +45,7 @@ func (self *View) GetCreationSql(schema *model.Schema, view *model.View) []outpu
 	return out
 }
 
-func (self *View) GetDropSql(schema *model.Schema, view *model.View) []output.ToSql {
+func (self *View) GetDropSql(schema *ir.Schema, view *ir.View) []output.ToSql {
 	return []output.ToSql{
 		&sql.ViewDrop{
 			View: sql.ViewRef{schema.Name, view.Name},
@@ -53,18 +53,18 @@ func (self *View) GetDropSql(schema *model.Schema, view *model.View) []output.To
 	}
 }
 
-func (self *View) GetGrantSql(doc *model.Definition, schema *model.Schema, view *model.View, grant *model.Grant) []output.ToSql {
+func (self *View) GetGrantSql(doc *ir.Definition, schema *ir.Schema, view *ir.View, grant *ir.Grant) []output.ToSql {
 	// NOTE: pgsql views use table grants!
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
 		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)
 	}
 
-	perms := util.IIntersectStrs(grant.Permissions, model.PermissionListAllPgsql8)
+	perms := util.IIntersectStrs(grant.Permissions, ir.PermissionListAllPgsql8)
 	if len(perms) == 0 {
 		lib.GlobalDBSteward.Fatal("No format-compatible permissions on view %s.%s grant: %v", schema.Name, view.Name, grant.Permissions)
 	}
-	invalidPerms := util.IDifferenceStrs(perms, model.PermissionListValidView)
+	invalidPerms := util.IDifferenceStrs(perms, ir.PermissionListValidView)
 	if len(invalidPerms) > 0 {
 		lib.GlobalDBSteward.Fatal("Invalid permissions on view %s.%s grant: %v", schema.Name, view.Name, invalidPerms)
 	}
@@ -83,8 +83,8 @@ func (self *View) GetGrantSql(doc *model.Definition, schema *model.Schema, view 
 	return ddl
 }
 
-func (self *View) GetDependencies(doc *model.Definition, schema *model.Schema, view *model.View) []model.ViewRef {
-	out := []model.ViewRef{}
+func (self *View) GetDependencies(doc *ir.Definition, schema *ir.Schema, view *ir.View) []ir.ViewRef {
+	out := []ir.ViewRef{}
 	for _, viewName := range view.DependsOnViews {
 		parts := strings.Split(viewName, ".")
 		depSchema := schema
@@ -107,7 +107,7 @@ func (self *View) GetDependencies(doc *model.Definition, schema *model.Schema, v
 			lib.GlobalDBSteward.Fatal("Could not find view %s.%s depended on by view %s.%s", depSchema.Name, depViewName, schema.Name, view.Name)
 		}
 
-		out = append(out, model.ViewRef{depSchema, depView})
+		out = append(out, ir.ViewRef{depSchema, depView})
 	}
 	return out
 }

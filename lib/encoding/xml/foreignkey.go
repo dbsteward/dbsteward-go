@@ -3,7 +3,7 @@ package xml
 import (
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 type ForeignKey struct {
@@ -17,8 +17,8 @@ type ForeignKey struct {
 	OnDelete       string        `xml:"onDelete,attr,omitempty"`
 }
 
-func (fk *ForeignKey) ToModel() (*model.ForeignKey, error) {
-	rv := model.ForeignKey{
+func (fk *ForeignKey) ToModel() (*ir.ForeignKey, error) {
+	rv := ir.ForeignKey{
 		Columns:        fk.Columns,
 		ForeignSchema:  fk.ForeignSchema,
 		ForeignTable:   fk.ForeignTable,
@@ -27,11 +27,11 @@ func (fk *ForeignKey) ToModel() (*model.ForeignKey, error) {
 		IndexName:      fk.IndexName,
 	}
 	var err error
-	rv.OnUpdate, err = model.NewForeignKeyAction(fk.OnUpdate)
+	rv.OnUpdate, err = ir.NewForeignKeyAction(fk.OnUpdate)
 	if err != nil {
 		return nil, err
 	}
-	rv.OnDelete, err = model.NewForeignKeyAction(fk.OnDelete)
+	rv.OnDelete, err = ir.NewForeignKeyAction(fk.OnDelete)
 	if err != nil {
 		return nil, err
 	}

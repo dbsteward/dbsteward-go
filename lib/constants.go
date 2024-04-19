@@ -1,6 +1,6 @@
 package lib
 
-import "github.com/dbsteward/dbsteward/lib/model"
+import "github.com/dbsteward/dbsteward/lib/ir"
 
 type Mode uint
 
@@ -20,4 +20,4 @@ const (
 	ModeSlonyDiff     Mode = 1024
 )
 
-const DefaultSqlFormat = model.SqlFormatPgsql8
+const DefaultSqlFormat = ir.SqlFormatPgsql8

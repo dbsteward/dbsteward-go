@@ -3,7 +3,7 @@ package lib
 import (
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 // TODO(go,pgsql) move this to pgsql8/sql
@@ -35,7 +35,7 @@ func (self *SqlParser) GetSchemaName(name string) string {
 	return self.ParseQualifiedTableName(name).Schema
 }
 
-func (self *SqlParser) GetObjectName(name string, def *model.Definition) string {
+func (self *SqlParser) GetObjectName(name string, def *ir.Definition) string {
 	// TODO(go,core)
 	return ""
 }

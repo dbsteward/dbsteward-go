@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/dbsteward/dbsteward/lib"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/pkg/errors"
 )
@@ -17,7 +17,7 @@ type moduloPartition struct {
 	slonyRange *slonyRange
 }
 
-func newModuloPartition(schema *model.Schema, table *model.Table) *moduloPartition {
+func newModuloPartition(schema *ir.Schema, table *ir.Table) *moduloPartition {
 	partNumberStr := table.Partitioning.TryGetOptionValueNamed("number")
 	if partNumberStr == "" {
 		lib.GlobalDBSteward.Fatal("tablePartitionOption 'number' must be specificed for table %s.%s", schema.Name, table.Name)
@@ -45,14 +45,14 @@ func (self *moduloPartition) tableName(i int) string {
 	return fmt.Sprintf("partition_%0*d", util.NumDigits(self.parts), i)
 }
 
-func (self *XmlParser) expandModuloParitionedTable(doc *model.Definition, schema *model.Schema, table *model.Table) {
+func (self *XmlParser) expandModuloParitionedTable(doc *ir.Definition, schema *ir.Schema, table *ir.Table) {
 	util.Assert(table.Partitioning != nil, "Table.Partitioning must not be nil")
-	util.Assert(table.Partitioning.Type.Equals(model.TablePartitionTypeModulo), "must be modulo type")
+	util.Assert(table.Partitioning.Type.Equals(ir.TablePartitionTypeModulo), "must be modulo type")
 
 	opts := newModuloPartition(schema, table)
 
 	// create the schema node for parititions
-	partSchema := &model.Schema{}
+	partSchema := &ir.Schema{}
 	doc.AddSchema(partSchema)
 	self.createModuloPartitionSchema(schema, table, partSchema, opts)
 	self.createModuloPartitionTables(schema, table, partSchema, opts)
@@ -61,7 +61,7 @@ func (self *XmlParser) expandModuloParitionedTable(doc *model.Definition, schema
 	self.createModuloPartitionTrigger(schema, table, partSchema, opts)
 }
 
-func (self *XmlParser) createModuloPartitionSchema(schema *model.Schema, table *model.Table, partSchema *model.Schema, opts *moduloPartition) {
+func (self *XmlParser) createModuloPartitionSchema(schema *ir.Schema, table *ir.Table, partSchema *ir.Schema, opts *moduloPartition) {
 	partSchema.Name = fmt.Sprintf("_p_%s_%s", schema.Name, table.Name)
 	for _, grant := range schema.Grants {
 		grantCopy := *grant
@@ -69,12 +69,12 @@ func (self *XmlParser) createModuloPartitionSchema(schema *model.Schema, table *
 	}
 }
 
-func (self *XmlParser) createModuloPartitionTables(schema *model.Schema, table *model.Table, partSchema *model.Schema, opts *moduloPartition) {
+func (self *XmlParser) createModuloPartitionTables(schema *ir.Schema, table *ir.Table, partSchema *ir.Schema, opts *moduloPartition) {
 	for i := 0; i < opts.parts; i++ {
 		partDigits := util.NumDigits(opts.parts)
 		partNum := fmt.Sprintf("%0*d", partDigits, i)
 
-		partTable := &model.Table{
+		partTable := &ir.Table{
 			Name:           opts.tableName(i),
 			Owner:          table.Owner,
 			PrimaryKey:     table.PrimaryKey,
@@ -83,9 +83,9 @@ func (self *XmlParser) createModuloPartitionTables(schema *model.Schema, table *
 		}
 		partSchema.AddTable(partTable)
 
-		partTable.AddConstraint(&model.Constraint{
+		partTable.AddConstraint(&ir.Constraint{
 			Name: fmt.Sprintf("%s_p_%s_chk", table.Name, partNum),
-			Type: model.ConstraintTypeCheck,
+			Type: ir.ConstraintTypeCheck,
 			// TODO(go,3) use higher level rep instead of xml rep here to resolve need for string-level quoting at this point
 			Definition: fmt.Sprintf("((%s %% %d) = %d)", GlobalOperations.GetQuoter().QuoteColumn(opts.column), opts.parts, i),
 		})
@@ -115,7 +115,7 @@ func (self *XmlParser) createModuloPartitionTables(schema *model.Schema, table *
 		// we can't copy columns, but if there are any foreign keys defined, we need to mirror those
 		for _, column := range table.Columns {
 			if column.HasForeignKey() {
-				partTable.AddForeignKey(&model.ForeignKey{
+				partTable.AddForeignKey(&ir.ForeignKey{
 					ConstraintName: simpleBuildIdentifier("p"+partNum+"_", column.Name, "_fk"),
 					Columns:        []string{column.Name},
 					ForeignSchema:  util.CoalesceStr(column.ForeignSchema, schema.Name),
@@ -137,7 +137,7 @@ func (self *XmlParser) createModuloPartitionTables(schema *model.Schema, table *
 	table.Indexes = nil
 }
 
-func (self *XmlParser) createModuloPartitionTrigger(schema *model.Schema, table *model.Table, partSchema *model.Schema, opts *moduloPartition) {
+func (self *XmlParser) createModuloPartitionTrigger(schema *ir.Schema, table *ir.Table, partSchema *ir.Schema, opts *moduloPartition) {
 	funcDef := fmt.Sprintf("DECLARE\n\tmod_result INT;\nBEGIN\n\tmod_result := NEW.%s %% %d;\n",
 		GlobalOperations.GetQuoter().QuoteColumn(opts.column), opts.parts)
 	for i := 0; i < opts.parts; i++ {
@@ -150,35 +150,35 @@ func (self *XmlParser) createModuloPartitionTrigger(schema *model.Schema, table 
 	}
 	funcDef += "\tEND IF;\n\tRETURN NULL;\nEND;"
 
-	partSchema.AddFunction(&model.Function{
+	partSchema.AddFunction(&ir.Function{
 		Name:        "insert_trigger",
 		Returns:     "TRIGGER",
 		Owner:       table.Owner,
 		Description: fmt.Sprintf("DBSteward auto-generated for table partition of %s.%s", schema.Name, table.Name),
-		Definitions: []*model.FunctionDefinition{{
+		Definitions: []*ir.FunctionDefinition{{
 			Language:  "plpgsql",
-			SqlFormat: model.SqlFormatPgsql8,
+			SqlFormat: ir.SqlFormatPgsql8,
 			Text:      funcDef,
 		}},
-		Grants: []*model.Grant{{
-			Roles:       []string{model.RoleApplication},
-			Permissions: []string{model.PermissionExecute},
+		Grants: []*ir.Grant{{
+			Roles:       []string{ir.RoleApplication},
+			Permissions: []string{ir.PermissionExecute},
 		}},
 	})
 
 	// add trigger to the main schema/table
-	schema.AddTrigger(&model.Trigger{
+	schema.AddTrigger(&ir.Trigger{
 		Name:      table.Name + "_part_trg",
-		SqlFormat: model.SqlFormatPgsql8,
+		SqlFormat: ir.SqlFormatPgsql8,
 		Events:    []string{"INSERT"},
-		Timing:    model.TriggerTimingBefore,
+		Timing:    ir.TriggerTimingBefore,
 		Table:     table.Name,
-		ForEach:   model.TriggerForEachRow,
+		ForEach:   ir.TriggerForEachRow,
 		Function:  partSchema.Name + ".insert_trigger()",
 	})
 }
 
-func (self *XmlParser) checkModuloPartitionChange(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) error {
+func (self *XmlParser) checkModuloPartitionChange(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	oldOpts := newModuloPartition(oldSchema, oldTable)
 	newOpts := newModuloPartition(newSchema, newTable)
 	if oldOpts.parts != newOpts.parts {

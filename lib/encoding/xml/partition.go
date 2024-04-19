@@ -3,7 +3,7 @@ package xml
 import (
 	"fmt"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 type TablePartition struct {
@@ -13,17 +13,17 @@ type TablePartition struct {
 	Segments  []*TablePartitionSegment `xml:"tablePartitionSegment"`
 }
 
-func (tp *TablePartition) ToModel() (*model.TablePartition, error) {
+func (tp *TablePartition) ToModel() (*ir.TablePartition, error) {
 	if tp == nil {
 		return nil, nil
 	}
-	rv := model.TablePartition{}
+	rv := ir.TablePartition{}
 	var err error
-	rv.Type, err = model.NewTablePartitionType(tp.Type)
+	rv.Type, err = ir.NewTablePartitionType(tp.Type)
 	if err != nil {
 		return nil, fmt.Errorf("inavalid table partition: %w", err)
 	}
-	rv.SqlFormat, err = model.NewSqlFormat(tp.SqlFormat)
+	rv.SqlFormat, err = ir.NewSqlFormat(tp.SqlFormat)
 	if err != nil {
 		return nil, fmt.Errorf("inavalid table partition: %w", err)
 	}
@@ -41,8 +41,8 @@ type TablePartitionOption struct {
 	Value string `xml:"value,attr"`
 }
 
-func (tpo *TablePartitionOption) ToModel() *model.TablePartitionOption {
-	return &model.TablePartitionOption{
+func (tpo *TablePartitionOption) ToModel() *ir.TablePartitionOption {
+	return &ir.TablePartitionOption{
 		Name:  tpo.Name,
 		Value: tpo.Value,
 	}
@@ -53,8 +53,8 @@ type TablePartitionSegment struct {
 	Value string `xml:"value,attr"`
 }
 
-func (seg *TablePartitionSegment) ToModel() *model.TablePartitionSegment {
-	return &model.TablePartitionSegment{
+func (seg *TablePartitionSegment) ToModel() *ir.TablePartitionSegment {
+	return &ir.TablePartitionSegment{
 		Name:  seg.Name,
 		Value: seg.Value,
 	}

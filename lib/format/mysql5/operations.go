@@ -10,7 +10,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/config"
 	"github.com/dbsteward/dbsteward/lib/format/mysql5/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -40,7 +40,7 @@ func (self *Operations) SetConfig(args *config.Args) {
 	self.UseSchemaNamePrefix = args.UseSchemaPrefix
 }
 
-func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
+func (self *Operations) Build(outputPrefix string, dbDoc *ir.Definition) {
 	dbsteward := lib.GlobalDBSteward
 	dbx := lib.GlobalDBX
 
@@ -86,7 +86,7 @@ func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
 	// $build_file_ofs->write("COMMIT TRANSACTION;\n\n");
 }
 
-func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableRef) {
+func (self *Operations) BuildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {
 	// TODO(go,3) roll this into diffing nil->doc
 	dbsteward := lib.GlobalDBSteward
 
@@ -111,7 +111,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 
 		// function definitions
 		for _, function := range schema.Functions {
-			if function.HasDefinition(model.SqlFormatMysql5) {
+			if function.HasDefinition(ir.SqlFormatMysql5) {
 				ofs.WriteSql(GlobalFunction.GetCreationSql(schema, function)...)
 				for _, grant := range function.Grants {
 					ofs.WriteSql(GlobalFunction.GetGrantSql(doc, schema, function, grant)...)
@@ -119,8 +119,8 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 			}
 		}
 
-		sequences := []*model.Sequence{}
-		triggers := []*model.Trigger{}
+		sequences := []*ir.Sequence{}
+		triggers := []*ir.Trigger{}
 
 		// create defined tables
 		for _, table := range schema.Tables {
@@ -154,7 +154,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 		triggers = append(triggers, schema.Triggers...)
 		uniqueTriggers := map[string]string{}
 		for _, trigger := range triggers {
-			if trigger.SqlFormat.Equals(model.SqlFormatMysql5) {
+			if trigger.SqlFormat.Equals(ir.SqlFormatMysql5) {
 				// check that this table/timing/event combo hasn't been defined,
 				// because MySQL only allows one trigger per BEFORE/AFTER per action
 				// TODO(go,mysql) confirm this handling of .Events works as expected
@@ -203,7 +203,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	// TODO(feat) database configurationParameter support
 }
 
-func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableRef) {
+func (self *Operations) BuildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {
 	// TODO(go,3) unify this with pgsql implementation?
 	limitToTables := lib.GlobalDBSteward.LimitToTables
 
@@ -266,8 +266,8 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 }
 
 func (self *Operations) BuildUpgrade(
-	oldOutputPrefix string, oldCompositeFile string, oldDoc *model.Definition, oldFiles []string,
-	newOutputPrefix string, newCompositeFile string, newDoc *model.Definition, newFiles []string,
+	oldOutputPrefix string, oldCompositeFile string, oldDoc *ir.Definition, oldFiles []string,
+	newOutputPrefix string, newCompositeFile string, newDoc *ir.Definition, newFiles []string,
 ) {
 	upgradePrefix := newOutputPrefix + "_upgrade"
 
@@ -280,7 +280,7 @@ func (self *Operations) BuildUpgrade(
 	GlobalDiff.DiffDoc(oldCompositeFile, newCompositeFile, oldDoc, newDoc, upgradePrefix)
 }
 
-func (self *Operations) ExtractSchema(host string, port uint, name, user, pass string) *model.Definition {
+func (self *Operations) ExtractSchema(host string, port uint, name, user, pass string) *ir.Definition {
 	// TODO(go,mysql) implement me; see mysql5::extract_schema
 	return nil
 }

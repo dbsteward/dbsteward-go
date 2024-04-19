@@ -1,6 +1,6 @@
 package xml
 
-import "github.com/dbsteward/dbsteward/lib/model"
+import "github.com/dbsteward/dbsteward/lib/ir"
 
 type Language struct {
 	Name       string `xml:"name,attr"`
@@ -11,6 +11,6 @@ type Language struct {
 	Validator  string `xml:"validator,attr,omitempty"`
 }
 
-func (self *Language) ToModel() (*model.Language, error) {
+func (self *Language) ToModel() (*ir.Language, error) {
 	panic("todo")
 }

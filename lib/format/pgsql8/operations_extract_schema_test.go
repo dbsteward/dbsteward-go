@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/live"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 var PG_8_0 live.VersionNum = live.NewVersionNum(8, 0)
@@ -116,11 +116,11 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 	// TODO(feat) test conditional index
 	// TODO(feat) test unique index
 	// TODO(feat) assert that .Sql = true
-	expected := []*model.Index{
-		&model.Index{
+	expected := []*ir.Index{
+		&ir.Index{
 			Name:  "testidx",
 			Using: "btree",
-			Dimensions: []*model.IndexDim{
+			Dimensions: []*ir.IndexDim{
 				{Name: "testidx_1", Value: "lower(col1)"},
 				{Name: "testidx_2", Value: "col2"},
 				{Name: "testidx_3", Value: "(col1 || ';;'::text)"},
@@ -128,19 +128,19 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 				{Name: "testidx_5", Value: "\"overlay\"(btrim(col2), 'x'::text, 2)"},
 			},
 		},
-		&model.Index{
+		&ir.Index{
 			Name:  "testidx2",
 			Using: "btree",
-			Dimensions: []*model.IndexDim{
+			Dimensions: []*ir.IndexDim{
 				{Name: "testidx2_1", Value: "col1"},
 				{Name: "testidx2_2", Value: "col2"},
 				{Name: "testidx2_3", Value: "col3"},
 			},
 		},
-		&model.Index{
+		&ir.Index{
 			Name:  "testidx3",
 			Using: "btree",
-			Dimensions: []*model.IndexDim{
+			Dimensions: []*ir.IndexDim{
 				{Name: "testidx3_1", Value: "col2"},
 				{Name: "testidx3_2", Value: "col1"},
 				{Name: "testidx3_3", Value: "col3"},
@@ -217,8 +217,8 @@ func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
 	assert.False(t, schema.Tables[0].Columns[3].Unique)
 
 	// TODO(go,pgsql) why is this quoted, it shouldn't be quoted unless we turn it on.... right?
-	assert.Equal(t, []*model.Constraint{
-		{Name: "test_constraint", Type: model.ConstraintTypeUnique, Definition: `("col2", "col3", "col4")`},
+	assert.Equal(t, []*ir.Constraint{
+		{Name: "test_constraint", Type: ir.ConstraintTypeUnique, Definition: `("col2", "col3", "col4")`},
 	}, schema.Tables[0].Constraints)
 }
 
@@ -310,18 +310,18 @@ END;
 	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
 
 	schema := commonExtract(introspector, PG_8_0)
-	assert.Equal(t, []*model.Function{
-		&model.Function{
+	assert.Equal(t, []*ir.Function{
+		&ir.Function{
 			Name:        "rates_overlap",
 			Owner:       "app",
 			Returns:     "boolean",
 			CachePolicy: "VOLATILE",
-			Parameters: []*model.FunctionParameter{
+			Parameters: []*ir.FunctionParameter{
 				{Name: "rates_a", Type: "money"},
 				{Name: "rates_b", Type: "money"},
 			},
-			Definitions: []*model.FunctionDefinition{
-				{SqlFormat: model.SqlFormatPgsql8, Language: "plpgsql", Text: body},
+			Definitions: []*ir.FunctionDefinition{
+				{SqlFormat: ir.SqlFormatPgsql8, Language: "plpgsql", Text: body},
 			},
 		},
 	}, schema.Functions)
@@ -508,15 +508,15 @@ func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
 
 	schema := commonExtract(introspector, PG_8_0)
-	assert.Equal(t, []*model.ForeignKey{
-		&model.ForeignKey{
+	assert.Equal(t, []*ir.ForeignKey{
+		&ir.ForeignKey{
 			ConstraintName: "test_foo_fkey",
 			Columns:        []string{"foo", "bar"},
 			ForeignSchema:  "public",
 			ForeignTable:   "dummy",
 			ForeignColumns: []string{"feux", "barf"},
-			OnUpdate:       model.ForeignKeyActionNoAction,
-			OnDelete:       model.ForeignKeyActionSetNull,
+			OnUpdate:       ir.ForeignKeyActionNoAction,
+			OnDelete:       ir.ForeignKeyActionSetNull,
 		},
 	}, schema.Tables[1].ForeignKeys)
 	// these should _not_ be omitted in this case, because it's a separate element
@@ -574,10 +574,10 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 	//            user sort it all out. Will maintain v1 behavior for now though.
 
 	assert.Equal(t, "serial", schema.Tables[0].Columns[0].Type)
-	assert.Equal(t, []*model.Sequence{
+	assert.Equal(t, []*ir.Sequence{
 		// test_seq SHOULD NOT be extracted (see `TestOperations_ExtractSchema_DoNotExtractSequenceFromSerial`)
 		// blah SHOULD be extracted because it's not linked to
-		&model.Sequence{
+		&ir.Sequence{
 			Name:  "blah",
 			Owner: "owner",
 			Cache: util.Some(5),
@@ -587,7 +587,7 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 	}, schema.Sequences)
 }
 
-func commonExtract(introspector *live.MockIntrospector, version live.VersionNum) *model.Schema {
+func commonExtract(introspector *live.MockIntrospector, version live.VersionNum) *ir.Schema {
 	ops := pgsql8.GlobalOperations
 	origCF := ops.ConnectionFactory
 	origIF := ops.IntrospectorFactory

@@ -1,7 +1,7 @@
 package pgsql8
 
 import (
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
@@ -12,14 +12,14 @@ func NewDiffTriggers() *DiffTriggers {
 	return &DiffTriggers{}
 }
 
-func (self *DiffTriggers) DiffTriggers(ofs output.OutputFileSegmenter, oldSchema *model.Schema, newSchema *model.Schema) {
+func (self *DiffTriggers) DiffTriggers(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	for _, newTable := range newSchema.Tables {
 		oldTable := oldSchema.TryGetTableNamed(newTable.Name)
 		self.DiffTriggersTable(ofs, oldSchema, oldTable, newSchema, newTable)
 	}
 }
 
-func (self *DiffTriggers) DiffTriggersTable(ofs output.OutputFileSegmenter, oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) {
+func (self *DiffTriggers) DiffTriggersTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) {
 	if newTable == nil {
 		// if newTable does not exist, existing triggers will have been implicitly dropped
 		// and there cannot (should not?) be triggers for it
@@ -29,7 +29,7 @@ func (self *DiffTriggers) DiffTriggersTable(ofs output.OutputFileSegmenter, oldS
 	if oldTable != nil {
 		// drop old or changed triggers
 		for _, oldTrigger := range oldSchema.GetTriggersForTableNamed(oldTable.Name) {
-			if !oldTrigger.SqlFormat.Equals(model.SqlFormatPgsql8) {
+			if !oldTrigger.SqlFormat.Equals(ir.SqlFormatPgsql8) {
 				continue
 			}
 			newTrigger := newSchema.TryGetTriggerMatching(oldTrigger)
@@ -41,7 +41,7 @@ func (self *DiffTriggers) DiffTriggersTable(ofs output.OutputFileSegmenter, oldS
 
 	// create new or changed triggers
 	for _, newTrigger := range newSchema.GetTriggersForTableNamed(newTable.Name) {
-		if !newTrigger.SqlFormat.Equals(model.SqlFormatPgsql8) {
+		if !newTrigger.SqlFormat.Equals(ir.SqlFormatPgsql8) {
 			continue
 		}
 

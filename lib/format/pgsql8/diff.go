@@ -4,14 +4,14 @@ import (
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
 type Diff struct {
 	*sql99.Diff
-	OldTableDependency []*model.TableRef
-	NewTableDependency []*model.TableRef
+	OldTableDependency []*ir.TableRef
+	NewTableDependency []*ir.TableRef
 }
 
 func NewDiff() *Diff {
@@ -22,15 +22,15 @@ func NewDiff() *Diff {
 	return diff
 }
 
-func (self *Diff) UpdateDatabaseConfigParameters(ofs output.OutputFileSegmenter, oldDoc *model.Definition, newDoc *model.Definition) {
+func (self *Diff) UpdateDatabaseConfigParameters(ofs output.OutputFileSegmenter, oldDoc *ir.Definition, newDoc *ir.Definition) {
 	if newDoc.Database == nil {
-		newDoc.Database = &model.Database{}
+		newDoc.Database = &ir.Database{}
 	}
 	for _, newParam := range newDoc.Database.ConfigParams {
-		var oldParam *model.ConfigParam
+		var oldParam *ir.ConfigParam
 		if oldDoc != nil {
 			if oldDoc.Database == nil {
-				oldDoc.Database = &model.Database{}
+				oldDoc.Database = &ir.Database{}
 			}
 			oldParam = oldDoc.Database.TryGetConfigParamNamed(newParam.Name)
 		}
@@ -50,7 +50,7 @@ func (self *Diff) UpdateDatabaseConfigParameters(ofs output.OutputFileSegmenter,
 	}
 }
 
-func (self *Diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *model.Definition, upgradePrefix string) {
+func (self *Diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *ir.Definition, upgradePrefix string) {
 	if !lib.GlobalDBSteward.GenerateSlonik {
 		// if we are not generating slonik, defer to parent
 		self.Diff.DiffDoc(oldFile, newFile, oldDoc, newDoc, upgradePrefix)
@@ -217,7 +217,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			oldTable := oldEntry.Table
 
 			newSchema := dbsteward.NewDatabase.TryGetSchemaNamed(oldSchema.Name)
-			var newTable *model.Table
+			var newTable *ir.Table
 			if newSchema != nil {
 				newTable = newSchema.TryGetTableNamed(oldTable.Name)
 			}
@@ -242,7 +242,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			}
 
 			newTable := newEntry.Table
-			var oldTable *model.Table
+			var oldTable *ir.Table
 			if oldSchema != nil {
 				oldTable = oldSchema.TryGetTableNamed(newTable.Name)
 			}
@@ -290,7 +290,7 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 		oldSchema := oldDoc.TryGetSchemaNamed(newSchema.Name)
 
 		for _, newGrant := range newSchema.Grants {
-			if oldSchema == nil || !model.HasPermissionsOf(oldSchema, newGrant, model.SqlFormatPgsql8) {
+			if oldSchema == nil || !ir.HasPermissionsOf(oldSchema, newGrant, ir.SqlFormatPgsql8) {
 				stage1.WriteSql(GlobalSchema.GetGrantSql(newDoc, newSchema, newGrant)...)
 			}
 		}
@@ -305,7 +305,7 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 				continue
 			}
 			for _, newGrant := range newTable.Grants {
-				if oldTable == nil || !model.HasPermissionsOf(oldTable, newGrant, model.SqlFormatPgsql8) {
+				if oldTable == nil || !ir.HasPermissionsOf(oldTable, newGrant, ir.SqlFormatPgsql8) {
 					stage1.WriteSql(GlobalTable.GetGrantSql(newDoc, newSchema, newTable, newGrant)...)
 				}
 			}
@@ -314,7 +314,7 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 		for _, newSeq := range newSchema.Sequences {
 			oldSeq := oldSchema.TryGetSequenceNamed(newSeq.Name)
 			for _, newGrant := range newSeq.Grants {
-				if oldSeq == nil || !model.HasPermissionsOf(oldSeq, newGrant, model.SqlFormatPgsql8) {
+				if oldSeq == nil || !ir.HasPermissionsOf(oldSeq, newGrant, ir.SqlFormatPgsql8) {
 					stage1.WriteSql(GlobalSequence.GetGrantSql(newDoc, newSchema, newSeq, newGrant)...)
 				}
 			}
@@ -323,7 +323,7 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 		for _, newFunc := range newSchema.Functions {
 			oldFunc := oldSchema.TryGetFunctionMatching(newFunc)
 			for _, newGrant := range newFunc.Grants {
-				if oldFunc == nil || !model.HasPermissionsOf(oldFunc, newGrant, model.SqlFormatPgsql8) {
+				if oldFunc == nil || !ir.HasPermissionsOf(oldFunc, newGrant, ir.SqlFormatPgsql8) {
 					stage1.WriteSql(GlobalFunction.GetGrantSql(newDoc, newSchema, newFunc, newGrant)...)
 				}
 			}
@@ -332,7 +332,7 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 		for _, newView := range newSchema.Views {
 			oldView := oldSchema.TryGetViewNamed(newView.Name)
 			for _, newGrant := range newView.Grants {
-				if lib.GlobalDBSteward.AlwaysRecreateViews || oldView == nil || !model.HasPermissionsOf(oldView, newGrant, model.SqlFormatPgsql8) || !oldView.Equals(newView, model.SqlFormatPgsql8) {
+				if lib.GlobalDBSteward.AlwaysRecreateViews || oldView == nil || !ir.HasPermissionsOf(oldView, newGrant, ir.SqlFormatPgsql8) || !oldView.Equals(newView, ir.SqlFormatPgsql8) {
 					stage3.WriteSql(GlobalView.GetGrantSql(newDoc, newSchema, newView, newGrant)...)
 				}
 			}

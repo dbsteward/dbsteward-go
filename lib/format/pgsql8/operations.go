@@ -14,7 +14,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 
 	"github.com/dbsteward/dbsteward/lib"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 type Operations struct {
@@ -57,7 +57,7 @@ func (self *Operations) GetQuoter() output.Quoter {
 	return self.quoter
 }
 
-func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
+func (self *Operations) Build(outputPrefix string, dbDoc *ir.Definition) {
 	// TODO(go,4) can we just consider a build(def) to be diff(null, def)?
 	// some shortcuts, since we're going to be typing a lot here
 	dbsteward := lib.GlobalDBSteward
@@ -100,7 +100,7 @@ func (self *Operations) Build(outputPrefix string, dbDoc *model.Definition) {
 outer:
 	for _, schema := range dbDoc.Schemas {
 		for _, function := range schema.Functions {
-			if definition := function.TryGetDefinition(model.SqlFormatPgsql8); definition != nil {
+			if definition := function.TryGetDefinition(ir.SqlFormatPgsql8); definition != nil {
 				if strings.EqualFold(definition.Language, "sql") {
 					referenced := GlobalFunction.DefinitionReferencesTable(definition)
 					if referenced == nil {
@@ -155,8 +155,8 @@ outer:
 	}
 }
 func (self *Operations) BuildUpgrade(
-	oldOutputPrefix string, oldCompositeFile string, oldDoc *model.Definition, oldFiles []string,
-	newOutputPrefix string, newCompositeFile string, newDoc *model.Definition, newFiles []string,
+	oldOutputPrefix string, oldCompositeFile string, oldDoc *ir.Definition, oldFiles []string,
+	newOutputPrefix string, newCompositeFile string, newDoc *ir.Definition, newFiles []string,
 ) {
 	upgradePrefix := newOutputPrefix + "_upgrade"
 
@@ -172,7 +172,7 @@ func (self *Operations) BuildUpgrade(
 		// TODO(go,slony)
 	}
 }
-func (self *Operations) ExtractSchema(host string, port uint, name, user, pass string) *model.Definition {
+func (self *Operations) ExtractSchema(host string, port uint, name, user, pass string) *ir.Definition {
 	dbsteward := lib.GlobalDBSteward
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as %s", host, port, name, user)
 	conn, err := self.ConnectionFactory.NewConnection(host, port, name, user, pass)
@@ -187,10 +187,10 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 	dbsteward.FatalIfError(err, "could not establish server version")
 	dbsteward.Info("Connected to database, server version %s", version)
 
-	doc := &model.Definition{
-		Database: &model.Database{
-			SqlFormat: model.SqlFormatPgsql8,
-			Roles: &model.RoleAssignment{
+	doc := &ir.Definition{
+		Database: &ir.Database{
+			SqlFormat: ir.SqlFormatPgsql8,
+			Roles: &ir.RoleAssignment{
 				Application: user,
 				Owner:       user,
 				Replication: user,
@@ -244,7 +244,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		// create the schema if it is missing
 		schema := doc.TryGetSchemaNamed(schemaName)
 		if schema == nil {
-			schema = &model.Schema{
+			schema = &ir.Schema{
 				Name:        schemaName,
 				Description: row.SchemaDescription,
 			}
@@ -259,7 +259,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		// create the table in the schema space
 		table := schema.TryGetTableNamed(tableName)
 		util.Assert(table == nil, "table %s.%s already defined in xml object - unexpected", schema.Name, tableName)
-		table = &model.Table{
+		table = &ir.Table{
 			Name:        tableName,
 			Owner:       registerRole(roleContextOwner, row.Owner),
 			Description: row.TableDescription,
@@ -268,14 +268,14 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		// extract tablespace as a tableOption
 		if row.Tablespace != nil {
-			table.SetTableOption(model.SqlFormatPgsql8, "tablespace", *row.Tablespace)
+			table.SetTableOption(ir.SqlFormatPgsql8, "tablespace", *row.Tablespace)
 		}
 
 		// extract storage parameters as a tableOption
 		opts, err := introspector.GetTableStorageOptions(schema.Name, table.Name)
 		dbsteward.FatalIfError(err, "Error with table storage option query")
 		if len(opts) > 0 {
-			table.SetTableOption(model.SqlFormatPgsql8, "with", "("+util.EncodeKV(opts, ",", "=")+")")
+			table.SetTableOption(ir.SqlFormatPgsql8, "with", "("+util.EncodeKV(opts, ",", "=")+")")
 		}
 
 		// NEW(2): extract table inheritance. need this to complete example diffing validation
@@ -295,7 +295,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		colRows, err := introspector.GetColumns(schema.Name, table.Name)
 		dbsteward.FatalIfError(err, "Error with column query")
 		for _, colRow := range colRows {
-			column := &model.Column{
+			column := &ir.Column{
 				Name:        colRow.Name,
 				Description: colRow.Description, // note that column numbers are 1-indexed
 				Type:        colRow.AttrType,
@@ -343,7 +343,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		dbsteward.FatalIfError(err, "Error with index query")
 		for _, indexRow := range indexRows {
 			// only add a unique index if the column was unique
-			index := &model.Index{
+			index := &ir.Index{
 				Name:   indexRow.Name,
 				Using:  "btree", // TODO(go,pgsql) this is definitely incorrect, need to fix before release
 				Unique: indexRow.Unique,
@@ -376,7 +376,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				if util.IndexOf(tableSerials, fmt.Sprintf("%s.%s", schema.Name, seqListRow.Name)) >= 0 {
 					continue
 				}
-				schema.AddSequence(&model.Sequence{
+				schema.AddSequence(&ir.Sequence{
 					Name:      seqListRow.Name,
 					Owner:     seqListRow.Owner, // TODO(feat) should this have a translateRoleName call?
 					Cache:     util.OptFromSQLNullInt64(seqRow.Cache),
@@ -397,7 +397,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		schema := doc.TryGetSchemaNamed(viewRow.Schema)
 		if schema == nil {
-			schema = &model.Schema{
+			schema = &ir.Schema{
 				Name: viewRow.Schema,
 			}
 			doc.AddSchema(schema)
@@ -411,12 +411,12 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		view := schema.TryGetViewNamed(viewRow.Name)
 		util.Assert(view == nil, "view %s.%s already defined in XML object -- unexpected", schema.Name, viewRow.Name)
 
-		schema.AddView(&model.View{
+		schema.AddView(&ir.View{
 			Name:  viewRow.Name,
 			Owner: registerRole(roleContextOwner, viewRow.Owner),
-			Queries: []*model.ViewQuery{
-				&model.ViewQuery{
-					SqlFormat: model.SqlFormatPgsql8,
+			Queries: []*ir.ViewQuery{
+				&ir.ViewQuery{
+					SqlFormat: ir.SqlFormatPgsql8,
 					Text:      viewRow.Definition,
 				},
 			},
@@ -441,17 +441,17 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			table.PrimaryKey = constraintRow.Columns
 			table.PrimaryKeyName = constraintRow.Name
 		case "u": // unique
-			table.AddConstraint(&model.Constraint{
+			table.AddConstraint(&ir.Constraint{
 				Name:       constraintRow.Name,
-				Type:       model.ConstraintTypeUnique,
+				Type:       ir.ConstraintTypeUnique,
 				Definition: fmt.Sprintf(`("%s")`, strings.Join(constraintRow.Columns, `", "`)),
 			})
 		case "c": // check
 			// NEW(2) implementing CHECK constraint extraction
 			// TODO(go,4) we have access to the columns affected by the constraint... can we utilize that somehow?
-			table.AddConstraint(&model.Constraint{
+			table.AddConstraint(&ir.Constraint{
 				Name:       constraintRow.Name,
-				Type:       model.ConstraintTypeCheck,
+				Type:       ir.ConstraintTypeCheck,
 				Definition: *constraintRow.CheckDef,
 			})
 		default:
@@ -459,12 +459,12 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		}
 	}
 
-	fkRules := map[string]model.ForeignKeyAction{
-		"a": model.ForeignKeyActionNoAction,
-		"r": model.ForeignKeyActionRestrict,
-		"c": model.ForeignKeyActionCascade,
-		"n": model.ForeignKeyActionSetNull,
-		"d": model.ForeignKeyActionSetDefault,
+	fkRules := map[string]ir.ForeignKeyAction{
+		"a": ir.ForeignKeyActionNoAction,
+		"r": ir.ForeignKeyActionRestrict,
+		"c": ir.ForeignKeyActionCascade,
+		"n": ir.ForeignKeyActionSetNull,
+		"d": ir.ForeignKeyActionSetDefault,
 	}
 	fkRows, err := introspector.GetForeignKeys()
 	dbsteward.FatalIfError(err, "Error with foreign key query")
@@ -498,7 +498,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			// dbsteward fk columns aren't supposed to specify a type, they get it from the referenced column
 			column.Type = ""
 		} else if len(fkRow.LocalColumns) > 1 {
-			table.AddForeignKey(&model.ForeignKey{
+			table.AddForeignKey(&ir.ForeignKey{
 				Columns:        fkRow.LocalColumns,
 				ForeignSchema:  fkRow.ForeignSchema,
 				ForeignTable:   fkRow.ForeignTable,
@@ -528,7 +528,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 		schema := doc.TryGetSchemaNamed(fnRow.Schema)
 		if schema == nil {
-			schema = &model.Schema{
+			schema = &ir.Schema{
 				Name: fnRow.Schema,
 			}
 			doc.AddSchema(schema)
@@ -540,16 +540,16 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		}
 
 		// TODO(feat) should we see if there's another function by this name already? that'd probably be unexpected, but would likely indicate a bug in our query
-		function := &model.Function{
+		function := &ir.Function{
 			Name:        fnRow.Name,
 			Returns:     fnRow.Return,
 			CachePolicy: fnRow.Volatility,
 			Owner:       registerRole(roleContextOwner, fnRow.Owner),
 			Description: fnRow.Description,
 			// TODO(feat): how is / figure out how to express securityDefiner attribute in the functions query
-			Definitions: []*model.FunctionDefinition{
-				&model.FunctionDefinition{
-					SqlFormat: model.SqlFormatPgsql8,
+			Definitions: []*ir.FunctionDefinition{
+				&ir.FunctionDefinition{
+					SqlFormat: ir.SqlFormatPgsql8,
 					Language:  fnRow.Language,
 					Text:      fnRow.Source,
 				},
@@ -581,9 +581,9 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		// TODO(go,nth) can we simplify this by adding a groupby in the query?
 		trigger := schema.TryGetTriggerNamedForTable(triggerRow.Name, triggerRow.Table)
 		if trigger == nil {
-			trigger = &model.Trigger{
+			trigger = &ir.Trigger{
 				Name:      triggerRow.Name,
-				SqlFormat: model.SqlFormatPgsql8,
+				SqlFormat: ir.SqlFormatPgsql8,
 			}
 			schema.AddTrigger(trigger)
 		}
@@ -591,9 +591,9 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		// TODO(feat) what should happen if we have two events with different settings??
 		// TODO(go,nth) validate string constant casts
 		trigger.AddEvent(triggerRow.Event)
-		trigger.Timing = model.TriggerTiming(triggerRow.Timing)
+		trigger.Timing = ir.TriggerTiming(triggerRow.Timing)
 		trigger.Table = triggerRow.Table
-		trigger.ForEach = model.TriggerForEach(triggerRow.Orientation)
+		trigger.ForEach = ir.TriggerForEach(triggerRow.Orientation)
 		trigger.Function = strings.TrimSpace(util.IReplaceAll(triggerRow.Statement, "EXECUTE PROCEDURE", ""))
 	}
 
@@ -617,9 +617,9 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		// aggregate privileges by role
 		grantee := registerRole(roleContextGrant, grantRow.Grantee)
 		docGrants := relation.GetGrantsForRole(grantee)
-		var grant *model.Grant
+		var grant *ir.Grant
 		if len(docGrants) == 0 {
-			grant = &model.Grant{
+			grant = &ir.Grant{
 				Roles: []string{grantee},
 			}
 			relation.AddGrant(grant)
@@ -651,9 +651,9 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 					for _, perm := range perms {
 						// TODO(feat) what about revokes?
 						grants := sequence.GetGrantsForRole(grantee)
-						var grant *model.Grant
+						var grant *ir.Grant
 						if len(grants) == 0 {
-							grant = &model.Grant{
+							grant = &ir.Grant{
 								Roles: []string{grantee},
 							}
 							sequence.AddGrant(grant)
@@ -725,7 +725,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 	return doc
 }
-func (self *Operations) CompareDbData(doc *model.Definition, host string, port uint, name, user, pass string) *model.Definition {
+func (self *Operations) CompareDbData(doc *ir.Definition, host string, port uint, name, user, pass string) *ir.Definition {
 	dbsteward := lib.GlobalDBSteward
 
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as user %s", host, port, name, user)
@@ -870,7 +870,7 @@ func (self *Operations) SlonyDiff(oldFile string, newFile string) {
 	// TODO(go,slony)
 }
 
-func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableRef) {
+func (self *Operations) BuildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {
 	// TODO(go,3) roll this into diffing nil -> doc
 	// schema creation
 	for _, schema := range doc.Schemas {
@@ -930,7 +930,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	// function definitions
 	for _, schema := range doc.Schemas {
 		for _, function := range schema.Functions {
-			if function.HasDefinition(model.SqlFormatPgsql8) {
+			if function.HasDefinition(ir.SqlFormatPgsql8) {
 				ofs.WriteSql(GlobalFunction.GetCreationSql(schema, function)...)
 				// when pg:build_schema() is doing its thing for straight builds, include function permissions
 				// they are not included in pg_function::get_creation_sql()
@@ -967,7 +967,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	// trigger definitions
 	for _, schema := range doc.Schemas {
 		for _, trigger := range schema.Triggers {
-			if trigger.SqlFormat.Equals(model.SqlFormatPgsql8) {
+			if trigger.SqlFormat.Equals(ir.SqlFormatPgsql8) {
 				ofs.WriteSql(GlobalTrigger.GetCreationSql(schema, trigger)...)
 			}
 		}
@@ -987,7 +987,7 @@ func (self *Operations) BuildSchema(doc *model.Definition, ofs output.OutputFile
 	GlobalDiff.UpdateDatabaseConfigParameters(ofs, nil, doc)
 }
 
-func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSegmenter, tableDep []*model.TableRef) {
+func (self *Operations) BuildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {
 	limitToTables := lib.GlobalDBSteward.LimitToTables
 
 	// use the dependency order to then write out the actual data inserts into the data sql file
@@ -1046,7 +1046,7 @@ func (self *Operations) BuildData(doc *model.Definition, ofs output.OutputFileSe
 	lib.GlobalDBX.BuildStagedSql(doc, ofs, "")
 }
 
-func (self *Operations) ColumnValueDefault(schema *model.Schema, table *model.Table, columnName string, dataCol *model.DataCol) sql.ToSqlValue {
+func (self *Operations) ColumnValueDefault(schema *ir.Schema, table *ir.Table, columnName string, dataCol *ir.DataCol) sql.ToSqlValue {
 	// if the column represents NULL, return a NULL value
 	if dataCol.Null {
 		return sql.ValueNull

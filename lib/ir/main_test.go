@@ -1,4 +1,4 @@
-package model_test
+package ir_test
 
 import (
 	"os"

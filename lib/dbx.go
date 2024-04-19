@@ -3,7 +3,7 @@ package lib
 import (
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/pkg/errors"
@@ -12,22 +12,22 @@ import (
 var GlobalDBX *DBX = NewDBX()
 
 type DBX struct {
-	defaultSchema *model.Schema
+	defaultSchema *ir.Schema
 }
 
 func NewDBX() *DBX {
 	return &DBX{}
 }
 
-func (self *DBX) SetDefaultSchema(def *model.Definition, schema string) *model.Schema {
+func (self *DBX) SetDefaultSchema(def *ir.Definition, schema string) *ir.Schema {
 	self.defaultSchema = def.GetOrCreateSchemaNamed(schema)
 	return self.defaultSchema
 }
-func (self *DBX) GetDefaultSchema() *model.Schema {
+func (self *DBX) GetDefaultSchema() *ir.Schema {
 	return self.defaultSchema
 }
 
-func (self *DBX) BuildStagedSql(doc *model.Definition, ofs output.OutputFileSegmenter, stage model.SqlStage) {
+func (self *DBX) BuildStagedSql(doc *ir.Definition, ofs output.OutputFileSegmenter, stage ir.SqlStage) {
 	if stage == "" {
 		ofs.Write("\n-- NON-STAGED SQL COMMANDS\n")
 	} else {
@@ -44,7 +44,7 @@ func (self *DBX) BuildStagedSql(doc *model.Definition, ofs output.OutputFileSegm
 	ofs.Write("\n")
 }
 
-func (self *DBX) GetTerminalForeignColumn(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) *model.Column {
+func (self *DBX) GetTerminalForeignColumn(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column) *ir.Column {
 	fkey := self.ResolveForeignKeyColumn(doc, schema, table, column)
 	fcol := fkey.Columns[0]
 
@@ -55,21 +55,21 @@ func (self *DBX) GetTerminalForeignColumn(doc *model.Definition, schema *model.S
 	return fcol
 }
 
-func (self *DBX) ResolveForeignKeyColumn(doc *model.Definition, schema *model.Schema, table *model.Table, column *model.Column) model.Key {
+func (self *DBX) ResolveForeignKeyColumn(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column) ir.Key {
 	// this used to be called format_constraint::foreign_key_lookup() in v1
 	// most of the functionality got split to the more general ResolveForeignKey
 	foreign := column.TryGetReferencedKey()
 	util.Assert(foreign != nil, "ResolveForeignKeyColumn called with column that does not reference a foreign column")
 
-	local := model.Key{
+	local := ir.Key{
 		Schema:  schema,
 		Table:   table,
-		Columns: []*model.Column{column},
+		Columns: []*ir.Column{column},
 	}
 	return self.ResolveForeignKey(doc, local, *foreign)
 }
 
-func (self *DBX) ResolveForeignKey(doc *model.Definition, localKey model.Key, foreignKey model.KeyNames) model.Key {
+func (self *DBX) ResolveForeignKey(doc *ir.Definition, localKey ir.Key, foreignKey ir.KeyNames) ir.Key {
 	fref := self.ResolveSchemaTable(doc, localKey.Schema, foreignKey.Schema, foreignKey.Table, "foreign key")
 
 	// if we didn't ask for specific foreign columns, but we have local columns, use those
@@ -82,10 +82,10 @@ func (self *DBX) ResolveForeignKey(doc *model.Definition, localKey model.Key, fo
 		GlobalDBSteward.Fatal("Local %s has column count mismatch with foreign %s", localKey.String(), foreignKey.String())
 	}
 
-	out := model.Key{
+	out := ir.Key{
 		Schema:  fref.Schema,
 		Table:   fref.Table,
-		Columns: make([]*model.Column, len(foreignKey.Columns)),
+		Columns: make([]*ir.Column, len(foreignKey.Columns)),
 		KeyName: foreignKey.KeyName,
 	}
 
@@ -107,7 +107,7 @@ func (self *DBX) ResolveForeignKey(doc *model.Definition, localKey model.Key, fo
 	return out
 }
 
-func (self *DBX) ResolveSchemaTable(doc *model.Definition, localSchema *model.Schema, schemaName, tableName string, refType string) model.TableRef {
+func (self *DBX) ResolveSchemaTable(doc *ir.Definition, localSchema *ir.Schema, schemaName, tableName string, refType string) ir.TableRef {
 	fSchema := localSchema
 	if schemaName != "" {
 		fSchema = doc.TryGetSchemaNamed(schemaName)
@@ -121,12 +121,12 @@ func (self *DBX) ResolveSchemaTable(doc *model.Definition, localSchema *model.Sc
 		GlobalDBSteward.Fatal("%s reference to unknown table %s.%s", refType, fSchema.Name, tableName)
 	}
 
-	return model.TableRef{fSchema, fTable}
+	return ir.TableRef{fSchema, fTable}
 }
 
 // attempts to find the new table that claims it is renamed from the old table
 // this is the "forwards looking" version of RenamedTableCheckPointer
-func (self *DBX) TryGetTableFormerlyKnownAs(newDoc *model.Definition, oldSchema *model.Schema, oldTable *model.Table) *model.TableRef {
+func (self *DBX) TryGetTableFormerlyKnownAs(newDoc *ir.Definition, oldSchema *ir.Schema, oldTable *ir.Table) *ir.TableRef {
 	// TODO(go,nth) can we remove the assertion in favor of just returning nil? or should callers continue to check IgnoreOldNames themselves?
 	util.Assert(!GlobalDBSteward.IgnoreOldNames, "Should not attempt to look up renamed tables if IgnoreOldNames is set")
 
@@ -137,7 +137,7 @@ func (self *DBX) TryGetTableFormerlyKnownAs(newDoc *model.Definition, oldSchema 
 				oldTableName := util.CoalesceStr(newTable.OldTableName, newTable.Name)
 				oldSchemaName := util.CoalesceStr(newTable.OldSchemaName, newSchema.Name)
 				if strings.EqualFold(oldSchema.Name, oldSchemaName) && strings.EqualFold(oldTable.Name, oldTableName) {
-					return &model.TableRef{newSchema, newTable}
+					return &ir.TableRef{newSchema, newTable}
 				}
 			}
 		}
@@ -148,7 +148,7 @@ func (self *DBX) TryGetTableFormerlyKnownAs(newDoc *model.Definition, oldSchema 
 // attempts to find, and sanity checks, the table pointed to by oldSchema/TableName attributes
 // this is the "backwards looking" version of TryGetTableFormerlyKnownAs
 // TODO(go,nth) rename this, clean it up
-func (self *DBX) RenamedTableCheckPointer(oldSchema *model.Schema, oldTable *model.Table, newSchema *model.Schema, newTable *model.Table) (*model.Schema, *model.Table) {
+func (self *DBX) RenamedTableCheckPointer(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) (*ir.Schema, *ir.Table) {
 	if newSchema == nil || newTable == nil {
 		return oldSchema, oldTable
 	}
@@ -175,7 +175,7 @@ func (self *DBX) RenamedTableCheckPointer(oldSchema *model.Schema, oldTable *mod
 	return oldSchema, oldTable
 }
 
-func (self *DBX) IsRenamedTable(schema *model.Schema, table *model.Table) (bool, error) {
+func (self *DBX) IsRenamedTable(schema *ir.Schema, table *ir.Table) (bool, error) {
 	if GlobalDBSteward.IgnoreOldNames {
 		return false, nil
 	}
@@ -205,7 +205,7 @@ func (self *DBX) IsRenamedTable(schema *model.Schema, table *model.Table) (bool,
 	return false, nil
 }
 
-func (self *DBX) GetOldTableSchema(schema *model.Schema, table *model.Table) *model.Schema {
+func (self *DBX) GetOldTableSchema(schema *ir.Schema, table *ir.Table) *ir.Schema {
 	if table.OldSchemaName == "" {
 		return schema
 	}
@@ -215,7 +215,7 @@ func (self *DBX) GetOldTableSchema(schema *model.Schema, table *model.Table) *mo
 	return GlobalDBSteward.OldDatabase.TryGetSchemaNamed(table.OldSchemaName)
 }
 
-func (self *DBX) GetOldTable(schema *model.Schema, table *model.Table) *model.Table {
+func (self *DBX) GetOldTable(schema *ir.Schema, table *ir.Table) *ir.Table {
 	if table.OldTableName == "" {
 		return nil
 	}
@@ -223,23 +223,23 @@ func (self *DBX) GetOldTable(schema *model.Schema, table *model.Table) *model.Ta
 	return oldSchema.TryGetTableNamed(table.OldTableName)
 }
 
-func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
+func (self *DBX) TableDependencyOrder(doc *ir.Definition) []*ir.TableRef {
 	// first, build forward and reverse adjacency lists
 	// forwards: a mapping of local table => foreign tables that it references
 	// reverse: a mapping of foreign table => local tables that reference it
-	reverse := map[model.TableRef][]model.TableRef{}
-	forward := util.NewOrderedMap[model.TableRef, *[]model.TableRef]()
+	reverse := map[ir.TableRef][]ir.TableRef{}
+	forward := util.NewOrderedMap[ir.TableRef, *[]ir.TableRef]()
 
 	// init is used with GetOrInit to ensure we have a valid pointer-to-non-nil-slice
-	init := func() *[]model.TableRef {
-		return &[]model.TableRef{}
+	init := func() *[]ir.TableRef {
+		return &[]ir.TableRef{}
 	}
 
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
-			curr := model.TableRef{schema, table}
+			curr := ir.TableRef{schema, table}
 			if len(reverse[curr]) == 0 {
-				reverse[curr] = []model.TableRef{}
+				reverse[curr] = []ir.TableRef{}
 			}
 
 			// for each dependency of current table
@@ -302,9 +302,9 @@ func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
 		if at any point there are no entries in `forward` with len = 0, there is a cycle
 	*/
 
-	out := []*model.TableRef{}
+	out := []*ir.TableRef{}
 	for forward.Len() > 0 {
-		toRemove := []model.TableRef{}
+		toRemove := []ir.TableRef{}
 		for _, entry := range forward.Entries() {
 			local := entry.Key
 			foreigns := entry.Value
@@ -335,8 +335,8 @@ func (self *DBX) TableDependencyOrder(doc *model.Definition) []*model.TableRef {
 	return out
 }
 
-func (self *DBX) getTableDependencies(doc *model.Definition, schema *model.Schema, table *model.Table) []model.TableRef {
-	out := []model.TableRef{}
+func (self *DBX) getTableDependencies(doc *ir.Definition, schema *ir.Schema, table *ir.Table) []ir.TableRef {
+	out := []ir.TableRef{}
 	// gather foreign keys on the columns
 	for _, column := range table.Columns {
 		if column.ForeignTable != "" {
@@ -365,7 +365,7 @@ func (self *DBX) getTableDependencies(doc *model.Definition, schema *model.Schem
 	return out
 }
 
-func (self *DBX) TryInheritanceGetColumn(doc *model.Definition, schema *model.Schema, table *model.Table, columnName string) *model.Column {
+func (self *DBX) TryInheritanceGetColumn(doc *ir.Definition, schema *ir.Schema, table *ir.Table, columnName string) *ir.Column {
 	// TODO(go,3) move to model
 	column := table.TryGetColumnNamed(columnName)
 
@@ -379,9 +379,9 @@ func (self *DBX) TryInheritanceGetColumn(doc *model.Definition, schema *model.Sc
 	return column
 }
 
-func (self *DBX) TryInheritanceGetColumns(doc *model.Definition, schema *model.Schema, table *model.Table, columnNames []string) ([]*model.Column, bool) {
+func (self *DBX) TryInheritanceGetColumns(doc *ir.Definition, schema *ir.Schema, table *ir.Table, columnNames []string) ([]*ir.Column, bool) {
 	// TODO(go,nth) this could be more efficient (but more complicated) if we did all the columns at once, one table at a time
-	columns := make([]*model.Column, len(columnNames))
+	columns := make([]*ir.Column, len(columnNames))
 	for i, colName := range columnNames {
 		column := self.TryInheritanceGetColumn(doc, schema, table, colName)
 		if column == nil {

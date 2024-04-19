@@ -4,7 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 type Column struct {
@@ -57,9 +57,9 @@ func (self *Column) UnmarshalXML(decoder *xml.Decoder, start xml.StartElement) e
 	return nil
 }
 
-func (col *Column) ToModel() (*model.Column, error) {
+func (col *Column) ToModel() (*ir.Column, error) {
 	// skipping DEPRICATED fields
-	rv := model.Column{
+	rv := ir.Column{
 		Name:             col.Name,
 		Type:             col.Type,
 		Nullable:         col.Nullable,
@@ -84,11 +84,11 @@ func (col *Column) ToModel() (*model.Column, error) {
 		Statistics:       col.Statistics,
 	}
 	var err error
-	rv.ForeignOnUpdate, err = model.NewForeignKeyAction(col.ForeignOnUpdate)
+	rv.ForeignOnUpdate, err = ir.NewForeignKeyAction(col.ForeignOnUpdate)
 	if err != nil {
 		return nil, fmt.Errorf("column '%s' invalid: %w", col.Name, err)
 	}
-	rv.ForeignOnDelete, err = model.NewForeignKeyAction(col.ForeignOnDelete)
+	rv.ForeignOnDelete, err = ir.NewForeignKeyAction(col.ForeignOnDelete)
 	if err != nil {
 		return nil, fmt.Errorf("column '%s' invalid: %w", col.Name, err)
 	}

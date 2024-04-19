@@ -9,7 +9,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/stretchr/testify/assert"
 )
@@ -25,7 +25,7 @@ func TestDiffConstraints_DropCreate_AddSome(t *testing.T) {
 		&sql.ConstraintCreateRaw{
 			Table:          sql.TableRef{"public", "test"},
 			Constraint:     "test_uqc_idx",
-			ConstraintType: model.ConstraintTypeUnique,
+			ConstraintType: ir.ConstraintTypeUnique,
 			Definition:     "(uqc)",
 		},
 	}, ddl)
@@ -71,7 +71,7 @@ func TestDiffConstraints_DropCreate_AddSomeAndChange(t *testing.T) {
 		&sql.ConstraintCreateRaw{
 			Table:          sql.TableRef{"public", "test"},
 			Constraint:     "test_cfke_fk",
-			ConstraintType: model.ConstraintTypeForeign,
+			ConstraintType: ir.ConstraintTypeForeign,
 			Definition:     "(cfke) REFERENCES public.other (pka)",
 		},
 	}, ddl)
@@ -101,27 +101,27 @@ func TestDiffConstraints_DropCreate_DropSomeAndChange(t *testing.T) {
 }
 
 func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "test",
 				PrimaryKey: []string{"pka"},
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "pka", Type: "int"},
 				},
 			},
 		},
 	}
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:          "newtable",
 				PrimaryKey:    []string{"pkb"},
 				OldSchemaName: "public",
 				OldTableName:  "test",
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "pkb", Type: "int", OldColumnName: "pka"},
 				},
 			},
@@ -131,11 +131,11 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 	// in psql8_diff::update_structure() when the new schema doesn't contain the old table name,
 	// $new_table is set to null for the first diff_constraints_table() call, adjusted this test accordingly
 	// ddl := diffConstraintsTableCommon(oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
-	oldDoc := &model.Definition{
-		Schemas: []*model.Schema{oldSchema},
+	oldDoc := &ir.Definition{
+		Schemas: []*ir.Schema{oldSchema},
 	}
-	newDoc := &model.Definition{
-		Schemas: []*model.Schema{newSchema},
+	newDoc := &ir.Definition{
+		Schemas: []*ir.Schema{newSchema},
 	}
 	ofs := &pgtestutil.RecordingOfs{
 		StripComments: true,
@@ -165,25 +165,25 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 func TestDiffConstraints_DropCreate_AutoIncrement(t *testing.T) {
 	t.SkipNow()
 
-	auto := &model.Schema{
+	auto := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "test",
 				PrimaryKey: []string{"pka"},
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "pka", Type: "int auto_increment"},
 				},
 			},
 		},
 	}
-	noAuto := &model.Schema{
+	noAuto := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "newtable",
 				PrimaryKey: []string{"pka"},
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "pka", Type: "int"},
 				},
 			},
@@ -197,42 +197,42 @@ func TestDiffConstraints_DropCreate_AutoIncrement(t *testing.T) {
 }
 
 func TestDiffConstraints_DropCreate_ChangeColumnTypeWithFK(t *testing.T) {
-	oldSchema := &model.Schema{
+	oldSchema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "test",
 				PrimaryKey: []string{"pka"},
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "pka", Type: "int"},
 					{Name: "ifkd", ForeignTable: "other", ForeignColumn: "pka", ForeignKeyName: "test_ifkd_fk"},
 				},
 			},
-			&model.Table{
+			&ir.Table{
 				Name:       "other",
 				PrimaryKey: []string{"pka"},
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "pka", Type: "int"},
 				},
 			},
 		},
 	}
 	// changed type of other.pka from int to text
-	newSchema := &model.Schema{
+	newSchema := &ir.Schema{
 		Name: "public",
-		Tables: []*model.Table{
-			&model.Table{
+		Tables: []*ir.Table{
+			&ir.Table{
 				Name:       "test",
 				PrimaryKey: []string{"pka"},
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "pka", Type: "int"},
 					{Name: "ifkd", ForeignTable: "other", ForeignColumn: "pka", ForeignKeyName: "test_ifkd_fk"},
 				},
 			},
-			&model.Table{
+			&ir.Table{
 				Name:       "other",
 				PrimaryKey: []string{"pka"},
-				Columns: []*model.Column{
+				Columns: []*ir.Column{
 					{Name: "pka", Type: "text"},
 				},
 			},
@@ -255,13 +255,13 @@ func TestDiffConstraints_DropCreate_ChangeColumnTypeWithFK(t *testing.T) {
 	}, ddl)
 }
 
-var diffConstraintsSchemaPka = &model.Schema{
+var diffConstraintsSchemaPka = &ir.Schema{
 	Name: "public",
-	Tables: []*model.Table{
-		&model.Table{
+	Tables: []*ir.Table{
+		&ir.Table{
 			Name:       "test",
 			PrimaryKey: []string{"pka"},
-			Columns: []*model.Column{
+			Columns: []*ir.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
 				{Name: "ukc"},
@@ -272,13 +272,13 @@ var diffConstraintsSchemaPka = &model.Schema{
 	},
 }
 
-var diffConstraintsSchemaPkb = &model.Schema{
+var diffConstraintsSchemaPkb = &ir.Schema{
 	Name: "public",
-	Tables: []*model.Table{
-		&model.Table{
+	Tables: []*ir.Table{
+		&ir.Table{
 			Name:       "test",
 			PrimaryKey: []string{"pkb"},
-			Columns: []*model.Column{
+			Columns: []*ir.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
 				{Name: "ukc"},
@@ -289,47 +289,47 @@ var diffConstraintsSchemaPkb = &model.Schema{
 	},
 }
 
-var diffConstraintsSchemaPkaUqc = &model.Schema{
+var diffConstraintsSchemaPkaUqc = &ir.Schema{
 	Name: "public",
-	Tables: []*model.Table{
-		&model.Table{
+	Tables: []*ir.Table{
+		&ir.Table{
 			Name:       "test",
 			PrimaryKey: []string{"pka"},
-			Columns: []*model.Column{
+			Columns: []*ir.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
 				{Name: "ukc"},
 				{Name: "ifkd"},
 				{Name: "cfke"},
 			},
-			Constraints: []*model.Constraint{
-				{Name: "test_uqc_idx", Type: model.ConstraintTypeUnique, Definition: "(uqc)"},
+			Constraints: []*ir.Constraint{
+				{Name: "test_uqc_idx", Type: ir.ConstraintTypeUnique, Definition: "(uqc)"},
 			},
 		},
 	},
 }
 
-var diffConstraintsSchemaPkbCfke = &model.Schema{
+var diffConstraintsSchemaPkbCfke = &ir.Schema{
 	Name: "public",
-	Tables: []*model.Table{
-		&model.Table{
+	Tables: []*ir.Table{
+		&ir.Table{
 			Name:       "test",
 			PrimaryKey: []string{"pkb"},
-			Columns: []*model.Column{
+			Columns: []*ir.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
 				{Name: "ukc"},
 				{Name: "ifkd"},
 				{Name: "cfke"},
 			},
-			Constraints: []*model.Constraint{
-				{Name: "test_cfke_fk", Type: model.ConstraintTypeForeign, Definition: "(cfke) REFERENCES public.other (pka)"},
+			Constraints: []*ir.Constraint{
+				{Name: "test_cfke_fk", Type: ir.ConstraintTypeForeign, Definition: "(cfke) REFERENCES public.other (pka)"},
 			},
 		},
-		&model.Table{
+		&ir.Table{
 			Name:       "other",
 			PrimaryKey: []string{"pka"},
-			Columns: []*model.Column{
+			Columns: []*ir.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
 				{Name: "ukc"},
@@ -340,28 +340,28 @@ var diffConstraintsSchemaPkbCfke = &model.Schema{
 	},
 }
 
-var diffConstraintsSchemaPkaUqcIfkdCfke = &model.Schema{
+var diffConstraintsSchemaPkaUqcIfkdCfke = &ir.Schema{
 	Name: "public",
-	Tables: []*model.Table{
-		&model.Table{
+	Tables: []*ir.Table{
+		&ir.Table{
 			Name:       "test",
 			PrimaryKey: []string{"pka"},
-			Columns: []*model.Column{
+			Columns: []*ir.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
 				{Name: "ukc"},
 				{Name: "ifkd", ForeignTable: "other", ForeignColumn: "pka", ForeignKeyName: "test_ifkd_fk"},
 				{Name: "cfke"},
 			},
-			Constraints: []*model.Constraint{
-				{Name: "test_cfke_fk", Type: model.ConstraintTypeForeign, Definition: "(cfke) REFERENCES public.other (pka)"},
-				{Name: "test_uqc_idx", Type: model.ConstraintTypeUnique, Definition: "(uqc)"},
+			Constraints: []*ir.Constraint{
+				{Name: "test_cfke_fk", Type: ir.ConstraintTypeForeign, Definition: "(cfke) REFERENCES public.other (pka)"},
+				{Name: "test_uqc_idx", Type: ir.ConstraintTypeUnique, Definition: "(uqc)"},
 			},
 		},
-		&model.Table{
+		&ir.Table{
 			Name:       "other",
 			PrimaryKey: []string{"pka"},
-			Columns: []*model.Column{
+			Columns: []*ir.Column{
 				{Name: "pka"},
 				{Name: "pkb"},
 				{Name: "ukc"},
@@ -372,12 +372,12 @@ var diffConstraintsSchemaPkaUqcIfkdCfke = &model.Schema{
 	},
 }
 
-func diffConstraintsTableCommon(oldSchema, newSchema *model.Schema, ctype sql99.ConstraintType) []output.ToSql {
-	oldDoc := &model.Definition{
-		Schemas: []*model.Schema{oldSchema},
+func diffConstraintsTableCommon(oldSchema, newSchema *ir.Schema, ctype sql99.ConstraintType) []output.ToSql {
+	oldDoc := &ir.Definition{
+		Schemas: []*ir.Schema{oldSchema},
 	}
-	newDoc := &model.Definition{
-		Schemas: []*model.Schema{newSchema},
+	newDoc := &ir.Definition{
+		Schemas: []*ir.Schema{newSchema},
 	}
 	ofs := &pgtestutil.RecordingOfs{
 		StripComments: true,

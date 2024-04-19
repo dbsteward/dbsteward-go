@@ -5,20 +5,20 @@ import (
 	"testing"
 
 	"github.com/dbsteward/dbsteward/lib"
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
-	parent := &model.Definition{
-		Schemas: []*model.Schema{
-			&model.Schema{
+	parent := &ir.Definition{
+		Schemas: []*ir.Schema{
+			&ir.Schema{
 				Name: "public",
-				Tables: []*model.Table{
-					&model.Table{
+				Tables: []*ir.Table{
+					&ir.Table{
 						Name:       "parent_table",
 						PrimaryKey: []string{"pk"},
-						Columns: []*model.Column{
+						Columns: []*ir.Column{
 							{Name: "pk", Type: "int"},
 							{Name: "col1", Type: "char(10)", Default: "yeahboy"},
 						},
@@ -27,24 +27,24 @@ func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
 			},
 		},
 	}
-	child := &model.Definition{
-		Schemas: []*model.Schema{&model.Schema{
+	child := &ir.Definition{
+		Schemas: []*ir.Schema{&ir.Schema{
 			Name: "public",
-			Tables: []*model.Table{
-				&model.Table{
+			Tables: []*ir.Table{
+				&ir.Table{
 					Name:           "child_table",
 					PrimaryKey:     []string{"pkchild"},
 					InheritsSchema: "public",
 					InheritsTable:  "parent_table",
-					Columns: []*model.Column{
+					Columns: []*ir.Column{
 						{Name: "pkchild", Type: "int"},
 						{Name: "x", Type: "int"},
 					},
-					Rows: &model.DataRows{
+					Rows: &ir.DataRows{
 						Columns: []string{"pkchild", "col1"},
-						Rows: []*model.DataRow{
-							&model.DataRow{
-								Columns: []*model.DataCol{
+						Rows: []*ir.DataRow{
+							&ir.DataRow{
+								Columns: []*ir.DataCol{
 									{Text: "99999999999999"},
 									{Text: "techmology"},
 								},
@@ -56,32 +56,32 @@ func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
 		},
 		},
 	}
-	parentAndChild := &model.Definition{
-		Schemas: []*model.Schema{&model.Schema{
+	parentAndChild := &ir.Definition{
+		Schemas: []*ir.Schema{&ir.Schema{
 			Name: "public",
-			Tables: []*model.Table{
-				&model.Table{
+			Tables: []*ir.Table{
+				&ir.Table{
 					Name:       "parent_table",
 					PrimaryKey: []string{"pk"},
-					Columns: []*model.Column{
+					Columns: []*ir.Column{
 						{Name: "pk", Type: "int"},
 						{Name: "col1", Type: "char(10)", Default: "yeahboy"},
 					},
 				},
-				&model.Table{
+				&ir.Table{
 					Name:           "child_table",
 					PrimaryKey:     []string{"pkchild"},
 					InheritsSchema: "public",
 					InheritsTable:  "parent_table",
-					Columns: []*model.Column{
+					Columns: []*ir.Column{
 						{Name: "pkchild", Type: "int"},
 						{Name: "x", Type: "int"},
 					},
-					Rows: &model.DataRows{
+					Rows: &ir.DataRows{
 						Columns: []string{"pkchild", "col1"},
-						Rows: []*model.DataRow{
-							&model.DataRow{
-								Columns: []*model.DataCol{
+						Rows: []*ir.DataRow{
+							&ir.DataRow{
+								Columns: []*ir.DataCol{
 									{Text: "99999999999999"},
 									{Text: "techmology"},
 								},
@@ -93,24 +93,24 @@ func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
 		},
 		},
 	}
-	grandchild := &model.Definition{
-		Schemas: []*model.Schema{&model.Schema{
+	grandchild := &ir.Definition{
+		Schemas: []*ir.Schema{&ir.Schema{
 			Name: "notpublic",
-			Tables: []*model.Table{
-				&model.Table{
+			Tables: []*ir.Table{
+				&ir.Table{
 					Name:           "grandchild_table",
 					PrimaryKey:     []string{"pkgrandchild"},
 					InheritsSchema: "public",
 					InheritsTable:  "child_table",
-					Columns: []*model.Column{
+					Columns: []*ir.Column{
 						{Name: "pkgrandchild", Type: "int"},
 						{Name: "y", Type: "int"},
 					},
-					Rows: &model.DataRows{
+					Rows: &ir.DataRows{
 						Columns: []string{"pkgrandchild", "col1"},
-						Rows: []*model.DataRow{
-							&model.DataRow{
-								Columns: []*model.DataCol{
+						Rows: []*ir.DataRow{
+							&ir.DataRow{
+								Columns: []*ir.DataCol{
 									{Text: "99999999999999"},
 									{Text: "techmology"},
 								},
@@ -137,52 +137,52 @@ func TestXmlParser_CompositeDoc_DuplicateFunctionValidation_SeparateDefs(t *test
 	// format::diff_doc_work, but the only place the duplicate function error is thrown is
 	// inside xml_parser::xml_composite_children, so we're testing that instead here
 	// TODO(go,3) we should probably test schema.Merge instead of XmlParser.CompositeDoc
-	doc := &model.Definition{
-		Schemas: []*model.Schema{
-			&model.Schema{
+	doc := &ir.Definition{
+		Schemas: []*ir.Schema{
+			&ir.Schema{
 				Name: "someschema",
-				Functions: []*model.Function{
-					&model.Function{
+				Functions: []*ir.Function{
+					&ir.Function{
 						Name:        "lpad",
 						Returns:     "text",
 						CachePolicy: "IMMUTABLE",
-						Parameters: []*model.FunctionParameter{
+						Parameters: []*ir.FunctionParameter{
 							{Type: "text"},
 							{Type: "int"},
 							{Type: "text"},
 						},
-						Definitions: []*model.FunctionDefinition{
-							{Language: "sql", SqlFormat: model.SqlFormatPgsql8, Text: "SELECT LPAD($1, $2, $3);"},
+						Definitions: []*ir.FunctionDefinition{
+							{Language: "sql", SqlFormat: ir.SqlFormatPgsql8, Text: "SELECT LPAD($1, $2, $3);"},
 						},
 					},
 					// duplicates the above
-					&model.Function{
+					&ir.Function{
 						Name:        "lpad",
 						Returns:     "text",
 						CachePolicy: "IMMUTABLE",
-						Parameters: []*model.FunctionParameter{
+						Parameters: []*ir.FunctionParameter{
 							{Type: "text"},
 							{Type: "int"},
 							{Type: "text"},
 						},
-						Definitions: []*model.FunctionDefinition{
-							{Language: "sql", SqlFormat: model.SqlFormatPgsql8, Text: "SELECT LPAD($1, $2, $3);"},
+						Definitions: []*ir.FunctionDefinition{
+							{Language: "sql", SqlFormat: ir.SqlFormatPgsql8, Text: "SELECT LPAD($1, $2, $3);"},
 						},
 					},
 					// has a different SqlFormat
-					&model.Function{
+					&ir.Function{
 						Name:        "lpad",
 						Returns:     "text",
 						CachePolicy: "IMMUTABLE",
-						Parameters: []*model.FunctionParameter{
+						Parameters: []*ir.FunctionParameter{
 							{Type: "text"},
 							{Type: "int"},
 							{Type: "text"},
 						},
-						Definitions: []*model.FunctionDefinition{
+						Definitions: []*ir.FunctionDefinition{
 							{
 								Language:  "sql",
-								SqlFormat: model.SqlFormatMssql10,
+								SqlFormat: ir.SqlFormatMssql10,
 								Text: `BEGIN
 									DECLARE @base_str_len int,
 													@pad_len int,
@@ -215,39 +215,39 @@ func TestXmlParser_CompositeDoc_DuplicateFunctionValidation_SeparateDefs(t *test
 }
 
 func TestXmlParser_CompositeDoc_DuplicateFunctionValidation_SharedDefs(t *testing.T) {
-	doc := &model.Definition{
-		Schemas: []*model.Schema{
-			&model.Schema{
+	doc := &ir.Definition{
+		Schemas: []*ir.Schema{
+			&ir.Schema{
 				Name: "someschema",
-				Functions: []*model.Function{
-					&model.Function{
+				Functions: []*ir.Function{
+					&ir.Function{
 						Name:        "lpad",
 						Returns:     "text",
 						CachePolicy: "IMMUTABLE",
-						Parameters: []*model.FunctionParameter{
+						Parameters: []*ir.FunctionParameter{
 							{Type: "text"},
 							{Type: "int"},
 							{Type: "text"},
 						},
-						Definitions: []*model.FunctionDefinition{
-							{Language: "sql", SqlFormat: model.SqlFormatPgsql8, Text: "SELECT LPAD($1, $2, $3);"},
-							{Language: "sql", SqlFormat: model.SqlFormatPgsql8, Text: "SELECT LPAD($1, $2, $3);"},
+						Definitions: []*ir.FunctionDefinition{
+							{Language: "sql", SqlFormat: ir.SqlFormatPgsql8, Text: "SELECT LPAD($1, $2, $3);"},
+							{Language: "sql", SqlFormat: ir.SqlFormatPgsql8, Text: "SELECT LPAD($1, $2, $3);"},
 						},
 					},
 					// has a different SqlFormat
-					&model.Function{
+					&ir.Function{
 						Name:        "lpad",
 						Returns:     "text",
 						CachePolicy: "IMMUTABLE",
-						Parameters: []*model.FunctionParameter{
+						Parameters: []*ir.FunctionParameter{
 							{Type: "text"},
 							{Type: "int"},
 							{Type: "text"},
 						},
-						Definitions: []*model.FunctionDefinition{
+						Definitions: []*ir.FunctionDefinition{
 							{
 								Language:  "sql",
-								SqlFormat: model.SqlFormatMssql10,
+								SqlFormat: ir.SqlFormatMssql10,
 								Text: `BEGIN
 									DECLARE @base_str_len int,
 													@pad_len int,

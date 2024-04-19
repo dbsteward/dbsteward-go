@@ -6,7 +6,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 
-	"github.com/dbsteward/dbsteward/lib/model"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -18,7 +18,7 @@ func NewIndex() *Index {
 	return &Index{}
 }
 
-func (self *Index) GetCreateSql(schema *model.Schema, table *model.Table, index *model.Index) []output.ToSql {
+func (self *Index) GetCreateSql(schema *ir.Schema, table *ir.Table, index *ir.Index) []output.ToSql {
 	dims := make([]sql.Quotable, len(index.Dimensions))
 	for i, dim := range index.Dimensions {
 		if dim.Sql {
@@ -28,7 +28,7 @@ func (self *Index) GetCreateSql(schema *model.Schema, table *model.Table, index 
 		}
 	}
 	condStr := ""
-	if cond := index.TryGetCondition(model.SqlFormatPgsql8); cond != nil {
+	if cond := index.TryGetCondition(ir.SqlFormatPgsql8); cond != nil {
 		condStr = cond.Condition
 	}
 	return []output.ToSql{
@@ -44,7 +44,7 @@ func (self *Index) GetCreateSql(schema *model.Schema, table *model.Table, index 
 	}
 }
 
-func (self *Index) GetDropSql(schema *model.Schema, table *model.Table, index *model.Index) []output.ToSql {
+func (self *Index) GetDropSql(schema *ir.Schema, table *ir.Table, index *ir.Index) []output.ToSql {
 	return []output.ToSql{
 		&sql.IndexDrop{
 			Index: sql.IndexRef{schema.Name, table.Name},
@@ -52,21 +52,21 @@ func (self *Index) GetDropSql(schema *model.Schema, table *model.Table, index *m
 	}
 }
 
-func (self *Index) GetTableIndexes(schema *model.Schema, table *model.Table) ([]*model.Index, error) {
+func (self *Index) GetTableIndexes(schema *ir.Schema, table *ir.Table) ([]*ir.Index, error) {
 	if table == nil {
 		return nil, nil
 	}
-	out := make([]*model.Index, len(table.Indexes))
+	out := make([]*ir.Index, len(table.Indexes))
 	copy(out, table.Indexes)
 
 	// add column unique indexes to the list
 	for _, column := range table.Columns {
 		if column.Unique {
-			out = append(out, &model.Index{
+			out = append(out, &ir.Index{
 				Name:   self.BuildSecondaryKeyName(table.Name, column.Name),
 				Unique: true,
-				Using:  model.IndexTypeBtree, // TODO(feat) can these support other types?
-				Dimensions: []*model.IndexDim{{
+				Using:  ir.IndexTypeBtree, // TODO(feat) can these support other types?
+				Dimensions: []*ir.IndexDim{{
 					Name:  column.Name + "_unq",
 					Value: column.Name,
 				}},
@@ -88,7 +88,7 @@ func (self *Index) GetTableIndexes(schema *model.Schema, table *model.Table) ([]
 	return out, nil
 }
 
-func (self *Index) TryGetTableIndexNamed(schema *model.Schema, table *model.Table, name string) (*model.Index, error) {
+func (self *Index) TryGetTableIndexNamed(schema *ir.Schema, table *ir.Table, name string) (*ir.Index, error) {
 	indexes, err := self.GetTableIndexes(schema, table)
 	if err != nil {
 		return nil, err
