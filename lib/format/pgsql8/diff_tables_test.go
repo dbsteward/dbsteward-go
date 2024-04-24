@@ -1,4 +1,4 @@
-package pgsql8_test
+package pgsql8
 
 import (
 	"strings"
@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dbsteward/dbsteward/lib"
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -348,8 +347,8 @@ func TestDiffTables_GetDeleteCreateDataSql_AddSerialColumn(t *testing.T) {
 		},
 	}
 
-	delddl := pgsql8.GlobalDiffTables.GetDeleteDataSql(oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
-	addddl := pgsql8.GlobalDiffTables.GetCreateDataSql(oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
+	delddl := GlobalDiffTables.GetDeleteDataSql(oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
+	addddl := GlobalDiffTables.GetCreateDataSql(oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
 	assert.Equal(t, []output.ToSql{}, delddl)
 	assert.Equal(t, []output.ToSql{
 		&sql.DataUpdate{
@@ -380,7 +379,7 @@ func diffTablesCommon(oldSchema, newSchema *ir.Schema) ([]output.ToSql, []output
 	}
 
 	// note: v1 only used DiffTables, v2 split into CreateTables+DiffTables
-	dt := pgsql8.GlobalDiffTables
+	dt := GlobalDiffTables
 	err := dt.CreateTables(ofs1, oldSchema, newSchema)
 	if err != nil {
 		return ofs1.Sql, ofs3.Sql, err

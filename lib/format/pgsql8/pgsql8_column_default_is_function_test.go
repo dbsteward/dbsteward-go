@@ -1,4 +1,4 @@
-package pgsql8_test
+package pgsql8
 
 import (
 	"testing"
@@ -6,7 +6,6 @@ import (
 	"github.com/golang/mock/gomock"
 
 	"github.com/dbsteward/dbsteward/lib"
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -80,7 +79,7 @@ func TestColumnDefaultIsFunction(t *testing.T) {
 	}
 
 	lib.GlobalDBSteward.NewDatabase = doc
-	pgsql8.GlobalOperations.BuildSchema(doc, ofs, tableDep)
+	buildSchema(doc, ofs, tableDep)
 
 	testutil.AssertContainsSubseq(t, actual, expected)
 }

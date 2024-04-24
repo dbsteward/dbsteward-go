@@ -72,7 +72,7 @@ func (self *Table) GetCreationSql(schema *ir.Schema, table *ir.Table) []output.T
 		for _, col := range table.Columns {
 			// TODO(feat) more than just serials?
 			if GlobalColumn.IsSerialType(col) {
-				ident := GlobalOperations.BuildSequenceName(schema.Name, table.Name, col.Name)
+				ident := buildSequenceName(schema.Name, table.Name, col.Name)
 				ddl = append(ddl, &sql.TableAlterOwner{
 					Table: sql.TableRef{schema.Name, ident},
 					Role:  role,
@@ -181,7 +181,7 @@ func (self *Table) GetGrantSql(doc *ir.Definition, schema *ir.Schema, table *ir.
 
 		seqRef := sql.SequenceRef{
 			Schema:   schema.Name,
-			Sequence: GlobalOperations.BuildSequenceName(schema.Name, table.Name, column.Name),
+			Sequence: buildSequenceName(schema.Name, table.Name, column.Name),
 		}
 		if len(seqPerms) > 0 {
 			ddl = append(ddl, &sql.SequenceGrant{

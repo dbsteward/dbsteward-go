@@ -1,11 +1,10 @@
-package pgsql8_test
+package pgsql8
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
@@ -319,6 +318,6 @@ func diffTypes(oldSchema, newSchema *ir.Schema) []output.ToSql {
 	ofs := &pgtestutil.RecordingOfs{
 		StripComments: true,
 	}
-	pgsql8.GlobalDiffTypes.DiffTypes(ofs, oldSchema, newSchema)
+	GlobalDiffTypes.DiffTypes(ofs, oldSchema, newSchema)
 	return ofs.Sql
 }

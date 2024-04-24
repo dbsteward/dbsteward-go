@@ -420,7 +420,7 @@ func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTab
 			agg.before3 = append(agg.before3, &sql.SequenceDrop{
 				Sequence: sql.SequenceRef{
 					Schema:   newSchema.Name,
-					Sequence: GlobalOperations.BuildSequenceName(newSchema.Name, newTable.Name, newColumn.Name),
+					Sequence: buildSequenceName(newSchema.Name, newTable.Name, newColumn.Name),
 				},
 			})
 			agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnDropDefault{newColumn.Name})
@@ -754,7 +754,7 @@ func (self *DiffTables) buildDataInsert(schema *ir.Schema, table *ir.Table, row 
 	util.Assert(!row.Delete, "do not call buildDataInsert for a row marked for deletion")
 	values := make([]sql.ToSqlValue, len(row.Columns))
 	for i, col := range table.Rows.Columns {
-		values[i] = GlobalOperations.ColumnValueDefault(schema, table, col, row.Columns[i])
+		values[i] = columnValueDefault(schema, table, col, row.Columns[i])
 	}
 	return &sql.DataInsert{
 		Table:   sql.TableRef{schema.Name, table.Name},
@@ -776,7 +776,7 @@ func (self *DiffTables) buildDataUpdate(schema *ir.Schema, table *ir.Table, chan
 		oldColIdx := util.IStrsIndex(change.oldCols, newColName)
 		if oldColIdx < 0 || !change.oldRow.Columns[oldColIdx].Equals(newCol) {
 			updateCols = append(updateCols, newColName)
-			updateVals = append(updateVals, GlobalOperations.ColumnValueDefault(schema, table, newColName, newCol))
+			updateVals = append(updateVals, columnValueDefault(schema, table, newColName, newCol))
 		}
 	}
 
@@ -784,7 +784,7 @@ func (self *DiffTables) buildDataUpdate(schema *ir.Schema, table *ir.Table, chan
 	pkColMap := table.Rows.GetColMapKeys(change.newRow, table.PrimaryKey)
 	for name, col := range pkColMap {
 		// TODO(go,pgsql) orig code in dbx::primary_key_expression uses `format::value_escape`, but that doesn't account for null, empty, sql, etc
-		keyVals = append(keyVals, GlobalOperations.ColumnValueDefault(schema, table, name, col))
+		keyVals = append(keyVals, columnValueDefault(schema, table, name, col))
 	}
 
 	return &sql.DataUpdate{
@@ -801,7 +801,7 @@ func (self *DiffTables) buildDataDelete(schema *ir.Schema, table *ir.Table, row 
 	pkColMap := table.Rows.GetColMapKeys(row, table.PrimaryKey)
 	for name, col := range pkColMap {
 		// TODO(go,pgsql) orig code in dbx::primary_key_expression uses `format::value_escape`, but that doesn't account for null, empty, sql, etc
-		keyVals = append(keyVals, GlobalOperations.ColumnValueDefault(schema, table, name, col))
+		keyVals = append(keyVals, columnValueDefault(schema, table, name, col))
 	}
 	return &sql.DataDelete{
 		Table:      sql.TableRef{schema.Name, table.Name},

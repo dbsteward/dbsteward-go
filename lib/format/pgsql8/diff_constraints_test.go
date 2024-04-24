@@ -1,4 +1,4 @@
-package pgsql8_test
+package pgsql8
 
 import (
 	"testing"
@@ -6,7 +6,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
@@ -141,7 +140,7 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 		StripComments: true,
 	}
 	setOldNewDocs(oldDoc, newDoc)
-	diffConstraints := pgsql8.GlobalDiffConstraints
+	diffConstraints := GlobalDiffConstraints
 	diffConstraints.DropConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, nil, sql99.ConstraintTypePrimaryKey)
 	diffConstraints.CreateConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], sql99.ConstraintTypePrimaryKey)
 
@@ -383,7 +382,7 @@ func diffConstraintsTableCommon(oldSchema, newSchema *ir.Schema, ctype sql99.Con
 		StripComments: true,
 	}
 	setOldNewDocs(oldDoc, newDoc)
-	diffConstraints := pgsql8.GlobalDiffConstraints
+	diffConstraints := GlobalDiffConstraints
 	diffConstraints.DropConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
 	diffConstraints.CreateConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
 	if ofs.Sql == nil {

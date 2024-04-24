@@ -1,4 +1,4 @@
-package pgsql8_test
+package pgsql8
 
 import (
 	"testing"
@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dbsteward/dbsteward/lib"
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
@@ -111,10 +110,10 @@ func getColumnValueDefault(def *ir.Column, data *ir.DataCol) string {
 	schema := doc.Schemas[0]
 	table := schema.Tables[0]
 
-	ops := pgsql8.GlobalOperations
+	ops := GlobalOperations
 	ops.EscapeStringValues = true
 
 	// TODO(go,nth) can we do this without also testing GetValueSql?
-	toVal := ops.ColumnValueDefault(schema, table, def.Name, data)
+	toVal := columnValueDefault(schema, table, def.Name, data)
 	return toVal.GetValueSql(ops.GetQuoter())
 }
