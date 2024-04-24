@@ -36,9 +36,9 @@ func NewOperations() *Operations {
 	return pgsql
 }
 
-func (self *Operations) GetQuoter() output.Quoter {
+func (ops *Operations) GetQuoter() output.Quoter {
 	// TODO(go,core) can we push this out to the GlobalLookup instance?
-	if self.quoter == nil {
+	if ops.quoter == nil {
 		dbsteward := lib.GlobalDBSteward
 		return &sql.Quoter{
 			Logger:                         dbsteward,
@@ -48,14 +48,14 @@ func (self *Operations) GetQuoter() output.Quoter {
 			ShouldQuoteObjectNames:         dbsteward.QuoteAllNames || dbsteward.QuoteObjectNames,
 			ShouldQuoteIllegalIdentifiers:  dbsteward.QuoteIllegalIdentifiers,
 			ShouldQuoteReservedIdentifiers: dbsteward.QuoteReservedIdentifiers,
-			ShouldEEscape:                  self.EscapeStringValues,
+			ShouldEEscape:                  ops.EscapeStringValues,
 			RequireVerboseIntervalNotation: dbsteward.RequireVerboseIntervalNotation,
 		}
 	}
-	return self.quoter
+	return ops.quoter
 }
 
-func (self *Operations) Build(outputPrefix string, dbDoc *ir.Definition) {
+func (ops *Operations) Build(outputPrefix string, dbDoc *ir.Definition) {
 	// TODO(go,4) can we just consider a build(def) to be diff(null, def)?
 	// some shortcuts, since we're going to be typing a lot here
 	dbsteward := lib.GlobalDBSteward
@@ -67,7 +67,7 @@ func (self *Operations) Build(outputPrefix string, dbDoc *ir.Definition) {
 	buildFile, err := os.Create(buildFileName)
 	dbsteward.FatalIfError(err, "Failed to open file %s for output", buildFileName)
 
-	buildFileOfs := output.NewOutputFileSegmenterToFile(dbsteward, self.GetQuoter(), buildFileName, 1, buildFile, buildFileName, dbsteward.OutputFileStatementLimit)
+	buildFileOfs := output.NewOutputFileSegmenterToFile(dbsteward, ops.GetQuoter(), buildFileName, 1, buildFile, buildFileName, dbsteward.OutputFileStatementLimit)
 	if len(dbsteward.LimitToTables) == 0 {
 		buildFileOfs.Write("-- full database definition file generated %s\n", time.Now().Format(time.RFC1123Z))
 	}
@@ -128,7 +128,7 @@ outer:
 	if !setCheckFunctionBodies {
 		buildFileOfs.Write("\n")
 		buildFileOfs.WriteSql(&sql.Annotated{
-			Wrapped:    &sql.SetCheckFunctionBodies{false},
+			Wrapped:    &sql.SetCheckFunctionBodies{Value: false},
 			Annotation: setCheckFunctionBodiesInfo,
 		})
 		dbsteward.Info(setCheckFunctionBodiesInfo)
@@ -136,11 +136,11 @@ outer:
 
 	if dbsteward.OnlySchemaSql || !dbsteward.OnlyDataSql {
 		dbsteward.Info("Defining structure")
-		self.BuildSchema(dbDoc, buildFileOfs, tableDependency)
+		ops.BuildSchema(dbDoc, buildFileOfs, tableDependency)
 	}
 	if !dbsteward.OnlySchemaSql || dbsteward.OnlyDataSql {
 		dbsteward.Info("Defining data inserts")
-		self.BuildData(dbDoc, buildFileOfs, tableDependency)
+		ops.BuildData(dbDoc, buildFileOfs, tableDependency)
 	}
 	dbsteward.NewDatabase = nil
 
@@ -148,11 +148,10 @@ outer:
 		buildFileOfs.Write("COMMIT;\n\n")
 	}
 
-	if dbsteward.GenerateSlonik {
-		// TODO(go,slony)
-	}
+	// TODO(go,slony)
+	// if dbsteward.GenerateSlonik {}
 }
-func (self *Operations) BuildUpgrade(
+func (ops *Operations) BuildUpgrade(
 	oldOutputPrefix string, oldCompositeFile string, oldDoc *ir.Definition, oldFiles []string,
 	newOutputPrefix string, newCompositeFile string, newDoc *ir.Definition, newFiles []string,
 ) {
@@ -166,19 +165,18 @@ func (self *Operations) BuildUpgrade(
 
 	GlobalDiff.DiffDoc(oldCompositeFile, newCompositeFile, oldDoc, newDoc, upgradePrefix)
 
-	if lib.GlobalDBSteward.GenerateSlonik {
-		// TODO(go,slony)
-	}
+	// TODO(go,slony)
+	// if lib.GlobalDBSteward.GenerateSlonik {}
 }
-func (self *Operations) ExtractSchema(host string, port uint, name, user, pass string) *ir.Definition {
+func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass string) *ir.Definition {
 	dbsteward := lib.GlobalDBSteward
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as %s", host, port, name, user)
-	conn, err := self.ConnectionFactory.newConnection(host, port, name, user, pass)
+	conn, err := ops.ConnectionFactory.newConnection(host, port, name, user, pass)
 	dbsteward.FatalIfError(err, "could not connect to database")
 	// TODO(go,pgsql) this is deadlocking during a panic
 	defer conn.disconnect()
 
-	introspector, err := self.IntrospectorFactory.NewIntrospector(conn)
+	introspector, err := ops.IntrospectorFactory.NewIntrospector(conn)
 	dbsteward.FatalIfError(err, "could not create schema introspector")
 
 	version, err := introspector.GetServerVersion()
@@ -322,7 +320,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 				// store sequences that will be implicitly genreated during table create
 				// could use pgsql8::identifier_name and fully qualify the table but it will just truncate "for us" anyhow, so manually prepend schema
-				identName := schema.Name + "." + self.BuildSequenceName(schema.Name, table.Name, column.Name)
+				identName := schema.Name + "." + ops.BuildSequenceName(schema.Name, table.Name, column.Name)
 				tableSerials = append(tableSerials, identName)
 
 				// column.Default is: "nextval('test_blah_seq'::regclass)"
@@ -413,7 +411,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			Name:  viewRow.Name,
 			Owner: registerRole(roleContextOwner, viewRow.Owner),
 			Queries: []*ir.ViewQuery{
-				&ir.ViewQuery{
+				{
 					SqlFormat: ir.SqlFormatPgsql8,
 					Text:      viewRow.Definition,
 				},
@@ -546,7 +544,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 			Description: fnRow.Description,
 			// TODO(feat): how is / figure out how to express securityDefiner attribute in the functions query
 			Definitions: []*ir.FunctionDefinition{
-				&ir.FunctionDefinition{
+				{
 					SqlFormat: ir.SqlFormatPgsql8,
 					Language:  fnRow.Language,
 					Text:      fnRow.Source,
@@ -643,7 +641,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 				if grantRow.Acl == "" {
 					continue
 				}
-				grantPerms := self.parseSequenceRelAcl(grantRow.Acl)
+				grantPerms := ops.parseSequenceRelAcl(grantRow.Acl)
 				for user, perms := range grantPerms {
 					grantee := registerRole(roleContextGrant, user)
 					for _, perm := range perms {
@@ -687,9 +685,7 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 		doc.Database.Roles.Replication,
 		doc.Database.Roles.ReadOnly,
 	)
-	for _, item := range customRoles.Items() {
-		doc.Database.Roles.CustomRoles = append(doc.Database.Roles.CustomRoles, item)
-	}
+	doc.Database.Roles.CustomRoles = append(doc.Database.Roles.CustomRoles, customRoles.Items()...)
 
 	// scan all now defined tables
 	// TODO(go,4) replace all role fields with macro equivalents if possible
@@ -723,11 +719,11 @@ func (self *Operations) ExtractSchema(host string, port uint, name, user, pass s
 
 	return doc
 }
-func (self *Operations) CompareDbData(doc *ir.Definition, host string, port uint, name, user, pass string) *ir.Definition {
+func (ops *Operations) CompareDbData(doc *ir.Definition, host string, port uint, name, user, pass string) *ir.Definition {
 	dbsteward := lib.GlobalDBSteward
 
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as user %s", host, port, name, user)
-	conn, err := self.ConnectionFactory.newConnection(host, port, name, user, pass)
+	conn, err := ops.ConnectionFactory.newConnection(host, port, name, user, pass)
 	dbsteward.FatalIfError(err, "Could not compare db data")
 	defer conn.disconnect()
 
@@ -763,7 +759,7 @@ func (self *Operations) CompareDbData(doc *ir.Definition, host string, port uint
 					colTypes[column.Name] = colType
 				}
 
-				q := self.GetQuoter()
+				q := ops.GetQuoter()
 				for _, row := range table.Rows.Rows {
 					// TODO(go,nth) can we fix this direct sql construction with a ToSql struct?
 					pkExprs := []string{}
@@ -804,7 +800,7 @@ func (self *Operations) CompareDbData(doc *ir.Definition, host string, port uint
 						dbRow := rows[0]
 						for i, col := range cols {
 							// TODO(feat) what about row.Columns[i].Null?
-							valuesMatch, xmlValue, dbValue := self.compareDbDataRow(conn, colTypes[col], row.Columns[i].Text, dbRow[col])
+							valuesMatch, xmlValue, dbValue := ops.compareDbDataRow(conn, colTypes[col], row.Columns[i].Text, dbRow[col])
 							if !valuesMatch {
 								dbsteward.Warning("%s row column WHERE (%s) %s data does not match database row column: '%s' vs '%s'",
 									tableName, pkExpr, col, xmlValue, dbValue)
@@ -817,10 +813,10 @@ func (self *Operations) CompareDbData(doc *ir.Definition, host string, port uint
 	}
 	return doc
 }
-func (self *Operations) compareDbDataRow(conn connection, colType, xmlValue, dbValue string) (bool, string, string) {
+func (ops *Operations) compareDbDataRow(conn connection, colType, xmlValue, dbValue string) (bool, string, string) {
 	colType = strings.ToLower(colType)
-	xmlValue = self.pgdataHomogenize(colType, xmlValue)
-	dbValue = self.pgdataHomogenize(colType, dbValue)
+	xmlValue = ops.pgdataHomogenize(colType, xmlValue)
+	dbValue = ops.pgdataHomogenize(colType, dbValue)
 	if xmlValue == dbValue {
 		return true, xmlValue, dbValue
 	}
@@ -838,7 +834,7 @@ func (self *Operations) compareDbDataRow(conn connection, colType, xmlValue, dbV
 
 	return false, xmlValue, dbValue
 }
-func (self *Operations) pgdataHomogenize(colType string, value string) string {
+func (ops *Operations) pgdataHomogenize(colType string, value string) string {
 	switch {
 	case strings.HasPrefix(colType, "bool"):
 		switch strings.ToLower(value) {
@@ -853,7 +849,7 @@ func (self *Operations) pgdataHomogenize(colType string, value string) string {
 	}
 }
 
-func (self *Operations) SqlDiff(old, new []string, upgradePrefix string) {
+func (ops *Operations) SqlDiff(old, new []string, upgradePrefix string) {
 	lib.GlobalDBSteward.Notice("Calculating sql differences:")
 	lib.GlobalDBSteward.Notice("Old set: %v", old)
 	lib.GlobalDBSteward.Notice("New set: %v", new)
@@ -861,14 +857,14 @@ func (self *Operations) SqlDiff(old, new []string, upgradePrefix string) {
 	GlobalDiff.DiffSql(old, new, upgradePrefix)
 }
 
-func (self *Operations) SlonyCompare(file string) {
+func (ops *Operations) SlonyCompare(file string) {
 	// TODO(go,slony)
 }
-func (self *Operations) SlonyDiff(oldFile string, newFile string) {
+func (ops *Operations) SlonyDiff(oldFile string, newFile string) {
 	// TODO(go,slony)
 }
 
-func (self *Operations) BuildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {
+func (ops *Operations) BuildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {
 	// TODO(go,3) roll this into diffing nil -> doc
 	// schema creation
 	for _, schema := range doc.Schemas {
@@ -985,7 +981,7 @@ func (self *Operations) BuildSchema(doc *ir.Definition, ofs output.OutputFileSeg
 	GlobalDiff.UpdateDatabaseConfigParameters(ofs, nil, doc)
 }
 
-func (self *Operations) BuildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {
+func (ops *Operations) BuildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {
 	limitToTables := lib.GlobalDBSteward.LimitToTables
 
 	// use the dependency order to then write out the actual data inserts into the data sql file
@@ -1023,7 +1019,11 @@ func (self *Operations) BuildData(doc *ir.Definition, ofs output.OutputFileSegme
 				// TODO(go,nth) unify DataType.IsLinkedType and Column.IsSerialType
 				if GlobalColumn.IsSerialType(pk) && pk.SerialStart == nil {
 					ofs.WriteSql(&sql.SequenceSerialSetValMax{
-						Column: sql.ColumnRef{schema.Name, table.Name, pk.Name},
+						Column: sql.ColumnRef{
+							Schema: schema.Name,
+							Table:  table.Name,
+							Column: pk.Name,
+						},
 					})
 				}
 			}
@@ -1044,7 +1044,7 @@ func (self *Operations) BuildData(doc *ir.Definition, ofs output.OutputFileSegme
 	lib.GlobalDBX.BuildStagedSql(doc, ofs, "")
 }
 
-func (self *Operations) ColumnValueDefault(schema *ir.Schema, table *ir.Table, columnName string, dataCol *ir.DataCol) sql.ToSqlValue {
+func (ops *Operations) ColumnValueDefault(schema *ir.Schema, table *ir.Table, columnName string, dataCol *ir.DataCol) sql.ToSqlValue {
 	// if the column represents NULL, return a NULL value
 	if dataCol.Null {
 		return sql.ValueNull
@@ -1077,7 +1077,7 @@ func (self *Operations) ColumnValueDefault(schema *ir.Schema, table *ir.Table, c
 		// if we have <column ... default="'foo'"/> then this would result in INSERT ... VALUES (..., foo, ...) instead of 'foo'
 		// we need to test this very thoroughly to establish intended behavior
 		// until then, we'll treat the default as literal sql, as in other locations in the code
-		// return self.StripStringQuoting(col.Default)
+		// return ops.StripStringQuoting(col.Default)
 		return sql.RawSql(col.Default)
 	}
 
@@ -1087,13 +1087,13 @@ func (self *Operations) ColumnValueDefault(schema *ir.Schema, table *ir.Table, c
 	}
 }
 
-func (self *Operations) StripStringQuoting(str string) string {
+func (ops *Operations) StripStringQuoting(str string) string {
 	return strings.ReplaceAll(strings.TrimPrefix(strings.TrimSuffix(str, "'"), "'"), "''", "'")
 }
 
 // TODO(go,nth) should this live somewhere else?
 // TODO(go,pgsql8) test this
-func (self *Operations) parseSqlArray(str string) []string {
+func (ops *Operations) parseSqlArray(str string) []string {
 	var out []string
 	str = strings.Trim(str, "{}")
 	if str == "" {
@@ -1139,11 +1139,13 @@ func (self *Operations) parseSqlArray(str string) []string {
 	return append(out, next)
 }
 
-func (self *Operations) BuildSequenceName(schema, table, column string) string {
-	return self.buildIdentifierName(schema, table, column, "_seq")
+func (ops *Operations) BuildSequenceName(schema, table, column string) string {
+	return ops.buildIdentifierName(schema, table, column, "_seq")
 }
 
-func (self *Operations) buildIdentifierName(schema, table, column, suffix string) string {
+// buildIdentifierName(schema, table, column, suffix)
+// TODO: schema is unusued. Why? Remove it not really needed.
+func (ops *Operations) buildIdentifierName(_, table, column, suffix string) string {
 	// these will change as we build the identifier
 	identTable := table
 	identColumn := column
@@ -1174,7 +1176,7 @@ func (self *Operations) buildIdentifierName(schema, table, column, suffix string
 	return fmt.Sprintf("%s_%s%s", identTable, identColumn, suffix)
 }
 
-func (self *Operations) parseSequenceRelAcl(str string) map[string][]string {
+func (ops *Operations) parseSequenceRelAcl(str string) map[string][]string {
 	// will be receiving something like '{superuser=rwU/superuser_role,normal_role=rw/superuser_role}'
 	// output {superuser: [select, usage, ...], ...}
 	out := map[string][]string{}
@@ -1186,7 +1188,7 @@ func (self *Operations) parseSequenceRelAcl(str string) map[string][]string {
 		'U': "USAGE",
 	}
 
-	for _, elem := range self.parseSqlArray(str) {
+	for _, elem := range ops.parseSqlArray(str) {
 		userperms := strings.SplitN(elem, "=", 2)
 		if len(userperms) == 1 {
 			// no perms
