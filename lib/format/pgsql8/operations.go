@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8/live"
-
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -21,8 +19,8 @@ type Operations struct {
 	*sql99.Operations
 
 	EscapeStringValues  bool
-	IntrospectorFactory live.IntrospectorFactory
-	ConnectionFactory   live.ConnectionFactory
+	IntrospectorFactory IntrospectorFactory
+	ConnectionFactory   connectionFactory
 
 	quoter output.Quoter
 }
@@ -31,8 +29,8 @@ func NewOperations() *Operations {
 	pgsql := &Operations{
 		Operations:          sql99.NewOperations(),
 		EscapeStringValues:  false,
-		IntrospectorFactory: &live.LiveIntrospectorFactory{},
-		ConnectionFactory:   &live.LiveConnectionFactory{},
+		IntrospectorFactory: &LiveIntrospectorFactory{},
+		ConnectionFactory:   &liveConnectionFactory{},
 	}
 	pgsql.Operations.Operations = pgsql
 	return pgsql
@@ -175,10 +173,10 @@ func (self *Operations) BuildUpgrade(
 func (self *Operations) ExtractSchema(host string, port uint, name, user, pass string) *ir.Definition {
 	dbsteward := lib.GlobalDBSteward
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as %s", host, port, name, user)
-	conn, err := self.ConnectionFactory.NewConnection(host, port, name, user, pass)
+	conn, err := self.ConnectionFactory.newConnection(host, port, name, user, pass)
 	dbsteward.FatalIfError(err, "could not connect to database")
 	// TODO(go,pgsql) this is deadlocking during a panic
-	defer conn.Disconnect()
+	defer conn.disconnect()
 
 	introspector, err := self.IntrospectorFactory.NewIntrospector(conn)
 	dbsteward.FatalIfError(err, "could not create schema introspector")
@@ -729,9 +727,9 @@ func (self *Operations) CompareDbData(doc *ir.Definition, host string, port uint
 	dbsteward := lib.GlobalDBSteward
 
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as user %s", host, port, name, user)
-	conn, err := self.ConnectionFactory.NewConnection(host, port, name, user, pass)
+	conn, err := self.ConnectionFactory.newConnection(host, port, name, user, pass)
 	dbsteward.FatalIfError(err, "Could not compare db data")
-	defer conn.Disconnect()
+	defer conn.disconnect()
 
 	dbsteward.Info("Comparing composited dbsteward definition data rows to postgresql database connection table contents")
 	// compare the composited dbsteward document to the established database connection
@@ -788,7 +786,7 @@ func (self *Operations) CompareDbData(doc *ir.Definition, host string, port uint
 
 					// TODO(go,nth) use parameterized queries
 					sql := fmt.Sprintf(`SELECT * FROM %s WHERE %s`, tableName, pkExpr)
-					rows, err := conn.QueryMap(sql)
+					rows, err := conn.queryMap(sql)
 					dbsteward.FatalIfError(err, "Error with data query")
 
 					if row.Delete {
@@ -819,7 +817,7 @@ func (self *Operations) CompareDbData(doc *ir.Definition, host string, port uint
 	}
 	return doc
 }
-func (self *Operations) compareDbDataRow(conn live.Connection, colType, xmlValue, dbValue string) (bool, string, string) {
+func (self *Operations) compareDbDataRow(conn connection, colType, xmlValue, dbValue string) (bool, string, string) {
 	colType = strings.ToLower(colType)
 	xmlValue = self.pgdataHomogenize(colType, xmlValue)
 	dbValue = self.pgdataHomogenize(colType, dbValue)
@@ -832,7 +830,7 @@ func (self *Operations) compareDbDataRow(conn live.Connection, colType, xmlValue
 		if len(xmlValue) > 0 && len(dbValue) > 0 {
 			sql := fmt.Sprintf(`SELECT $1::%s = $2::%[1]s`, colType)
 			var eq bool
-			err := conn.QueryVal(&eq, sql, xmlValue, dbValue)
+			err := conn.queryVal(&eq, sql, xmlValue, dbValue)
 			lib.GlobalDBSteward.FatalIfError(err, "Could not query database")
 			return eq, xmlValue, dbValue
 		}

@@ -1,4 +1,4 @@
-package live
+package pgsql8
 
 import (
 	"context"
@@ -12,24 +12,24 @@ import (
 	"github.com/pkg/errors"
 )
 
-//go:generate $ROOTDIR/run _mockgen Connection
+//go:generate $ROOTDIR/run _mockgen connection
 
-type Connection interface {
-	Version() (VersionNum, error)
-	Disconnect()
-	Query(query string, params ...interface{}) (pgx.Rows, error)
-	QueryRow(query string, params ...interface{}) pgx.Row
-	QueryMap(query string, params ...interface{}) (StringMapList, error)
-	QueryVal(val interface{}, sql string, params ...interface{}) error
+type connection interface {
+	version() (VersionNum, error)
+	disconnect()
+	query(query string, params ...interface{}) (pgx.Rows, error)
+	queryRow(query string, params ...interface{}) pgx.Row
+	queryMap(query string, params ...interface{}) (StringMapList, error)
+	queryVal(val interface{}, sql string, params ...interface{}) error
 }
 
-type ConnectionFactory interface {
-	NewConnection(host string, port uint, name, user, pass string) (Connection, error)
+type connectionFactory interface {
+	newConnection(host string, port uint, name, user, pass string) (connection, error)
 }
 
-type LiveConnectionFactory struct{}
+type liveConnectionFactory struct{}
 
-func (*LiveConnectionFactory) NewConnection(host string, port uint, name, user, pass string) (Connection, error) {
+func (*liveConnectionFactory) newConnection(host string, port uint, name, user, pass string) (connection, error) {
 	// TODO(go,3) sslmode?
 	// TODO(go,3) just have the user pass the entire DSN
 	// TODO(feat) support envvar password
@@ -40,35 +40,35 @@ func (*LiveConnectionFactory) NewConnection(host string, port uint, name, user, 
 		return nil, errors.Wrap(err, "Could not connect to postgres database")
 	}
 
-	return &LiveConnection{conn}, nil
+	return &liveConnection{conn}, nil
 }
 
 type ConstantConnectionFactory struct {
-	Connection Connection
+	Connection connection
 }
 
-var _ ConnectionFactory = &ConstantConnectionFactory{}
+var _ connectionFactory = &ConstantConnectionFactory{}
 
-func (self *ConstantConnectionFactory) NewConnection(string, uint, string, string, string) (Connection, error) {
+func (self *ConstantConnectionFactory) newConnection(string, uint, string, string, string) (connection, error) {
 	return self.Connection, nil
 }
 
 type NullConnection struct {
-	Connection
+	connection
 }
 
-func (*NullConnection) Disconnect() {}
+func (*NullConnection) disconnect() {}
 
-type LiveConnection struct {
+type liveConnection struct {
 	conn *pgxpool.Pool
 }
 
 type StringMap map[string]string
 type StringMapList []StringMap
 
-func (self *LiveConnection) Version() (VersionNum, error) {
+func (self *liveConnection) version() (VersionNum, error) {
 	var v string // for reasons unknown, this won't scan to int, only string
-	err := self.QueryVal(&v, "SHOW server_version_num;")
+	err := self.queryVal(&v, "SHOW server_version_num;")
 	if err != nil {
 		return 0, err
 	}
@@ -76,18 +76,18 @@ func (self *LiveConnection) Version() (VersionNum, error) {
 	return VersionNum(i), err
 }
 
-func (self *LiveConnection) Disconnect() {
+func (self *liveConnection) disconnect() {
 	self.conn.Close()
 }
 
-func (self *LiveConnection) Query(query string, params ...interface{}) (pgx.Rows, error) {
+func (self *liveConnection) query(query string, params ...interface{}) (pgx.Rows, error) {
 	return self.conn.Query(context.TODO(), query, params...)
 }
-func (self *LiveConnection) QueryRow(query string, params ...interface{}) pgx.Row {
+func (self *liveConnection) queryRow(query string, params ...interface{}) pgx.Row {
 	return self.conn.QueryRow(context.TODO(), query, params...)
 }
 
-func (self *LiveConnection) QueryMap(query string, params ...interface{}) (StringMapList, error) {
+func (self *liveConnection) queryMap(query string, params ...interface{}) (StringMapList, error) {
 	out := StringMapList{}
 	rows, err := self.conn.Query(context.TODO(), query, params...)
 	if err != nil {
@@ -122,6 +122,6 @@ func (self *LiveConnection) QueryMap(query string, params ...interface{}) (Strin
 	return out, nil
 }
 
-func (self *LiveConnection) QueryVal(val interface{}, sql string, params ...interface{}) error {
+func (self *liveConnection) queryVal(val interface{}, sql string, params ...interface{}) error {
 	return self.conn.QueryRow(context.TODO(), sql, params...).Scan(val)
 }

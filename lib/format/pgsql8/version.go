@@ -1,14 +1,17 @@
-package live
+package pgsql8
 
 import "fmt"
 
 // https://www.postgresql.org/support/versioning/
 // This is obtained from `SHOW server_version_num;`
 // Prior to 10.0, Version X.Y.Z was represented as X*10000+Y*100+Z
-//   8.4.22 -> 80422
-//   9.1.0 -> 90100
+//
+//	8.4.22 -> 80422
+//	9.1.0 -> 90100
+//
 // Starting with 10.0, Version X.Y is represented as X*10000 + Y
-//   12.5 -> 120005
+//
+//	12.5 -> 120005
 type VersionNum int
 
 func NewVersionNum(major, minor int, patch ...int) VersionNum {

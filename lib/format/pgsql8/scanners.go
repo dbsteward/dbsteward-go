@@ -1,4 +1,4 @@
-package live
+package pgsql8
 
 import (
 	"database/sql"

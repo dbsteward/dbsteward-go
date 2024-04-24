@@ -1,4 +1,4 @@
-package live
+package pgsql8
 
 func VersAtLeast(major, minor int) func(VersionNum) bool {
 	return func(v VersionNum) bool {

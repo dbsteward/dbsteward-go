@@ -12,11 +12,10 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8/live"
 	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
-var PG_8_0 live.VersionNum = live.NewVersionNum(8, 0)
+var PG_8_0 pgsql8.VersionNum = pgsql8.NewVersionNum(8, 0)
 
 // TODO(go,3) is there a way to make this set of tests a whole lot less annoying?
 // TODO(go,pgsql) the v1 ExtractionTest tested what is now ExtractSchema, Introspector, Connection, _and_ postgres
@@ -26,7 +25,7 @@ var PG_8_0 live.VersionNum = live.NewVersionNum(8, 0)
 /* Copy+paste and change for each test:
 func TestOperations_ExtractSchema_Something(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	introspector := live.NewMockIntrospector(ctrl)
+	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableList().AnyTimes()
@@ -50,7 +49,7 @@ func TestOperations_ExtractSchema_Something(t *testing.T) {
 
 func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	introspector := live.NewMockIntrospector(ctrl)
+	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
@@ -63,33 +62,33 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 	introspector.EXPECT().GetTablePerms().AnyTimes()
 	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
 
-	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
-		live.TableEntry{
+	introspector.EXPECT().GetTableList().Return([]pgsql8.TableEntry{
+		pgsql8.TableEntry{
 			Schema: "public",
 			Table:  "test",
 		},
 	}, nil)
-	introspector.EXPECT().GetColumns("public", "test").Return([]live.ColumnEntry{
-		live.ColumnEntry{
+	introspector.EXPECT().GetColumns("public", "test").Return([]pgsql8.ColumnEntry{
+		pgsql8.ColumnEntry{
 			Name:     "col1",
 			AttrType: "text",
 			Position: 1,
 		},
-		live.ColumnEntry{
+		pgsql8.ColumnEntry{
 			Name:     "col2",
 			AttrType: "text",
 			Position: 2,
 		},
-		live.ColumnEntry{
+		pgsql8.ColumnEntry{
 			Name:     "col3",
 			AttrType: "text",
 			Position: 3,
 		},
 	}, nil)
 
-	introspector.EXPECT().GetIndexes("public", "test").Return([]live.IndexEntry{
+	introspector.EXPECT().GetIndexes("public", "test").Return([]pgsql8.IndexEntry{
 		// test that both column and functional expressions work as expected
-		live.IndexEntry{
+		pgsql8.IndexEntry{
 			Name: "testidx",
 			Dimensions: []string{
 				"lower(col1)",
@@ -100,11 +99,11 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 			},
 		},
 		// test that index column order is extracted correctly
-		live.IndexEntry{
+		pgsql8.IndexEntry{
 			Name:       "testidx2",
 			Dimensions: []string{"col1", "col2", "col3"},
 		},
-		live.IndexEntry{
+		pgsql8.IndexEntry{
 			Name:       "testidx3",
 			Dimensions: []string{"col2", "col1", "col3"},
 		},
@@ -153,7 +152,7 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 
 func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	introspector := live.NewMockIntrospector(ctrl)
+	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
@@ -166,32 +165,32 @@ func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
 	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetIndexes("public", "test").AnyTimes()
 
-	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
-		live.TableEntry{
+	introspector.EXPECT().GetTableList().Return([]pgsql8.TableEntry{
+		pgsql8.TableEntry{
 			Schema: "public",
 			Table:  "test",
 		},
 	}, nil)
-	introspector.EXPECT().GetColumns("public", "test").Return([]live.ColumnEntry{
-		live.ColumnEntry{
+	introspector.EXPECT().GetColumns("public", "test").Return([]pgsql8.ColumnEntry{
+		pgsql8.ColumnEntry{
 			Name:     "col1",
 			AttrType: "bigint",
 			Nullable: false,
 			Position: 1,
 		},
-		live.ColumnEntry{
+		pgsql8.ColumnEntry{
 			Name:     "col2",
 			AttrType: "bigint",
 			Nullable: false,
 			Position: 2,
 		},
-		live.ColumnEntry{
+		pgsql8.ColumnEntry{
 			Name:     "col3",
 			AttrType: "character varying(20)",
 			Nullable: false,
 			Position: 3,
 		},
-		live.ColumnEntry{
+		pgsql8.ColumnEntry{
 			Name:     "col4",
 			AttrType: "character varying(20)",
 			Nullable: true,
@@ -199,8 +198,8 @@ func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
 		},
 	}, nil)
 
-	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
-		live.ConstraintEntry{
+	introspector.EXPECT().GetConstraints().Return([]pgsql8.ConstraintEntry{
+		pgsql8.ConstraintEntry{
 			Schema:  "public",
 			Table:   "test",
 			Name:    "test_constraint",
@@ -224,23 +223,23 @@ func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
 
 func TestOperations_ExtractSchema_TableComments(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	introspector := live.NewMockIntrospector(ctrl)
+	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	schemaDesc := "A description of the public schema"
 	tableDesc := "A description of the test table"
 	colDesc := "A description of col1 on the test table"
 
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
-		live.TableEntry{
+	introspector.EXPECT().GetTableList().Return([]pgsql8.TableEntry{
+		pgsql8.TableEntry{
 			Schema:            "public",
 			SchemaDescription: schemaDesc,
 			Table:             "test",
 			TableDescription:  tableDesc,
 		},
 	}, nil)
-	introspector.EXPECT().GetColumns(gomock.Any(), gomock.Any()).Return([]live.ColumnEntry{
-		live.ColumnEntry{
+	introspector.EXPECT().GetColumns(gomock.Any(), gomock.Any()).Return([]pgsql8.ColumnEntry{
+		pgsql8.ColumnEntry{
 			Name:        "col1",
 			AttrType:    "text",
 			Description: colDesc,
@@ -249,7 +248,7 @@ func TestOperations_ExtractSchema_TableComments(t *testing.T) {
 	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
+	introspector.EXPECT().GetConstraints().Return([]pgsql8.ConstraintEntry{
 		{Schema: "public", Table: "test", Name: "test_col1_pkey", Type: "p", Columns: []string{"col1"}},
 	}, nil)
 	introspector.EXPECT().GetForeignKeys().AnyTimes()
@@ -268,7 +267,7 @@ func TestOperations_ExtractSchema_TableComments(t *testing.T) {
 
 func TestOperations_ExtractSchema_FunctionAmpersands(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	introspector := live.NewMockIntrospector(ctrl)
+	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	body := strings.TrimSpace(`
 DECLARE
@@ -287,9 +286,9 @@ END;
 	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetConstraints().AnyTimes()
 	introspector.EXPECT().GetForeignKeys().AnyTimes()
-	introspector.EXPECT().GetFunctions().Return([]live.FunctionEntry{
-		live.FunctionEntry{
-			Oid:        live.Oid{1},
+	introspector.EXPECT().GetFunctions().Return([]pgsql8.FunctionEntry{
+		pgsql8.FunctionEntry{
+			Oid:        pgsql8.Oid{1},
 			Schema:     "public",
 			Name:       "rates_overlap",
 			Return:     "boolean",
@@ -300,7 +299,7 @@ END;
 			Source:     body,
 		},
 	}, nil)
-	introspector.EXPECT().GetFunctionArgs(live.Oid{1}).Return([]live.FunctionArgEntry{
+	introspector.EXPECT().GetFunctionArgs(pgsql8.Oid{1}).Return([]pgsql8.FunctionArgEntry{
 		{"rates_a", "money"},
 		{"rates_b", "money"},
 	}, nil)
@@ -329,7 +328,7 @@ END;
 
 func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	introspector := live.NewMockIntrospector(ctrl)
+	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	body := `BEGIN RETURN 1; END;`
 
@@ -341,9 +340,9 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetConstraints().AnyTimes()
 	introspector.EXPECT().GetForeignKeys().AnyTimes()
-	introspector.EXPECT().GetFunctions().Return([]live.FunctionEntry{
-		live.FunctionEntry{
-			Oid:      live.Oid{1},
+	introspector.EXPECT().GetFunctions().Return([]pgsql8.FunctionEntry{
+		pgsql8.FunctionEntry{
+			Oid:      pgsql8.Oid{1},
 			Schema:   "public",
 			Name:     "increment1",
 			Return:   "integer",
@@ -351,8 +350,8 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 			Language: "plpgsql",
 			Source:   body,
 		},
-		live.FunctionEntry{
-			Oid:      live.Oid{2},
+		pgsql8.FunctionEntry{
+			Oid:      pgsql8.Oid{2},
 			Schema:   "public",
 			Name:     "increment2",
 			Return:   "integer",
@@ -360,8 +359,8 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 			Language: "plpgsql",
 			Source:   body,
 		},
-		live.FunctionEntry{
-			Oid:      live.Oid{3},
+		pgsql8.FunctionEntry{
+			Oid:      pgsql8.Oid{3},
 			Schema:   "public",
 			Name:     "increment3",
 			Return:   "integer",
@@ -369,8 +368,8 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 			Language: "plpgsql",
 			Source:   body,
 		},
-		live.FunctionEntry{
-			Oid:      live.Oid{4},
+		pgsql8.FunctionEntry{
+			Oid:      pgsql8.Oid{4},
 			Schema:   "public",
 			Name:     "increment4",
 			Return:   "integer",
@@ -380,21 +379,21 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 		},
 	}, nil)
 	// array type and argument names
-	introspector.EXPECT().GetFunctionArgs(live.Oid{1}).Return([]live.FunctionArgEntry{
+	introspector.EXPECT().GetFunctionArgs(pgsql8.Oid{1}).Return([]pgsql8.FunctionArgEntry{
 		{"arg1", "integer[]"},
 		{"arg2", "uuid[]"},
 	}, nil)
 	// array type and no argument names
-	introspector.EXPECT().GetFunctionArgs(live.Oid{2}).Return([]live.FunctionArgEntry{
+	introspector.EXPECT().GetFunctionArgs(pgsql8.Oid{2}).Return([]pgsql8.FunctionArgEntry{
 		{"", "integer[]"},
 		{"", "uuid[]"},
 	}, nil)
 	// array type and mixed argument names
-	introspector.EXPECT().GetFunctionArgs(live.Oid{3}).Return([]live.FunctionArgEntry{
+	introspector.EXPECT().GetFunctionArgs(pgsql8.Oid{3}).Return([]pgsql8.FunctionArgEntry{
 		{"arg1", "integer[]"},
 		{"", "uuid[]"},
 	}, nil)
-	introspector.EXPECT().GetFunctionArgs(live.Oid{4}).Return([]live.FunctionArgEntry{
+	introspector.EXPECT().GetFunctionArgs(pgsql8.Oid{4}).Return([]pgsql8.FunctionArgEntry{
 		{"", "integer[]"},
 		{"arg1", "uuid[]"},
 	}, nil)
@@ -427,13 +426,13 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 
 func TestOperations_ExtractSchema_TableArrayType(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	introspector := live.NewMockIntrospector(ctrl)
+	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
+	introspector.EXPECT().GetTableList().Return([]pgsql8.TableEntry{
 		{Schema: "public", Table: "test"},
 	}, nil)
-	introspector.EXPECT().GetColumns("public", "test").Return([]live.ColumnEntry{
+	introspector.EXPECT().GetColumns("public", "test").Return([]pgsql8.ColumnEntry{
 		{Name: "name", AttrType: "text[]"},
 	}, nil)
 	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
@@ -454,7 +453,7 @@ func TestOperations_ExtractSchema_TableArrayType(t *testing.T) {
 
 func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	introspector := live.NewMockIntrospector(ctrl)
+	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	// CREATE TABLE dummy (foo int, bar varchar(32), PRIMARY KEY (foo, bar));
 	// CREATE TABLE test (
@@ -467,15 +466,15 @@ func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 	// );
 
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
+	introspector.EXPECT().GetTableList().Return([]pgsql8.TableEntry{
 		{Schema: "public", Table: "dummy"},
 		{Schema: "public", Table: "test"},
 	}, nil)
-	introspector.EXPECT().GetColumns("public", "dummy").Return([]live.ColumnEntry{
+	introspector.EXPECT().GetColumns("public", "dummy").Return([]pgsql8.ColumnEntry{
 		{Name: "feux", AttrType: "integer"},
 		{Name: "barf", AttrType: "character varying(32)"},
 	}, nil)
-	introspector.EXPECT().GetColumns("public", "test").Return([]live.ColumnEntry{
+	introspector.EXPECT().GetColumns("public", "test").Return([]pgsql8.ColumnEntry{
 		{Name: "id", AttrType: "integer"},
 		{Name: "foo", AttrType: "integer"},
 		{Name: "bar", AttrType: "character varying(32)"},
@@ -483,12 +482,12 @@ func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
+	introspector.EXPECT().GetConstraints().Return([]pgsql8.ConstraintEntry{
 		{Schema: "public", Table: "dummy", Name: "dummy_pkey", Type: "p", Columns: []string{"foo", "bar"}},
 		{Schema: "public", Table: "test", Name: "test_pkey", Type: "p", Columns: []string{"id"}},
 	}, nil)
-	introspector.EXPECT().GetForeignKeys().Return([]live.ForeignKeyEntry{
-		live.ForeignKeyEntry{
+	introspector.EXPECT().GetForeignKeys().Return([]pgsql8.ForeignKeyEntry{
+		pgsql8.ForeignKeyEntry{
 			ConstraintName: "test_foo_fkey",
 			UpdateRule:     "a",
 			DeleteRule:     "n",
@@ -535,28 +534,28 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 	// the ones marked (b) test that sequences which are used as defaults in a column are extracted as a serial column instead
 
 	ctrl := gomock.NewController(t)
-	introspector := live.NewMockIntrospector(ctrl)
+	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetTableList().Return([]live.TableEntry{
+	introspector.EXPECT().GetTableList().Return([]pgsql8.TableEntry{
 		{Schema: "public", Table: "user"},
 	}, nil)
-	introspector.EXPECT().GetColumns("public", "user").Return([]live.ColumnEntry{
+	introspector.EXPECT().GetColumns("public", "user").Return([]pgsql8.ColumnEntry{
 		{Name: "user_id", AttrType: "integer", Default: "nextval('test_seq')"},
 		{Name: "user_name", AttrType: "varchar(100)"},
 	}, nil)
 	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetSequenceRelList("public", []string{"test_seq"}).Return([]live.SequenceRelEntry{
+	introspector.EXPECT().GetSequenceRelList("public", []string{"test_seq"}).Return([]pgsql8.SequenceRelEntry{
 		{Name: "blah", Owner: "owner"},
 	}, nil)
-	introspector.EXPECT().GetSequencesForRel("public", "test_seq").Return([]live.SequenceEntry{
+	introspector.EXPECT().GetSequencesForRel("public", "test_seq").Return([]pgsql8.SequenceEntry{
 		{Start: sql.NullInt64{1, true}, Increment: sql.NullInt64{1, true}, Cache: sql.NullInt64{1, true}, Max: sql.NullInt64{15, true}},
 	}, nil)
-	introspector.EXPECT().GetSequencesForRel("public", "blah").Return([]live.SequenceEntry{
+	introspector.EXPECT().GetSequencesForRel("public", "blah").Return([]pgsql8.SequenceEntry{
 		{Cache: sql.NullInt64{5, true}, Min: sql.NullInt64{3, true}, Max: sql.NullInt64{10, true}},
 	}, nil)
 	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetConstraints().Return([]live.ConstraintEntry{
+	introspector.EXPECT().GetConstraints().Return([]pgsql8.ConstraintEntry{
 		{Schema: "public", Table: "user", Name: "user_pkey", Type: "p", Columns: []string{"user_id"}},
 	}, nil)
 	introspector.EXPECT().GetForeignKeys().AnyTimes()
@@ -587,7 +586,7 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 	}, schema.Sequences)
 }
 
-func commonExtract(introspector *live.MockIntrospector, version live.VersionNum) *ir.Schema {
+func commonExtract(introspector *pgsql8.MockIntrospector, version pgsql8.VersionNum) *ir.Schema {
 	ops := pgsql8.GlobalOperations
 	origCF := ops.ConnectionFactory
 	origIF := ops.IntrospectorFactory
@@ -596,10 +595,10 @@ func commonExtract(introspector *live.MockIntrospector, version live.VersionNum)
 		ops.IntrospectorFactory = origIF
 	}()
 
-	ops.ConnectionFactory = &live.ConstantConnectionFactory{
-		Connection: &live.NullConnection{},
+	ops.ConnectionFactory = &pgsql8.ConstantConnectionFactory{
+		Connection: &pgsql8.NullConnection{},
 	}
-	ops.IntrospectorFactory = &live.ConstantIntrospectorFactory{
+	ops.IntrospectorFactory = &pgsql8.ConstantIntrospectorFactory{
 		Introspector: introspector,
 	}
 	introspector.EXPECT().GetServerVersion().Return(version, nil)
