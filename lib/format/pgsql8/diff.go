@@ -315,7 +315,7 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 			oldSeq := oldSchema.TryGetSequenceNamed(newSeq.Name)
 			for _, newGrant := range newSeq.Grants {
 				if oldSeq == nil || !ir.HasPermissionsOf(oldSeq, newGrant, ir.SqlFormatPgsql8) {
-					stage1.WriteSql(GlobalSequence.GetGrantSql(newDoc, newSchema, newSeq, newGrant)...)
+					stage1.WriteSql(getSequenceGrantSql(newDoc, newSchema, newSeq, newGrant)...)
 				}
 			}
 		}

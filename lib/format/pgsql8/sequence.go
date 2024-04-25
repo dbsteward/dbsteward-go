@@ -8,14 +8,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-type Sequence struct {
-}
-
-func NewSequence() *Sequence {
-	return &Sequence{}
-}
-
-func (self *Sequence) GetCreationSql(schema *ir.Schema, sequence *ir.Sequence) []output.ToSql {
+func getCreateSequenceSql(schema *ir.Schema, sequence *ir.Sequence) []output.ToSql {
 	// TODO(go,3) put validation elsewhere
 
 	if cache, ok := sequence.Cache.Maybe(); !ok || cache < 1 {
@@ -23,7 +16,7 @@ func (self *Sequence) GetCreationSql(schema *ir.Schema, sequence *ir.Sequence) [
 		lib.GlobalDBSteward.Fatal("Sequence %s.%s must have cache value >= 1, %d was given", schema.Name, sequence.Name, cache)
 	}
 
-	ref := sql.SequenceRef{schema.Name, sequence.Name}
+	ref := sql.SequenceRef{Schema: schema.Name, Sequence: sequence.Name}
 	ddl := []output.ToSql{
 		&sql.SequenceCreate{
 			Sequence:  ref,
@@ -56,15 +49,15 @@ func (self *Sequence) GetCreationSql(schema *ir.Schema, sequence *ir.Sequence) [
 	return ddl
 }
 
-func (self *Sequence) GetDropSql(schema *ir.Schema, sequence *ir.Sequence) []output.ToSql {
+func getDropSequenceSql(schema *ir.Schema, sequence *ir.Sequence) []output.ToSql {
 	return []output.ToSql{
 		&sql.SequenceDrop{
-			Sequence: sql.SequenceRef{schema.Name, sequence.Name},
+			Sequence: sql.SequenceRef{Schema: schema.Name, Sequence: sequence.Name},
 		},
 	}
 }
 
-func (self *Sequence) GetGrantSql(doc *ir.Definition, schema *ir.Schema, seq *ir.Sequence, grant *ir.Grant) []output.ToSql {
+func getSequenceGrantSql(doc *ir.Definition, schema *ir.Schema, seq *ir.Sequence, grant *ir.Grant) []output.ToSql {
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
 		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)
@@ -79,7 +72,7 @@ func (self *Sequence) GetGrantSql(doc *ir.Definition, schema *ir.Schema, seq *ir
 		lib.GlobalDBSteward.Fatal("Invalid permissions on sequence grant: %v", invalidPerms)
 	}
 
-	seqRef := sql.SequenceRef{schema.Name, seq.Name}
+	seqRef := sql.SequenceRef{Schema: schema.Name, Sequence: seq.Name}
 
 	ddl := []output.ToSql{
 		&sql.SequenceGrant{

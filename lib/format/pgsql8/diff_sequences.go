@@ -18,7 +18,7 @@ func (self *DiffSequences) DiffSequences(ofs output.OutputFileSegmenter, oldSche
 	if oldSchema != nil {
 		for _, oldSeq := range oldSchema.Sequences {
 			if newSchema.TryGetSequenceNamed(oldSeq.Name) == nil {
-				ofs.WriteSql(GlobalSequence.GetDropSql(oldSchema, oldSeq)...)
+				ofs.WriteSql(getDropSequenceSql(oldSchema, oldSeq)...)
 			}
 		}
 	}
@@ -27,7 +27,7 @@ func (self *DiffSequences) DiffSequences(ofs output.OutputFileSegmenter, oldSche
 	for _, newSeq := range newSchema.Sequences {
 		oldSeq := oldSchema.TryGetSequenceNamed(newSeq.Name)
 		if oldSeq == nil {
-			ofs.WriteSql(GlobalSequence.GetCreationSql(newSchema, newSeq)...)
+			ofs.WriteSql(getCreateSequenceSql(newSchema, newSeq)...)
 			continue
 		}
 

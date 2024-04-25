@@ -898,11 +898,11 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 
 		// sequences contained in the schema
 		for _, sequence := range schema.Sequences {
-			ofs.WriteSql(GlobalSequence.GetCreationSql(schema, sequence)...)
+			ofs.WriteSql(getCreateSequenceSql(schema, sequence)...)
 
 			// sequence permission grants
 			for _, grant := range sequence.Grants {
-				ofs.WriteSql(GlobalSequence.GetGrantSql(doc, schema, sequence, grant)...)
+				ofs.WriteSql(getSequenceGrantSql(doc, schema, sequence, grant)...)
 			}
 		}
 
