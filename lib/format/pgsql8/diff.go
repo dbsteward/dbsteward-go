@@ -187,7 +187,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			diffIndexes(stage1, oldSchema, newSchema)
 			diffClusters(stage1, oldSchema, newSchema)
 			createConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
-			GlobalDiffTriggers.DiffTriggers(stage1, oldSchema, newSchema)
+			diffTriggers(stage1, oldSchema, newSchema)
 		}
 		// non-primary key constraints may be inter-schema dependant, and dependant on other's primary keys
 		// and therefore should be done after object creation sections
@@ -259,7 +259,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			diffIndexesTable(stage1, oldSchema, oldTable, newSchema, newTable)
 			diffClustersTable(stage1, oldTable, newSchema, newTable)
 			createConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypePrimaryKey)
-			GlobalDiffTriggers.DiffTriggersTable(stage1, oldSchema, oldTable, newSchema, newTable)
+			diffTriggersTable(stage1, oldSchema, oldTable, newSchema, newTable)
 
 			// HACK: For now, we'll generate foreign key constraints in stage 4 in updateData below
 			// https://github.com/dbsteward/dbsteward/issues/142

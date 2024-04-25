@@ -5,21 +5,14 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type DiffTriggers struct {
-}
-
-func NewDiffTriggers() *DiffTriggers {
-	return &DiffTriggers{}
-}
-
-func (self *DiffTriggers) DiffTriggers(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
+func diffTriggers(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	for _, newTable := range newSchema.Tables {
 		oldTable := oldSchema.TryGetTableNamed(newTable.Name)
-		self.DiffTriggersTable(ofs, oldSchema, oldTable, newSchema, newTable)
+		diffTriggersTable(ofs, oldSchema, oldTable, newSchema, newTable)
 	}
 }
 
-func (self *DiffTriggers) DiffTriggersTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) {
+func diffTriggersTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) {
 	if newTable == nil {
 		// if newTable does not exist, existing triggers will have been implicitly dropped
 		// and there cannot (should not?) be triggers for it
