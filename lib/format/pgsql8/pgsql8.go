@@ -4,7 +4,6 @@ import "github.com/dbsteward/dbsteward/lib/format"
 
 var GlobalOperations = NewOperations()
 var GlobalSchema = NewSchema()
-var GlobalDiffIndexes = NewDiffIndexes()
 var GlobalDiffLanguages = NewDiffLanguages()
 var GlobalDiffSequences = NewDiffSequences()
 var GlobalDiffTables = NewDiffTables()

@@ -887,7 +887,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 			ofs.WriteSql(getCreateTableSql(schema, table)...)
 
 			// table indexes
-			GlobalDiffIndexes.DiffIndexesTable(ofs, nil, nil, schema, table)
+			diffIndexesTable(ofs, nil, nil, schema, table)
 
 			// table grants
 			for _, grant := range table.Grants {

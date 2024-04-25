@@ -6,37 +6,30 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type DiffIndexes struct {
-}
-
-func NewDiffIndexes() *DiffIndexes {
-	return &DiffIndexes{}
-}
-
-func (self *DiffIndexes) DiffIndexes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
+func diffIndexes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	for _, newTable := range newSchema.Tables {
 		var oldTable *ir.Table
 		if oldSchema != nil {
 			// TODO(feat) what about renames?
 			oldTable = oldSchema.TryGetTableNamed(newTable.Name)
 		}
-		self.DiffIndexesTable(ofs, oldSchema, oldTable, newSchema, newTable)
+		diffIndexesTable(ofs, oldSchema, oldTable, newSchema, newTable)
 	}
 }
 
-func (self *DiffIndexes) DiffIndexesTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) {
-	for _, oldIndex := range self.getOldIndexes(oldSchema, oldTable, newSchema, newTable) {
+func diffIndexesTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) {
+	for _, oldIndex := range getOldIndexes(oldSchema, oldTable, newSchema, newTable) {
 		// TODO(go,pgsql) old code used new schema/table instead of old, but I believe that is incorrect. need to verify this behavior change
 		ofs.WriteSql(getDropIndexSql(oldSchema, oldIndex)...)
 	}
 
 	// TODO(go,pgsql) old code used a different codepath if oldSchema = nil; need to verify this behavior change
-	for _, newIndex := range self.getNewIndexes(oldSchema, oldTable, newSchema, newTable) {
+	for _, newIndex := range getNewIndexes(oldSchema, oldTable, newSchema, newTable) {
 		ofs.WriteSql(getCreateIndexSql(newSchema, newTable, newIndex)...)
 	}
 }
 
-func (self *DiffIndexes) getOldIndexes(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) []*ir.Index {
+func getOldIndexes(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) []*ir.Index {
 	out := []*ir.Index{}
 
 	// if new table is nil we don't need to drop those indexes, they'll be dropped implicitly from the DROP TABLE
@@ -62,7 +55,7 @@ func (self *DiffIndexes) getOldIndexes(oldSchema *ir.Schema, oldTable *ir.Table,
 	return out
 }
 
-func (self *DiffIndexes) getNewIndexes(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) []*ir.Index {
+func getNewIndexes(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) []*ir.Index {
 	out := []*ir.Index{}
 
 	// if new table is nil, there _are_ no indexes to create
