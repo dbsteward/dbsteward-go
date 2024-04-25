@@ -112,7 +112,7 @@ func defineTableColumnDefaults(schema *ir.Schema, table *ir.Table) []output.ToSq
 	return out
 }
 
-func getTableGrantSql(doc *ir.Definition, schema *ir.Schema, table *ir.Table, grant *ir.Grant) []output.ToSql {
+func getTableGrantSql(schema *ir.Schema, table *ir.Table, grant *ir.Grant) []output.ToSql {
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
 		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)

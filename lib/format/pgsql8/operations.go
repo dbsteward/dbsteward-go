@@ -891,7 +891,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 
 			// table grants
 			for _, grant := range table.Grants {
-				ofs.WriteSql(getTableGrantSql(doc, schema, table, grant)...)
+				ofs.WriteSql(getTableGrantSql(schema, table, grant)...)
 			}
 		}
 		includeColumnDefaultNextvalInCreateSql = true

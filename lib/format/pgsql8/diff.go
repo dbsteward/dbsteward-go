@@ -306,7 +306,7 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 			}
 			for _, newGrant := range newTable.Grants {
 				if oldTable == nil || !ir.HasPermissionsOf(oldTable, newGrant, ir.SqlFormatPgsql8) {
-					stage1.WriteSql(getTableGrantSql(newDoc, newSchema, newTable, newGrant)...)
+					stage1.WriteSql(getTableGrantSql(newSchema, newTable, newGrant)...)
 				}
 			}
 		}
