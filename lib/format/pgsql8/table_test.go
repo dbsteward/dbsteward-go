@@ -1,9 +1,8 @@
-package pgsql8_test
+package pgsql8
 
 import (
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -43,7 +42,7 @@ func TestTable_GetCreationSql_TableOptions(t *testing.T) {
 		},
 	}
 
-	ddl := pgsql8.GlobalTable.GetCreationSql(schema, schema.Tables[0])
+	ddl := getCreateTableSql(schema, schema.Tables[0])
 	assert.Equal(t, []output.ToSql{
 		&sql.TableCreate{
 			Table: sql.TableRef{"public", "test"},

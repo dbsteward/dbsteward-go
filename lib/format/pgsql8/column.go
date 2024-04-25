@@ -1,7 +1,6 @@
 package pgsql8
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -72,7 +71,7 @@ func getColumnSetupSql(schema *ir.Schema, table *ir.Table, column *ir.Column) []
 }
 
 func getColumnDefaultSql(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
-	if !GlobalTable.IncludeColumnDefaultNextvalInCreateSql && hasDefaultNextval(column) {
+	if !includeColumnDefaultNextvalInCreateSql && hasDefaultNextval(column) {
 		// if the default is a nextval expression, don't specify it in the regular full definition
 		// because if the sequence has not been defined yet,
 		// the nextval expression will be evaluated inline and fail
@@ -154,23 +153,4 @@ func getReferenceType(coltype string) string {
 	}
 	// TODO(feat) should this include enum types?
 	return coltype
-}
-
-func getSerialStartDml(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
-	if column.SerialStart == nil {
-		return nil
-	}
-	if !isSerialType(column) {
-		lib.GlobalDBSteward.Fatal("Expected serial type for column %s.%s.%s because serialStart='%d' was defined, found type %s",
-			schema.Name, table.Name, column.Name, *column.SerialStart, column.Type)
-	}
-	return []output.ToSql{
-		&sql.Annotated{
-			Annotation: fmt.Sprintf("serialStart %d specified for %s.%s.%s", *column.SerialStart, schema.Name, table.Name, column.Name),
-			Wrapped: &sql.SequenceSerialSetVal{
-				Column: sql.ColumnRef{Schema: schema.Name, Table: table.Name, Column: column.Name},
-				Value:  *column.SerialStart,
-			},
-		},
-	}
 }

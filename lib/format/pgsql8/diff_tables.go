@@ -100,7 +100,7 @@ func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter,
 		if strings.EqualFold(entry.Key, "with") {
 			// ALTER TABLE ... SET (params) doesn't accept oids=true/false unlike CREATE TABLE
 			// only WITH OIDS or WITHOUT OIDS
-			params := GlobalTable.ParseStorageParams(entry.Value)
+			params := parseStorageParams(entry.Value)
 			if oids, ok := params["oids"]; ok {
 				delete(params, "oids")
 				if util.IsTruthy(oids) {
@@ -129,7 +129,7 @@ func (self *DiffTables) applyTableOptionsDiff(stage1 output.OutputFileSegmenter,
 
 	for _, entry := range deleteOpts.Entries() {
 		if strings.EqualFold(entry.Key, "with") {
-			params := GlobalTable.ParseStorageParams(entry.Value)
+			params := parseStorageParams(entry.Value)
 			// handle oids separately since pgsql doesn't recognize it as a storage parameter in an ALTER TABLE
 			if _, ok := params["oids"]; ok {
 				delete(params, "oids")
@@ -575,8 +575,8 @@ func (self *DiffTables) CreateTable(ofs output.OutputFileSegmenter, oldSchema, n
 			})
 		}
 	} else {
-		ofs.WriteSql(GlobalTable.GetCreationSql(newSchema, newTable)...)
-		ofs.WriteSql(GlobalTable.DefineTableColumnDefaults(newSchema, newTable)...)
+		ofs.WriteSql(getCreateTableSql(newSchema, newTable)...)
+		ofs.WriteSql(defineTableColumnDefaults(newSchema, newTable)...)
 	}
 	return nil
 }
@@ -604,7 +604,7 @@ func (self *DiffTables) DropTable(ofs output.OutputFileSegmenter, oldSchema *ir.
 		}
 	}
 
-	ofs.WriteSql(GlobalTable.GetDropSql(oldSchema, oldTable)...)
+	ofs.WriteSql(getDropTableSql(oldSchema, oldTable)...)
 }
 
 func (self *DiffTables) DiffClusters(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) {
@@ -654,7 +654,7 @@ func (self *DiffTables) GetCreateDataSql(oldSchema *ir.Schema, oldTable *ir.Tabl
 
 	if oldTable == nil {
 		// if this is a fresh build, make sure serial starts are issued _after_ the hardcoded data inserts
-		out = append(out, GlobalTable.GetSerialStartDml(newSchema, newTable)...)
+		out = append(out, getSerialStartDml(newSchema, newTable, nil)...)
 		return out
 	}
 

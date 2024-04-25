@@ -881,20 +881,20 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	// table structure creation
 	for _, schema := range doc.Schemas {
 		// create defined tables
-		GlobalTable.IncludeColumnDefaultNextvalInCreateSql = false
+		includeColumnDefaultNextvalInCreateSql = false
 		for _, table := range schema.Tables {
 			// table definition
-			ofs.WriteSql(GlobalTable.GetCreationSql(schema, table)...)
+			ofs.WriteSql(getCreateTableSql(schema, table)...)
 
 			// table indexes
 			GlobalDiffIndexes.DiffIndexesTable(ofs, nil, nil, schema, table)
 
 			// table grants
 			for _, grant := range table.Grants {
-				ofs.WriteSql(GlobalTable.GetGrantSql(doc, schema, table, grant)...)
+				ofs.WriteSql(getTableGrantSql(doc, schema, table, grant)...)
 			}
 		}
-		GlobalTable.IncludeColumnDefaultNextvalInCreateSql = true
+		includeColumnDefaultNextvalInCreateSql = true
 
 		// sequences contained in the schema
 		for _, sequence := range schema.Sequences {
@@ -909,7 +909,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 		// add table nextvals that were omitted
 		for _, table := range schema.Tables {
 			if table.HasDefaultNextVal() {
-				ofs.WriteSql(GlobalTable.GetDefaultNextvalSql(schema, table)...)
+				ofs.WriteSql(getDefaultNextvalSql(schema, table)...)
 			}
 		}
 	}
@@ -933,7 +933,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
 			// TODO(go,nth) method name consistency - should be GetColumnDefaultsSql?
-			ofs.WriteSql(GlobalTable.DefineTableColumnDefaults(schema, table)...)
+			ofs.WriteSql(defineTableColumnDefaults(schema, table)...)
 		}
 	}
 
