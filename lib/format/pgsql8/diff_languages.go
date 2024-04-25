@@ -5,23 +5,16 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type DiffLanguages struct {
-}
-
-func NewDiffLanguages() *DiffLanguages {
-	return &DiffLanguages{}
-}
-
-func (self *DiffLanguages) DiffLanguages(ofs output.OutputFileSegmenter) {
+func diffLanguages(ofs output.OutputFileSegmenter) {
 	// TODO(go,pgsql) this is a different flow than old dbsteward:
 	// we do equality comparison inside these two methods, instead of a separate loop
 	// need to validate that this behavior is still correct
 
-	self.dropLanguages(ofs)
-	self.createLanguages(ofs)
+	dropLanguages(ofs)
+	createLanguages(ofs)
 }
 
-func (self *DiffLanguages) dropLanguages(ofs output.OutputFileSegmenter) {
+func dropLanguages(ofs output.OutputFileSegmenter) {
 	newDoc := lib.GlobalDBSteward.NewDatabase
 	oldDoc := lib.GlobalDBSteward.OldDatabase
 
@@ -36,7 +29,7 @@ func (self *DiffLanguages) dropLanguages(ofs output.OutputFileSegmenter) {
 	}
 }
 
-func (self *DiffLanguages) createLanguages(ofs output.OutputFileSegmenter) {
+func createLanguages(ofs output.OutputFileSegmenter) {
 	newDoc := lib.GlobalDBSteward.NewDatabase
 	oldDoc := lib.GlobalDBSteward.OldDatabase
 

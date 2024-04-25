@@ -163,7 +163,7 @@ func (self *Diff) DiffSql(old, new []string, upgradePrefix string) {
 func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {
 	dbsteward := lib.GlobalDBSteward
 
-	GlobalDiffLanguages.DiffLanguages(stage1)
+	diffLanguages(stage1)
 
 	// drop all views in all schemas, regardless whether dependency order is known or not
 	// TODO(go,4) would be so cool if we could parse the view def and only recreate what's required
