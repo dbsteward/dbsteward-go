@@ -8,21 +8,21 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type Diff struct {
+type diff struct {
 	*sql99.Diff
 	OldTableDependency []*ir.TableRef
 	NewTableDependency []*ir.TableRef
 }
 
-func NewDiff() *Diff {
-	diff := &Diff{
+func newDiff() *diff {
+	diff := &diff{
 		Diff: sql99.NewDiff(GlobalLookup),
 	}
 	diff.Diff.Diff = diff
 	return diff
 }
 
-func (self *Diff) UpdateDatabaseConfigParameters(ofs output.OutputFileSegmenter, oldDoc *ir.Definition, newDoc *ir.Definition) {
+func (d *diff) UpdateDatabaseConfigParameters(ofs output.OutputFileSegmenter, oldDoc *ir.Definition, newDoc *ir.Definition) {
 	if newDoc.Database == nil {
 		newDoc.Database = &ir.Database{}
 	}
@@ -50,17 +50,17 @@ func (self *Diff) UpdateDatabaseConfigParameters(ofs output.OutputFileSegmenter,
 	}
 }
 
-func (self *Diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *ir.Definition, upgradePrefix string) {
+func (d *diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *ir.Definition, upgradePrefix string) {
 	if !lib.GlobalDBSteward.GenerateSlonik {
 		// if we are not generating slonik, defer to parent
-		self.Diff.DiffDoc(oldFile, newFile, oldDoc, newDoc, upgradePrefix)
+		d.Diff.DiffDoc(oldFile, newFile, oldDoc, newDoc, upgradePrefix)
 		return
 	}
 
 	// TODO(go,slony)
 }
 
-func (self *Diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegmenter) {
+func (d *diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegmenter) {
 	dbsteward := lib.GlobalDBSteward
 	dbx := lib.GlobalDBX
 
@@ -99,25 +99,25 @@ func (self *Diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSe
 	dbx.BuildStagedSql(dbsteward.NewDatabase, stage2, "STAGE2BEFORE")
 
 	dbsteward.Info("Drop Old Schemas")
-	self.DropOldSchemas(stage3)
+	d.DropOldSchemas(stage3)
 
 	dbsteward.Info("Create New Schemas")
-	self.CreateNewSchemas(stage1)
+	d.CreateNewSchemas(stage1)
 
 	dbsteward.Info("Update Structure")
-	self.updateStructure(stage1, stage3)
+	d.updateStructure(stage1, stage3)
 
 	dbsteward.Info("Update Permissions")
-	self.updatePermissions(stage1, stage3)
+	d.updatePermissions(stage1, stage3)
 
-	self.UpdateDatabaseConfigParameters(stage1, dbsteward.NewDatabase, dbsteward.OldDatabase)
+	d.UpdateDatabaseConfigParameters(stage1, dbsteward.NewDatabase, dbsteward.OldDatabase)
 
 	dbsteward.Info("Update data")
 	if dbsteward.GenerateSlonik {
 		// TODO(go,slony) format::set_context_replica_set_to_natural_first(dbsteward::$new_database);
 	}
-	self.updateData(stage2, true)
-	self.updateData(stage4, false)
+	d.updateData(stage2, true)
+	d.updateData(stage4, false)
 
 	// append any literal sql in new not in old at the end of data stage 1
 	// TODO(feat) this relies on exact string match - is there a better way?
@@ -156,11 +156,11 @@ func (self *Diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSe
 	dbx.BuildStagedSql(dbsteward.NewDatabase, stage4, "STAGE4")
 }
 
-func (self *Diff) DiffSql(old, new []string, upgradePrefix string) {
+func (d *diff) DiffSql(old, new []string, upgradePrefix string) {
 	// TODO(go,sqldiff)
 }
 
-func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {
+func (d *diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {
 	dbsteward := lib.GlobalDBSteward
 
 	diffLanguages(stage1)
@@ -170,7 +170,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 	dropViewsOrdered(stage1, dbsteward.OldDatabase, dbsteward.NewDatabase)
 
 	// TODO(go,3) should we just always use table deps?
-	if len(self.NewTableDependency) == 0 {
+	if len(d.NewTableDependency) == 0 {
 		for _, newSchema := range dbsteward.NewDatabase.Schemas {
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 			diffTypes(stage1, oldSchema, newSchema)
@@ -199,7 +199,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		// use table dependency order to do structural changes in an intelligent order
 		// make sure we only process each schema once
 		processedSchemas := map[string]bool{}
-		for _, newEntry := range self.NewTableDependency {
+		for _, newEntry := range d.NewTableDependency {
 			newSchema := newEntry.Schema
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 
@@ -212,7 +212,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 
 		// remove all old constraints before new contraints, in reverse dependency order
 		// TODO(go,pgsql) REVERSE dependency order
-		for _, oldEntry := range self.OldTableDependency {
+		for _, oldEntry := range d.OldTableDependency {
 			oldSchema := oldEntry.Schema
 			oldTable := oldEntry.Table
 
@@ -229,7 +229,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		}
 
 		processedSchemas = map[string]bool{}
-		for _, newEntry := range self.NewTableDependency {
+		for _, newEntry := range d.NewTableDependency {
 			newSchema := newEntry.Schema
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 
@@ -267,8 +267,8 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		}
 
 		// drop old tables in reverse dependency order
-		for i := len(self.OldTableDependency) - 1; i >= 0; i -= 1 {
-			oldEntry := self.OldTableDependency[i]
+		for i := len(d.OldTableDependency) - 1; i >= 0; i -= 1 {
+			oldEntry := d.OldTableDependency[i]
 			oldSchema := oldEntry.Schema
 			oldTable := oldEntry.Table
 
@@ -280,7 +280,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 	createViewsOrdered(stage3, dbsteward.OldDatabase, dbsteward.NewDatabase)
 }
 
-func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {
+func (d *diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {
 	// TODO(feat) what if readonly user changed? we need to rebuild those grants
 	// TODO(feat) what about removed permissions, shouldn't we REVOKE those?
 
@@ -339,13 +339,13 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 		}
 	}
 }
-func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
-	if len(self.NewTableDependency) > 0 {
-		for i := 0; i < len(self.NewTableDependency); i += 1 {
-			item := self.NewTableDependency[i]
+func (d *diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
+	if len(d.NewTableDependency) > 0 {
+		for i := 0; i < len(d.NewTableDependency); i += 1 {
+			item := d.NewTableDependency[i]
 			// go in reverse when in delete mode
 			if deleteMode {
-				item = self.NewTableDependency[len(self.NewTableDependency)-1-i]
+				item = d.NewTableDependency[len(d.NewTableDependency)-1-i]
 			}
 
 			newSchema := item.Schema

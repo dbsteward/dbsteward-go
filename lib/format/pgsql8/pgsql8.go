@@ -4,7 +4,7 @@ import "github.com/dbsteward/dbsteward/lib/format"
 
 var GlobalOperations = NewOperations()
 var GlobalSchema = NewSchema()
-var GlobalDiff = NewDiff()
+var differ = newDiff()
 var GlobalXmlParser = NewXmlParser()
 
 var GlobalLookup = &format.Lookup{

@@ -158,12 +158,12 @@ func (ops *Operations) BuildUpgrade(
 	upgradePrefix := newOutputPrefix + "_upgrade"
 
 	lib.GlobalDBSteward.Info("Calculating old table foreign key dependency order...")
-	GlobalDiff.OldTableDependency = lib.GlobalDBX.TableDependencyOrder(oldDoc)
+	differ.OldTableDependency = lib.GlobalDBX.TableDependencyOrder(oldDoc)
 
 	lib.GlobalDBSteward.Info("Calculating new table foreign key dependency order...")
-	GlobalDiff.NewTableDependency = lib.GlobalDBX.TableDependencyOrder(newDoc)
+	differ.NewTableDependency = lib.GlobalDBX.TableDependencyOrder(newDoc)
 
-	GlobalDiff.DiffDoc(oldCompositeFile, newCompositeFile, oldDoc, newDoc, upgradePrefix)
+	differ.DiffDoc(oldCompositeFile, newCompositeFile, oldDoc, newDoc, upgradePrefix)
 
 	// TODO(go,slony)
 	// if lib.GlobalDBSteward.GenerateSlonik {}
@@ -854,7 +854,7 @@ func (ops *Operations) SqlDiff(old, new []string, upgradePrefix string) {
 	lib.GlobalDBSteward.Notice("Old set: %v", old)
 	lib.GlobalDBSteward.Notice("New set: %v", new)
 	lib.GlobalDBSteward.Notice("Upgrade: %s", upgradePrefix)
-	GlobalDiff.DiffSql(old, new, upgradePrefix)
+	differ.DiffSql(old, new, upgradePrefix)
 }
 
 func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {
@@ -971,7 +971,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 		}
 	}
 
-	GlobalDiff.UpdateDatabaseConfigParameters(ofs, nil, doc)
+	differ.UpdateDatabaseConfigParameters(ofs, nil, doc)
 }
 
 func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {

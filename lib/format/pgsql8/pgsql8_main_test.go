@@ -18,10 +18,10 @@ func setOldNewDocs(old, new *ir.Definition) {
 	lib.GlobalDBSteward.OldDatabase = old
 	lib.GlobalDBSteward.NewDatabase = new
 	if old != nil {
-		GlobalDiff.OldTableDependency = lib.GlobalDBX.TableDependencyOrder(old)
+		differ.OldTableDependency = lib.GlobalDBX.TableDependencyOrder(old)
 	}
 	if new != nil {
-		GlobalDiff.NewTableDependency = lib.GlobalDBX.TableDependencyOrder(new)
+		differ.NewTableDependency = lib.GlobalDBX.TableDependencyOrder(new)
 	}
 }
 

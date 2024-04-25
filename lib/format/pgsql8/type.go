@@ -122,7 +122,7 @@ func isIntType(spec string) bool {
 func alterColumnTypePlaceholder(schema *ir.Schema, datatype *ir.DataType) ([]*ir.ColumnRef, []output.ToSql) {
 	ddl := []output.ToSql{}
 	cols := []*ir.ColumnRef{}
-	for _, newTableRef := range GlobalDiff.NewTableDependency {
+	for _, newTableRef := range differ.NewTableDependency {
 		for _, newColumn := range newTableRef.Table.Columns {
 			columnType := getColumnType(lib.GlobalDBSteward.NewDatabase, newTableRef.Schema, newTableRef.Table, newColumn)
 			if strings.EqualFold(columnType, datatype.Name) || strings.EqualFold(columnType, newTableRef.Schema.Name+"."+datatype.Name) {
