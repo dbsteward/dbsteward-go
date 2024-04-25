@@ -11,24 +11,15 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-const PatternNextval = `^nextval\((.+)\)$`
-
-func NewColumn() *Column {
-	return &Column{}
-}
-
-type Column struct {
-}
-
-func (self *Column) GetReducedDefinition(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column) sql.ColumnDefinition {
+func getReducedColumnDefinition(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column) sql.ColumnDefinition {
 	return sql.ColumnDefinition{
 		Name: column.Name,
-		Type: sql.ParseTypeRef(self.GetColumnType(doc, schema, table, column)),
+		Type: sql.ParseTypeRef(getColumnType(doc, schema, table, column)),
 	}
 }
 
-func (self *Column) GetFullDefinition(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column, includeNullDefinition, includeDefaultNextval bool) sql.ColumnDefinition {
-	colType := self.GetColumnType(doc, schema, table, column)
+func getFullColumnDefinition(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column, includeNullDefinition, includeDefaultNextval bool) sql.ColumnDefinition {
+	colType := getColumnType(doc, schema, table, column)
 	out := sql.ColumnDefinition{
 		Name:     column.Name,
 		Type:     sql.ParseTypeRef(colType),
@@ -37,7 +28,7 @@ func (self *Column) GetFullDefinition(doc *ir.Definition, schema *ir.Schema, tab
 	}
 
 	if column.Default != "" {
-		if !includeDefaultNextval && self.HasDefaultNextval(column) {
+		if !includeDefaultNextval && hasDefaultNextval(column) {
 			// if the default is a nextval expression, don't specify it in the regular full definition
 			// because if the sequence has not been defined yet,
 			// the nextval expression will be evaluated inline and fail
@@ -61,9 +52,9 @@ func (self *Column) GetFullDefinition(doc *ir.Definition, schema *ir.Schema, tab
 	return out
 }
 
-func (self *Column) GetSetupSql(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
+func getColumnSetupSql(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
 	ddl := []output.ToSql{}
-	colref := sql.ColumnRef{schema.Name, table.Name, column.Name}
+	colref := sql.ColumnRef{Schema: schema.Name, Table: table.Name, Column: column.Name}
 	if column.Statistics != nil {
 		ddl = append(ddl, &sql.ColumnAlterStatistics{
 			Column:     colref,
@@ -80,8 +71,8 @@ func (self *Column) GetSetupSql(schema *ir.Schema, table *ir.Table, column *ir.C
 	return ddl
 }
 
-func (self *Column) GetColumnDefaultSql(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
-	if !GlobalTable.IncludeColumnDefaultNextvalInCreateSql && self.HasDefaultNextval(column) {
+func getColumnDefaultSql(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
+	if !GlobalTable.IncludeColumnDefaultNextvalInCreateSql && hasDefaultNextval(column) {
 		// if the default is a nextval expression, don't specify it in the regular full definition
 		// because if the sequence has not been defined yet,
 		// the nextval expression will be evaluated inline and fail
@@ -94,7 +85,7 @@ func (self *Column) GetColumnDefaultSql(schema *ir.Schema, table *ir.Table, colu
 		)
 		return nil
 	}
-	ref := sql.ColumnRef{schema.Name, table.Name, column.Name}
+	ref := sql.ColumnRef{Schema: schema.Name, Table: table.Name, Column: column.Name}
 	out := []output.ToSql{}
 
 	if column.Default != "" {
@@ -114,40 +105,29 @@ func (self *Column) GetColumnDefaultSql(schema *ir.Schema, table *ir.Table, colu
 	return out
 }
 
-func (self *Column) GetDefaultValue(coltype string) sql.ToSqlValue {
-	if util.IMatch("^(smallint|int.*|bigint|decimal.*|numeric.*|real|double precision|float.*|double|money)$", coltype) != nil {
-		return sql.IntValue(0)
-	} else if util.IMatch("^(character varying.*|varchar.*|char.*|text)$", coltype) != nil {
-		return sql.StringValue("")
-	} else if util.IMatch("^bool(ean)?$", coltype) != nil {
-		return sql.BoolValue(false)
-	}
-	return nil
-}
-
-func (self *Column) IsSerialType(column *ir.Column) bool {
+func isSerialType(column *ir.Column) bool {
 	return GlobalDataType.IsSerialType(column.Type)
 }
 
-func (self *Column) HasDefaultNextval(column *ir.Column) bool {
+func hasDefaultNextval(column *ir.Column) bool {
 	if column.Default != "" {
-		return len(util.IMatch(PatternNextval, column.Default)) > 0
+		return len(util.IMatch(`^nextval\((.+)\)$`, column.Default)) > 0
 	}
 	return false
 }
 
-func (self *Column) HasDefaultNow(table *ir.Table, column *ir.Column) bool {
+func hasDefaultNow(column *ir.Column) bool {
 	// TODO(feat) what about expressions with now/current_timestamp?
 	return strings.EqualFold(column.Default, "now()") || strings.EqualFold(column.Default, "current_timestamp")
 }
 
 // TODO(go,3) it would be super if types had dedicated types/values
-func (self *Column) GetColumnType(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column) string {
+func getColumnType(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column) string {
 	// if it is a foreign keyed column, solve for the foreign key type
 	if column.ForeignTable != "" {
 		// TODO(feat) what about compound FKs?
 		foreign := lib.GlobalDBX.GetTerminalForeignColumn(doc, schema, table, column)
-		return self.GetReferenceType(foreign.Type)
+		return getReferenceType(foreign.Type)
 	}
 
 	if column.Type == "" {
@@ -165,7 +145,7 @@ func (self *Column) GetColumnType(doc *ir.Definition, schema *ir.Schema, table *
 
 // GetReferenceType returns the data type needed to reference a column of the given type
 // e.g. GetReferenceType("serial") == "int"
-func (self *Column) GetReferenceType(coltype string) string {
+func getReferenceType(coltype string) string {
 	if strings.EqualFold(coltype, DataTypeSerial) {
 		return DataTypeInt
 	}
@@ -176,11 +156,11 @@ func (self *Column) GetReferenceType(coltype string) string {
 	return coltype
 }
 
-func (self *Column) GetSerialStartDml(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
+func getSerialStartDml(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
 	if column.SerialStart == nil {
 		return nil
 	}
-	if !self.IsSerialType(column) {
+	if !isSerialType(column) {
 		lib.GlobalDBSteward.Fatal("Expected serial type for column %s.%s.%s because serialStart='%d' was defined, found type %s",
 			schema.Name, table.Name, column.Name, *column.SerialStart, column.Type)
 	}
@@ -188,7 +168,7 @@ func (self *Column) GetSerialStartDml(schema *ir.Schema, table *ir.Table, column
 		&sql.Annotated{
 			Annotation: fmt.Sprintf("serialStart %d specified for %s.%s.%s", *column.SerialStart, schema.Name, table.Name, column.Name),
 			Wrapped: &sql.SequenceSerialSetVal{
-				Column: sql.ColumnRef{schema.Name, table.Name, column.Name},
+				Column: sql.ColumnRef{Schema: schema.Name, Table: table.Name, Column: column.Name},
 				Value:  *column.SerialStart,
 			},
 		},

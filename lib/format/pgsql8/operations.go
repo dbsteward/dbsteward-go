@@ -1010,7 +1010,7 @@ func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*i
 						pkCol, schema.Name, table.Name)
 				}
 				// TODO(go,nth) unify DataType.IsLinkedType and Column.IsSerialType
-				if GlobalColumn.IsSerialType(pk) && pk.SerialStart == nil {
+				if isSerialType(pk) && pk.SerialStart == nil {
 					ofs.WriteSql(&sql.SequenceSerialSetValMax{
 						Column: sql.ColumnRef{
 							Schema: schema.Name,
@@ -1075,7 +1075,7 @@ func columnValueDefault(schema *ir.Schema, table *ir.Table, columnName string, d
 	}
 
 	return &sql.TypedValue{
-		Type:  GlobalColumn.GetColumnType(lib.GlobalDBSteward.NewDatabase, schema, table, col),
+		Type:  getColumnType(lib.GlobalDBSteward.NewDatabase, schema, table, col),
 		Value: dataCol.Text,
 	}
 }

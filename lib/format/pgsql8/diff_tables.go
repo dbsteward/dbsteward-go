@@ -263,7 +263,7 @@ func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTab
 		// this is because ADD COLUMNs with NOT NULL will fail when there are existing rows
 		agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnCreate{
 			// TODO(go,nth) clean up this call, get rid of booleans and global flag
-			ColumnDef: GlobalColumn.GetFullDefinition(lib.GlobalDBSteward.NewDatabase, newSchema, newTable, newColumn, false, true),
+			ColumnDef: getFullColumnDefinition(lib.GlobalDBSteward.NewDatabase, newSchema, newTable, newColumn, false, true),
 		})
 
 		// instead we put the NOT NULL defintion in stage3 schema changes once data has been updated in stage2 data
@@ -288,7 +288,7 @@ func (self *DiffTables) addCreateTableColumns(agg *updateTableColumnsAgg, oldTab
 		// slony replicas that add columns via DDL that have a default of NOW() will be out of sync
 		// because the data in those columns is being placed in as a default by the local db server
 		// to compensate, add UPDATE statements to make the these column's values NOW() from the master
-		if GlobalColumn.HasDefaultNow(newTable, newColumn) {
+		if hasDefaultNow(newColumn) {
 			agg.after1 = append(agg.after1, &sql.Annotated{
 				Annotation: "has_default_now: this statement is to make sure new columns are in sync on replicas",
 				Wrapped: &sql.DataUpdate{
@@ -355,8 +355,8 @@ func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTab
 		}
 
 		// TODO(go,pgsql) orig code calls (oldDB, *newSchema*, oldTable, oldColumn) but that seems wrong, need to validate this
-		oldType := GlobalColumn.GetColumnType(dbsteward.OldDatabase, newSchema, oldTable, oldColumn)
-		newType := GlobalColumn.GetColumnType(dbsteward.NewDatabase, newSchema, newTable, newColumn)
+		oldType := getColumnType(dbsteward.OldDatabase, newSchema, oldTable, oldColumn)
+		newType := getColumnType(dbsteward.NewDatabase, newSchema, newTable, newColumn)
 
 		if !GlobalDataType.IsLinkedTableType(oldType) && GlobalDataType.IsLinkedTableType(newType) {
 			// TODO(feat) can we remove this restriction? or is this a postgres thing?

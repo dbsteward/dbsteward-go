@@ -23,8 +23,8 @@ func (self *Table) GetCreationSql(schema *ir.Schema, table *ir.Table) []output.T
 	cols := []sql.ColumnDefinition{}
 	colSetup := []output.ToSql{}
 	for _, col := range table.Columns {
-		cols = append(cols, GlobalColumn.GetReducedDefinition(lib.GlobalDBSteward.NewDatabase, schema, table, col))
-		colSetup = append(colSetup, GlobalColumn.GetSetupSql(schema, table, col)...)
+		cols = append(cols, getReducedColumnDefinition(lib.GlobalDBSteward.NewDatabase, schema, table, col))
+		colSetup = append(colSetup, getColumnSetupSql(schema, table, col)...)
 	}
 
 	opts := []sql.TableCreateOption{}
@@ -71,7 +71,7 @@ func (self *Table) GetCreationSql(schema *ir.Schema, table *ir.Table) []output.T
 		// update the owner of all linked tables as well
 		for _, col := range table.Columns {
 			// TODO(feat) more than just serials?
-			if GlobalColumn.IsSerialType(col) {
+			if isSerialType(col) {
 				ident := buildSequenceName(schema.Name, table.Name, col.Name)
 				ddl = append(ddl, &sql.TableAlterOwner{
 					Table: sql.TableRef{schema.Name, ident},
@@ -95,7 +95,7 @@ func (self *Table) GetDropSql(schema *ir.Schema, table *ir.Table) []output.ToSql
 func (self *Table) GetDefaultNextvalSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	out := []output.ToSql{}
 	for _, column := range table.Columns {
-		if GlobalColumn.HasDefaultNextval(column) {
+		if hasDefaultNextval(column) {
 			lib.GlobalDBSteward.Info("Specifying skipped %s.%s.%s default expression \"%s\"", schema.Name, table.Name, column.Name, column.Default)
 			out = append(out, &sql.Annotated{
 				Wrapped: &sql.ColumnSetDefault{
@@ -112,7 +112,7 @@ func (self *Table) GetDefaultNextvalSql(schema *ir.Schema, table *ir.Table) []ou
 func (self *Table) DefineTableColumnDefaults(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	out := []output.ToSql{}
 	for _, column := range table.Columns {
-		out = append(out, GlobalColumn.GetColumnDefaultSql(schema, table, column)...)
+		out = append(out, getColumnDefaultSql(schema, table, column)...)
 	}
 	return out
 }
@@ -163,7 +163,7 @@ func (self *Table) GetGrantSql(doc *ir.Definition, schema *ir.Schema, table *ir.
 
 	// set serial columns permissions based on table permissions
 	for _, column := range table.Columns {
-		if !GlobalColumn.IsSerialType(column) {
+		if !isSerialType(column) {
 			continue
 		}
 
@@ -209,7 +209,7 @@ func (self *Table) GetGrantSql(doc *ir.Definition, schema *ir.Schema, table *ir.
 func (self *Table) GetSerialStartDml(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	out := []output.ToSql{}
 	for _, column := range table.Columns {
-		out = append(out, GlobalColumn.GetSerialStartDml(schema, table, column)...)
+		out = append(out, getSerialStartDml(schema, table, column)...)
 	}
 	return out
 }

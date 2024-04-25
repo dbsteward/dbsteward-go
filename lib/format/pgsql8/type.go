@@ -131,7 +131,7 @@ func (self *DataType) AlterColumnTypePlaceholder(schema *ir.Schema, datatype *ir
 	cols := []*ir.ColumnRef{}
 	for _, newTableRef := range GlobalDiff.NewTableDependency {
 		for _, newColumn := range newTableRef.Table.Columns {
-			columnType := GlobalColumn.GetColumnType(lib.GlobalDBSteward.NewDatabase, newTableRef.Schema, newTableRef.Table, newColumn)
+			columnType := getColumnType(lib.GlobalDBSteward.NewDatabase, newTableRef.Schema, newTableRef.Table, newColumn)
 			if strings.EqualFold(columnType, datatype.Name) || strings.EqualFold(columnType, newTableRef.Schema.Name+"."+datatype.Name) {
 				sqlRef := sql.TableRef{newTableRef.Schema.Name, newTableRef.Table.Name}
 				ddl = append(ddl, sql.NewTableAlter(sqlRef, &sql.TableAlterPartColumnChangeType{
