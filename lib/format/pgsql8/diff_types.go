@@ -10,16 +10,9 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type DiffTypes struct {
-}
-
-func NewDiffTypes() *DiffTypes {
-	return &DiffTypes{}
-}
-
-func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
-	self.dropTypes(ofs, oldSchema, newSchema)
-	self.createTypes(ofs, oldSchema, newSchema)
+func diffTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
+	dropTypes(ofs, oldSchema, newSchema)
+	createTypes(ofs, oldSchema, newSchema)
 
 	// there is no alter for types
 	// find types that still exist that are different
@@ -49,7 +42,7 @@ func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *ir.S
 		ofs.WriteSql(sql...)
 
 		if newType.Kind.Equals(ir.DataTypeKindDomain) {
-			self.diffDomain(ofs, oldSchema, oldType, newSchema, newType)
+			diffDomain(ofs, oldSchema, oldType, newSchema, newType)
 		} else {
 			ofs.WriteSql(getDropTypeSql(oldSchema, oldType)...)
 			sql, err := getCreateTypeSql(newSchema, newType)
@@ -66,7 +59,7 @@ func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *ir.S
 	}
 }
 
-func (self *DiffTypes) dropTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
+func dropTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	if oldSchema != nil {
 		for _, oldType := range oldSchema.Types {
 			if newSchema.TryGetTypeNamed(oldType.Name) == nil {
@@ -77,7 +70,7 @@ func (self *DiffTypes) dropTypes(ofs output.OutputFileSegmenter, oldSchema *ir.S
 	}
 }
 
-func (self *DiffTypes) createTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
+func createTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	for _, newType := range newSchema.Types {
 		if oldSchema.TryGetTypeNamed(newType.Name) == nil {
 			sql, err := getCreateTypeSql(newSchema, newType)
@@ -87,7 +80,7 @@ func (self *DiffTypes) createTypes(ofs output.OutputFileSegmenter, oldSchema *ir
 	}
 }
 
-func (self *DiffTypes) diffDomain(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldType *ir.DataType, newSchema *ir.Schema, newType *ir.DataType) {
+func diffDomain(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldType *ir.DataType, newSchema *ir.Schema, newType *ir.DataType) {
 	oldInfo := oldType.DomainType
 	newInfo := newType.DomainType
 

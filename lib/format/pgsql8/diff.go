@@ -173,7 +173,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 	if len(self.NewTableDependency) == 0 {
 		for _, newSchema := range dbsteward.NewDatabase.Schemas {
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
-			GlobalDiffTypes.DiffTypes(stage1, oldSchema, newSchema)
+			diffTypes(stage1, oldSchema, newSchema)
 			diffFunctions(stage1, stage3, oldSchema, newSchema)
 			diffSequences(stage1, oldSchema, newSchema)
 			// remove old constraints before table constraints, so the sql statements succeed
@@ -204,7 +204,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 
 			if !processedSchemas[newSchema.Name] {
-				GlobalDiffTypes.DiffTypes(stage1, oldSchema, newSchema)
+				diffTypes(stage1, oldSchema, newSchema)
 				diffFunctions(stage1, stage3, oldSchema, newSchema)
 				processedSchemas[newSchema.Name] = true
 			}

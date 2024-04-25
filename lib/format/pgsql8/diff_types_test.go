@@ -1,16 +1,13 @@
-package pgsql8_test
+package pgsql8
 
 import (
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
-
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
+	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
@@ -101,7 +98,7 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 		StripComments: true,
 	}
 
-	pgsql8.GlobalDiffTypes.DiffTypes(ofs, oldSchema, newSchema)
+	diffTypes(ofs, oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.FunctionDrop{
 			Function: sql.FunctionRef{"test", "test_arch_type_in_return", []string{}},

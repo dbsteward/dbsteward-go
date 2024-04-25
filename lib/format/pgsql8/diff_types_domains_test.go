@@ -38,7 +38,7 @@ func TestDiffTypes_Domain_BaseType(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypes(oldSchema, newSchema)
+	ddl := diffTypesForTest(oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainDrop{sql.TypeRef{"domains", "my_domain"}},
 		&sql.TypeDomainCreate{
@@ -78,7 +78,7 @@ func TestDiffTypes_Domain_ChangeDefault(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypes(oldSchema, newSchema)
+	ddl := diffTypesForTest(oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainAlterSetDefault{
 			Type:  sql.TypeRef{"domains", "my_domain"},
@@ -115,7 +115,7 @@ func TestDiffTypes_Domain_DropDefault(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypes(oldSchema, newSchema)
+	ddl := diffTypesForTest(oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainAlterDropDefault{sql.TypeRef{"domains", "my_domain"}},
 	}, ddl)
@@ -150,7 +150,7 @@ func TestDiffTypes_Domain_MakeNull(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypes(oldSchema, newSchema)
+	ddl := diffTypesForTest(oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainAlterSetNullable{sql.TypeRef{"domains", "my_domain"}, true},
 	}, ddl)
@@ -185,7 +185,7 @@ func TestDiffTypes_Domain_MakeNotNull(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypes(oldSchema, newSchema)
+	ddl := diffTypesForTest(oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainAlterSetNullable{sql.TypeRef{"domains", "my_domain"}, false},
 	}, ddl)
@@ -228,7 +228,7 @@ func TestDiffTypes_Domain_AddDropChangeConstraints(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypes(oldSchema, newSchema)
+	ddl := diffTypesForTest(oldSchema, newSchema)
 	ref := sql.TypeRef{"domains", "my_domain"}
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainAlterAddConstraint{ref, "gt4", sql.RawSql("VALUE > 4")},
@@ -291,7 +291,7 @@ func TestDiffTypes_Domain_DependentColumn(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypes(oldSchema, newSchema)
+	ddl := diffTypesForTest(oldSchema, newSchema)
 	ref := sql.TypeRef{"domains", "my_domain"}
 	assert.Equal(t, []output.ToSql{
 		sql.NewTableAlter(
@@ -307,7 +307,7 @@ func TestDiffTypes_Domain_DependentColumn(t *testing.T) {
 	}, ddl)
 }
 
-func diffTypes(oldSchema, newSchema *ir.Schema) []output.ToSql {
+func diffTypesForTest(oldSchema, newSchema *ir.Schema) []output.ToSql {
 	oldDoc := &ir.Definition{
 		Schemas: []*ir.Schema{oldSchema},
 	}
@@ -318,6 +318,6 @@ func diffTypes(oldSchema, newSchema *ir.Schema) []output.ToSql {
 	ofs := &pgtestutil.RecordingOfs{
 		StripComments: true,
 	}
-	GlobalDiffTypes.DiffTypes(ofs, oldSchema, newSchema)
+	diffTypes(ofs, oldSchema, newSchema)
 	return ofs.Sql
 }
