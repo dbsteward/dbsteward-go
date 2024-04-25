@@ -30,25 +30,25 @@ func (self *DiffConstraints) CreateConstraintsTable(ofs output.OutputFileSegment
 	lib.GlobalDBSteward.FatalIfError(err, "while checking if table was renamed")
 	if isRenamed {
 		// remove all constraints and recreate with new table name conventions
-		for _, constraint := range GlobalConstraint.GetTableConstraints(lib.GlobalDBSteward.OldDatabase, oldSchema, oldTable, constraintType) {
+		for _, constraint := range getTableConstraints(lib.GlobalDBSteward.OldDatabase, oldSchema, oldTable, constraintType) {
 			// rewrite the constraint definer to refer to the new table
 			// so the constraint by the old, but part of the new table
 			// will be referenced properly in the drop statement
 			constraint.Schema = newSchema
 			constraint.Table = newTable
-			ofs.WriteSql(GlobalConstraint.GetDropSql(constraint)...)
+			ofs.WriteSql(getTableConstraintDropSql(constraint)...)
 		}
 
 		// add all still-defined constraints back and any new ones to the table
-		for _, constraint := range GlobalConstraint.GetTableConstraints(lib.GlobalDBSteward.NewDatabase, newSchema, newTable, constraintType) {
-			ofs.WriteSql(GlobalConstraint.GetCreationSql(constraint)...)
+		for _, constraint := range getTableConstraints(lib.GlobalDBSteward.NewDatabase, newSchema, newTable, constraintType) {
+			ofs.WriteSql(getTableContraintCreationSql(constraint)...)
 		}
 
 		return
 	}
 
 	for _, constraint := range self.GetNewConstraints(oldSchema, oldTable, newSchema, newTable, constraintType) {
-		ofs.WriteSql(GlobalConstraint.GetCreationSql(constraint)...)
+		ofs.WriteSql(getTableContraintCreationSql(constraint)...)
 	}
 }
 
@@ -65,7 +65,7 @@ func (self *DiffConstraints) DropConstraints(ofs output.OutputFileSegmenter, old
 
 func (self *DiffConstraints) DropConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) {
 	for _, constraint := range self.GetOldConstraints(oldSchema, oldTable, newSchema, newTable, constraintType) {
-		ofs.WriteSql(GlobalConstraint.GetDropSql(constraint)...)
+		ofs.WriteSql(getTableConstraintDropSql(constraint)...)
 	}
 }
 
@@ -74,9 +74,9 @@ func (self *DiffConstraints) GetOldConstraints(oldSchema *ir.Schema, oldTable *i
 	if newTable != nil && oldTable != nil {
 		oldDb := lib.GlobalDBSteward.OldDatabase
 		newDb := lib.GlobalDBSteward.NewDatabase
-		for _, oldConstraint := range GlobalConstraint.GetTableConstraints(oldDb, oldSchema, oldTable, constraintType) {
-			newConstraint := GlobalConstraint.TryGetTableConstraintNamed(newDb, newSchema, newTable, oldConstraint.Name, constraintType)
-			if newConstraint == nil || !newConstraint.Equals(oldConstraint) || GlobalConstraint.DependsOnRenamedTable(newDb, oldConstraint) || GlobalConstraint.DependsOnRenamedTable(newDb, newConstraint) {
+		for _, oldConstraint := range getTableConstraints(oldDb, oldSchema, oldTable, constraintType) {
+			newConstraint := tryGetTableConstraintNamed(newDb, newSchema, newTable, oldConstraint.Name, constraintType)
+			if newConstraint == nil || !newConstraint.Equals(oldConstraint) || constraintDependsOnRenamedTable(newDb, oldConstraint) || constraintDependsOnRenamedTable(newDb, newConstraint) {
 				out = append(out, oldConstraint)
 			}
 		}
@@ -89,9 +89,9 @@ func (self *DiffConstraints) GetNewConstraints(oldSchema *ir.Schema, oldTable *i
 	if newTable != nil {
 		oldDb := lib.GlobalDBSteward.OldDatabase
 		newDb := lib.GlobalDBSteward.NewDatabase
-		for _, newConstraint := range GlobalConstraint.GetTableConstraints(newDb, newSchema, newTable, constraintType) {
-			oldConstraint := GlobalConstraint.TryGetTableConstraintNamed(oldDb, oldSchema, oldTable, newConstraint.Name, constraintType)
-			if oldConstraint == nil || !oldConstraint.Equals(newConstraint) || GlobalConstraint.DependsOnRenamedTable(newDb, newConstraint) {
+		for _, newConstraint := range getTableConstraints(newDb, newSchema, newTable, constraintType) {
+			oldConstraint := tryGetTableConstraintNamed(oldDb, oldSchema, oldTable, newConstraint.Name, constraintType)
+			if oldConstraint == nil || !oldConstraint.Equals(newConstraint) || constraintDependsOnRenamedTable(newDb, newConstraint) {
 				out = append(out, newConstraint)
 			}
 		}

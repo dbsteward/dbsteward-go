@@ -11,18 +11,11 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-type Constraint struct {
-}
-
-func NewConstraint() *Constraint {
-	return &Constraint{}
-}
-
 // TODO(go,pgsql) make sure this is tested _thoroughly_
 // TODO(go,core) lift this to sql99
 // ConstraintTypeAll includes PrimaryKey,Constraint,Foreign
 // sql99.ConstraintType
-func (self *Constraint) GetTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table, ct sql99.ConstraintType) []*sql99.TableConstraint {
+func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table, ct sql99.ConstraintType) []*sql99.TableConstraint {
 	if table == nil {
 		return nil
 	}
@@ -191,9 +184,9 @@ func (self *Constraint) GetTableConstraints(doc *ir.Definition, schema *ir.Schem
 	return constraints
 }
 
-func (self *Constraint) TryGetTableConstraintNamed(doc *ir.Definition, schema *ir.Schema, table *ir.Table, name string, constraintType sql99.ConstraintType) *sql99.TableConstraint {
+func tryGetTableConstraintNamed(doc *ir.Definition, schema *ir.Schema, table *ir.Table, name string, constraintType sql99.ConstraintType) *sql99.TableConstraint {
 	// TODO(feat) can make this a little more performant if we pass constraint type in
-	for _, constraint := range self.GetTableConstraints(doc, schema, table, constraintType) {
+	for _, constraint := range getTableConstraints(doc, schema, table, constraintType) {
 		if strings.EqualFold(constraint.Name, name) {
 			return constraint
 		}
@@ -201,17 +194,17 @@ func (self *Constraint) TryGetTableConstraintNamed(doc *ir.Definition, schema *i
 	return nil
 }
 
-func (self *Constraint) GetDropSql(constraint *sql99.TableConstraint) []output.ToSql {
+func getTableConstraintDropSql(constraint *sql99.TableConstraint) []output.ToSql {
 	return []output.ToSql{
 		&sql.ConstraintDrop{
-			Table:      sql.TableRef{constraint.Schema.Name, constraint.Table.Name},
+			Table:      sql.TableRef{Schema: constraint.Schema.Name, Table: constraint.Table.Name},
 			Constraint: constraint.Name,
 		},
 	}
 }
 
-func (self *Constraint) GetCreationSql(constraint *sql99.TableConstraint) []output.ToSql {
-	table := sql.TableRef{constraint.Schema.Name, constraint.Table.Name}
+func getTableContraintCreationSql(constraint *sql99.TableConstraint) []output.ToSql {
+	table := sql.TableRef{Schema: constraint.Schema.Name, Table: constraint.Table.Name}
 
 	// if there's a text definition, prefer that; it should have come verbatim from the xml
 	if constraint.TextDefinition != "" {
@@ -254,7 +247,7 @@ func (self *Constraint) GetCreationSql(constraint *sql99.TableConstraint) []outp
 				Table:          table,
 				Constraint:     constraint.Name,
 				LocalColumns:   localCols,
-				ForeignTable:   sql.TableRef{constraint.ForeignSchema.Name, constraint.ForeignTable.Name},
+				ForeignTable:   sql.TableRef{Schema: constraint.ForeignSchema.Name, Table: constraint.ForeignTable.Name},
 				ForeignColumns: foreignCols,
 				OnUpdate:       constraint.ForeignOnUpdate,
 				OnDelete:       constraint.ForeignOnDelete,
@@ -266,7 +259,7 @@ func (self *Constraint) GetCreationSql(constraint *sql99.TableConstraint) []outp
 	return nil
 }
 
-func (self *Constraint) DependsOnRenamedTable(doc *ir.Definition, constraint *sql99.TableConstraint) bool {
+func constraintDependsOnRenamedTable(doc *ir.Definition, constraint *sql99.TableConstraint) bool {
 	if lib.GlobalDBSteward.IgnoreOldNames {
 		return false
 	}
