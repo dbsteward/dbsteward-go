@@ -104,8 +104,8 @@ func getColumnDefaultSql(schema *ir.Schema, table *ir.Table, column *ir.Column) 
 	return out
 }
 
-func isSerialType(column *ir.Column) bool {
-	return GlobalDataType.IsSerialType(column.Type)
+func isColumnSerialType(column *ir.Column) bool {
+	return isSerialType(column.Type)
 }
 
 func hasDefaultNextval(column *ir.Column) bool {

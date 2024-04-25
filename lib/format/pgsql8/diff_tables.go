@@ -358,7 +358,7 @@ func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTab
 		oldType := getColumnType(dbsteward.OldDatabase, newSchema, oldTable, oldColumn)
 		newType := getColumnType(dbsteward.NewDatabase, newSchema, newTable, newColumn)
 
-		if !GlobalDataType.IsLinkedTableType(oldType) && GlobalDataType.IsLinkedTableType(newType) {
+		if !isLinkedTableType(oldType) && isLinkedTableType(newType) {
 			// TODO(feat) can we remove this restriction? or is this a postgres thing?
 			return errors.Errorf(
 				"Column %s.%s.%s has linked type %s. Column types cannot be altered to serial. If this column cannot be recreated as part of database change control, a user defined serial should be created, and corresponding nextval() defined as the default for the column.",
@@ -416,7 +416,7 @@ func (self *DiffTables) addModifyTableColumns(agg *updateTableColumnsAgg, oldTab
 		}
 
 		// drop sequence and default if converting from serial to int
-		if GlobalDataType.IsSerialType(oldColumn.Type) && GlobalDataType.IsIntType(newColumn.Type) {
+		if isSerialType(oldColumn.Type) && isIntType(newColumn.Type) {
 			agg.before3 = append(agg.before3, &sql.SequenceDrop{
 				Sequence: sql.SequenceRef{
 					Schema:   newSchema.Name,

@@ -45,14 +45,14 @@ func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *ir.S
 			ofs.WriteSql(getFunctionDropSql(oldSchema, oldFunc)...)
 		}
 
-		columns, sql := GlobalDataType.AlterColumnTypePlaceholder(oldSchema, oldType)
+		columns, sql := alterColumnTypePlaceholder(oldSchema, oldType)
 		ofs.WriteSql(sql...)
 
 		if newType.Kind.Equals(ir.DataTypeKindDomain) {
 			self.diffDomain(ofs, oldSchema, oldType, newSchema, newType)
 		} else {
-			ofs.WriteSql(GlobalDataType.GetDropSql(oldSchema, oldType)...)
-			sql, err := GlobalDataType.GetCreationSql(newSchema, newType)
+			ofs.WriteSql(getDropTypeSql(oldSchema, oldType)...)
+			sql, err := getCreateTypeSql(newSchema, newType)
 			lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for type alter")
 			ofs.WriteSql(sql...)
 		}
@@ -62,7 +62,7 @@ func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *ir.S
 			ofs.WriteSql(getFunctionCreationSql(newSchema, newFunc)...)
 		}
 
-		ofs.WriteSql(GlobalDataType.AlterColumnTypeRestore(columns, newSchema, newType)...)
+		ofs.WriteSql(alterColumnTypeRestore(columns, newSchema, newType)...)
 	}
 }
 
@@ -71,7 +71,7 @@ func (self *DiffTypes) dropTypes(ofs output.OutputFileSegmenter, oldSchema *ir.S
 		for _, oldType := range oldSchema.Types {
 			if newSchema.TryGetTypeNamed(oldType.Name) == nil {
 				// TODO(go,pgsql) old dbsteward does GetDropSql(*newSchema*, oldtype) but that's not consistent with anything else. Need to validate
-				ofs.WriteSql(GlobalDataType.GetDropSql(oldSchema, oldType)...)
+				ofs.WriteSql(getDropTypeSql(oldSchema, oldType)...)
 			}
 		}
 	}
@@ -80,7 +80,7 @@ func (self *DiffTypes) dropTypes(ofs output.OutputFileSegmenter, oldSchema *ir.S
 func (self *DiffTypes) createTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	for _, newType := range newSchema.Types {
 		if oldSchema.TryGetTypeNamed(newType.Name) == nil {
-			sql, err := GlobalDataType.GetCreationSql(newSchema, newType)
+			sql, err := getCreateTypeSql(newSchema, newType)
 			lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for type diff")
 			ofs.WriteSql(sql...)
 		}
@@ -95,8 +95,8 @@ func (self *DiffTypes) diffDomain(ofs output.OutputFileSegmenter, oldSchema *ir.
 	if !strings.EqualFold(oldInfo.BaseType, newInfo.BaseType) {
 		// TODO(feat) don't we need to convert columns as in DiffTypes?
 		ofs.WriteSql(sql.NewComment("domain base type changed from %s to %s; recreating the type", oldInfo.BaseType, newInfo.BaseType))
-		ofs.WriteSql(GlobalDataType.GetDropSql(oldSchema, oldType)...)
-		sql, err := GlobalDataType.GetCreationSql(newSchema, newType)
+		ofs.WriteSql(getDropTypeSql(oldSchema, oldType)...)
+		sql, err := getCreateTypeSql(newSchema, newType)
 		lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for domain diff")
 		ofs.WriteSql(sql...)
 	}

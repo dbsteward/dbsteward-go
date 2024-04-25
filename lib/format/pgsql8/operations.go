@@ -872,7 +872,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	// types: enumerated list, etc
 	for _, schema := range doc.Schemas {
 		for _, datatype := range schema.Types {
-			sql, err := GlobalDataType.GetCreationSql(schema, datatype)
+			sql, err := getCreateTypeSql(schema, datatype)
 			lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for build")
 			ofs.WriteSql(sql...)
 		}
@@ -1010,7 +1010,7 @@ func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*i
 						pkCol, schema.Name, table.Name)
 				}
 				// TODO(go,nth) unify DataType.IsLinkedType and Column.IsSerialType
-				if isSerialType(pk) && pk.SerialStart == nil {
+				if isColumnSerialType(pk) && pk.SerialStart == nil {
 					ofs.WriteSql(&sql.SequenceSerialSetValMax{
 						Column: sql.ColumnRef{
 							Schema: schema.Name,

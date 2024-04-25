@@ -66,7 +66,7 @@ func getCreateTableSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
 		// update the owner of all linked tables as well
 		for _, col := range table.Columns {
 			// TODO(feat) more than just serials?
-			if isSerialType(col) {
+			if isColumnSerialType(col) {
 				ident := buildSequenceName(schema.Name, table.Name, col.Name)
 				ddl = append(ddl, &sql.TableAlterOwner{
 					Table: sql.TableRef{Schema: schema.Name, Table: ident},
@@ -158,7 +158,7 @@ func getTableGrantSql(schema *ir.Schema, table *ir.Table, grant *ir.Grant) []out
 
 	// set serial columns permissions based on table permissions
 	for _, column := range table.Columns {
-		if !isSerialType(column) {
+		if !isColumnSerialType(column) {
 			continue
 		}
 
@@ -216,7 +216,7 @@ func _getSerialStartDml(schema *ir.Schema, table *ir.Table, column *ir.Column) [
 	if column.SerialStart == nil {
 		return nil
 	}
-	if !isSerialType(column) {
+	if !isColumnSerialType(column) {
 		lib.GlobalDBSteward.Fatal("Expected serial type for column %s.%s.%s because serialStart='%d' was defined, found type %s",
 			schema.Name, table.Name, column.Name, *column.SerialStart, column.Type)
 	}
