@@ -179,13 +179,13 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			// remove old constraints before table constraints, so the sql statements succeed
 			dropConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypeConstraint)
 			dropConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
-			GlobalDiffTables.DropTables(stage1, oldSchema, newSchema)
-			err := GlobalDiffTables.CreateTables(stage1, oldSchema, newSchema)
-			lib.GlobalDBSteward.FatalIfError(err, "while creating tables")
-			err = GlobalDiffTables.DiffTables(stage1, stage3, oldSchema, newSchema)
-			lib.GlobalDBSteward.FatalIfError(err, "while diffing tables")
+			dropTables(stage1, oldSchema, newSchema)
+			err := createTables(stage1, oldSchema, newSchema)
+			dbsteward.FatalIfError(err, "while creating tables")
+			err = diffTables(stage1, stage3, oldSchema, newSchema)
+			dbsteward.FatalIfError(err, "while diffing tables")
 			diffIndexes(stage1, oldSchema, newSchema)
-			GlobalDiffTables.DiffClusters(stage1, oldSchema, newSchema)
+			diffClusters(stage1, oldSchema, newSchema)
 			createConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
 			GlobalDiffTriggers.DiffTriggers(stage1, oldSchema, newSchema)
 		}
@@ -252,12 +252,12 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			// when a table has an oldTableName oldSchemaName specified,
 			// GlobalDBX.RenamedTableCheckPointer() will modify these pointers to be the old table
 			oldSchema, oldTable = lib.GlobalDBX.RenamedTableCheckPointer(oldSchema, oldTable, newSchema, newTable)
-			err := GlobalDiffTables.CreateTable(stage1, oldSchema, newSchema, newTable)
+			err := createTable(stage1, oldSchema, newSchema, newTable)
 			lib.GlobalDBSteward.FatalIfError(err, "while creating table %s.%s", newSchema.Name, newTable.Name)
-			err = GlobalDiffTables.DiffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
+			err = diffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
 			lib.GlobalDBSteward.FatalIfError(err, "while diffing table %s.%s", newSchema.Name, newTable.Name)
 			diffIndexesTable(stage1, oldSchema, oldTable, newSchema, newTable)
-			GlobalDiffTables.DiffClustersTable(stage1, oldSchema, oldTable, newSchema, newTable)
+			diffClustersTable(stage1, oldTable, newSchema, newTable)
 			createConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypePrimaryKey)
 			GlobalDiffTriggers.DiffTriggersTable(stage1, oldSchema, oldTable, newSchema, newTable)
 
@@ -273,7 +273,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			oldTable := oldEntry.Table
 
 			newSchema := dbsteward.NewDatabase.TryGetSchemaNamed(oldSchema.Name)
-			GlobalDiffTables.DropTable(stage3, oldSchema, oldTable, newSchema)
+			dropTable(stage3, oldSchema, oldTable, newSchema)
 		}
 	}
 
@@ -364,9 +364,9 @@ func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 			if deleteMode {
 				// TODO(go,3) clean up inconsistencies between e.g. GetDeleteDataSql and DiffData wrt writing sql to an ofs
 				// TODO(feat) aren't deletes supposed to go in stage 2?
-				ofs.WriteSql(GlobalDiffTables.GetDeleteDataSql(oldSchema, oldTable, newSchema, newTable)...)
+				ofs.WriteSql(getDeleteDataSql(oldSchema, oldTable, newSchema, newTable)...)
 			} else {
-				ofs.WriteSql(GlobalDiffTables.GetCreateDataSql(oldSchema, oldTable, newSchema, newTable)...)
+				ofs.WriteSql(getCreateDataSql(oldSchema, oldTable, newSchema, newTable)...)
 
 				// HACK: For now, we'll generate foreign key constraints in stage 4 after inserting data
 				// https://github.com/dbsteward/dbsteward/issues/142
@@ -378,7 +378,7 @@ func (self *Diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 		// TODO(feat) the above switches on deleteMode, this does not. we never delete data if table dep order is unknown?
 		for _, newSchema := range lib.GlobalDBSteward.NewDatabase.Schemas {
 			oldSchema := lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
-			GlobalDiffTables.DiffData(ofs, oldSchema, newSchema)
+			diffData(ofs, oldSchema, newSchema)
 		}
 	}
 }

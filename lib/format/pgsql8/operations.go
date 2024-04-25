@@ -994,7 +994,7 @@ func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*i
 			}
 		}
 
-		ofs.WriteSql(GlobalDiffTables.GetCreateDataSql(nil, nil, schema, table)...)
+		ofs.WriteSql(getCreateDataSql(nil, nil, schema, table)...)
 
 		// set serial primary keys to the max value after inserts have been performed
 		// only if the PRIMARY KEY is not a multi column

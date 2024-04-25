@@ -1,11 +1,10 @@
-package pgsql8_test
+package pgsql8
 
 import (
 	"testing"
 
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/stretchr/testify/assert"
 
@@ -41,7 +40,7 @@ func TestDiffTables_GetDataSql_EscapeCharacters(t *testing.T) {
 		},
 	}
 
-	ddl := pgsql8.GlobalDiffTables.GetCreateDataSql(nil, nil, schema, schema.Tables[0])
+	ddl := getCreateDataSql(nil, nil, schema, schema.Tables[0])
 	assert.Equal(t, []output.ToSql{
 		&sql.DataInsert{
 			Table:   sql.TableRef{"public", "i_test"},

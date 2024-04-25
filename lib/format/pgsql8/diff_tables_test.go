@@ -347,8 +347,8 @@ func TestDiffTables_GetDeleteCreateDataSql_AddSerialColumn(t *testing.T) {
 		},
 	}
 
-	delddl := GlobalDiffTables.GetDeleteDataSql(oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
-	addddl := GlobalDiffTables.GetCreateDataSql(oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
+	delddl := getDeleteDataSql(oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
+	addddl := getCreateDataSql(oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
 	assert.Equal(t, []output.ToSql{}, delddl)
 	assert.Equal(t, []output.ToSql{
 		&sql.DataUpdate{
@@ -379,12 +379,11 @@ func diffTablesCommon(oldSchema, newSchema *ir.Schema) ([]output.ToSql, []output
 	}
 
 	// note: v1 only used DiffTables, v2 split into CreateTables+DiffTables
-	dt := GlobalDiffTables
-	err := dt.CreateTables(ofs1, oldSchema, newSchema)
+	err := createTables(ofs1, oldSchema, newSchema)
 	if err != nil {
 		return ofs1.Sql, ofs3.Sql, err
 	}
 
-	err = dt.DiffTables(ofs1, ofs3, oldSchema, newSchema)
+	err = diffTables(ofs1, ofs3, oldSchema, newSchema)
 	return ofs1.Sql, ofs3.Sql, err
 }
