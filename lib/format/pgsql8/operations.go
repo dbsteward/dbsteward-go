@@ -960,7 +960,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 		}
 	}
 
-	GlobalDiffViews.CreateViewsOrdered(ofs, nil, doc)
+	createViewsOrdered(ofs, nil, doc)
 
 	// view permission grants
 	for _, schema := range doc.Schemas {

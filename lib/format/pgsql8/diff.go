@@ -167,7 +167,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 
 	// drop all views in all schemas, regardless whether dependency order is known or not
 	// TODO(go,4) would be so cool if we could parse the view def and only recreate what's required
-	GlobalDiffViews.DropViewsOrdered(stage1, dbsteward.OldDatabase, dbsteward.NewDatabase)
+	dropViewsOrdered(stage1, dbsteward.OldDatabase, dbsteward.NewDatabase)
 
 	// TODO(go,3) should we just always use table deps?
 	if len(self.NewTableDependency) == 0 {
@@ -277,7 +277,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 		}
 	}
 
-	GlobalDiffViews.CreateViewsOrdered(stage3, dbsteward.OldDatabase, dbsteward.NewDatabase)
+	createViewsOrdered(stage3, dbsteward.OldDatabase, dbsteward.NewDatabase)
 }
 
 func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {
