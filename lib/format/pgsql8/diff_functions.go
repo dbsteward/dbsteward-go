@@ -6,14 +6,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type DiffFunctions struct {
-}
-
-func NewDiffFunctions() *DiffFunctions {
-	return &DiffFunctions{}
-}
-
-func (self *DiffFunctions) DiffFunctions(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
+func diffFunctions(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	// drop functions that no longer exist in stage 3
 	if oldSchema != nil {
 		for _, oldFunction := range oldSchema.Functions {
