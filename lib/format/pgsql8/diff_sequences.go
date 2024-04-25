@@ -6,14 +6,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type DiffSequences struct {
-}
-
-func NewDiffSequences() *DiffSequences {
-	return &DiffSequences{}
-}
-
-func (self *DiffSequences) DiffSequences(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
+func diffSequences(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
 	// drop old sequences
 	if oldSchema != nil {
 		for _, oldSeq := range oldSchema.Sequences {
@@ -34,23 +27,23 @@ func (self *DiffSequences) DiffSequences(ofs output.OutputFileSegmenter, oldSche
 		parts := []sql.SequenceAlterPart{}
 
 		if !oldSeq.Increment.Equals(newSeq.Increment) {
-			parts = append(parts, &sql.SequenceAlterPartIncrement{newSeq.Increment})
+			parts = append(parts, &sql.SequenceAlterPartIncrement{Value: newSeq.Increment})
 		}
 		if !oldSeq.Min.Equals(newSeq.Min) {
-			parts = append(parts, &sql.SequenceAlterPartMinValue{newSeq.Min})
+			parts = append(parts, &sql.SequenceAlterPartMinValue{Value: newSeq.Min})
 		}
 		if !oldSeq.Max.Equals(newSeq.Max) {
-			parts = append(parts, &sql.SequenceAlterPartMaxValue{newSeq.Max})
+			parts = append(parts, &sql.SequenceAlterPartMaxValue{Value: newSeq.Max})
 		}
 		if !oldSeq.Cache.Equals(newSeq.Cache) {
-			parts = append(parts, &sql.SequenceAlterPartCache{newSeq.Cache})
+			parts = append(parts, &sql.SequenceAlterPartCache{Value: newSeq.Cache})
 		}
 		if oldSeq.Cycle != newSeq.Cycle {
-			parts = append(parts, &sql.SequenceAlterPartCycle{newSeq.Cycle})
+			parts = append(parts, &sql.SequenceAlterPartCycle{Value: newSeq.Cycle})
 		}
 
 		ofs.WriteSql(&sql.SequenceAlterParts{
-			Sequence: sql.SequenceRef{newSchema.Name, newSeq.Name},
+			Sequence: sql.SequenceRef{Schema: newSchema.Name, Sequence: newSeq.Name},
 			Parts:    parts,
 		})
 	}

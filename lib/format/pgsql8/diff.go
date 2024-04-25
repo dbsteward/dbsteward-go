@@ -175,7 +175,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 			GlobalDiffTypes.DiffTypes(stage1, oldSchema, newSchema)
 			diffFunctions(stage1, stage3, oldSchema, newSchema)
-			GlobalDiffSequences.DiffSequences(stage1, oldSchema, newSchema)
+			diffSequences(stage1, oldSchema, newSchema)
 			// remove old constraints before table constraints, so the sql statements succeed
 			dropConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypeConstraint)
 			dropConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
@@ -237,7 +237,7 @@ func (self *Diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 outp
 			// see above for pre table creation stuff
 			// see below for post table creation stuff
 			if !processedSchemas[newSchema.Name] {
-				GlobalDiffSequences.DiffSequences(stage1, oldSchema, newSchema)
+				diffSequences(stage1, oldSchema, newSchema)
 				processedSchemas[newSchema.Name] = true
 			}
 
