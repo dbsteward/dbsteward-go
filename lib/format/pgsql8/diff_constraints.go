@@ -7,25 +7,18 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type DiffConstraints struct {
-}
-
-func NewDiffConstraints() *DiffConstraints {
-	return &DiffConstraints{}
-}
-
-func (self *DiffConstraints) CreateConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, constraintType sql99.ConstraintType) {
+func createConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, constraintType sql99.ConstraintType) {
 	for _, newTable := range newSchema.Tables {
 		var oldTable *ir.Table
 		if oldSchema != nil {
 			// TODO(feat) what about renames?
 			oldTable = oldSchema.TryGetTableNamed(newTable.Name)
 		}
-		self.CreateConstraintsTable(ofs, oldSchema, oldTable, newSchema, newTable, constraintType)
+		createConstraintsTable(ofs, oldSchema, oldTable, newSchema, newTable, constraintType)
 	}
 }
 
-func (self *DiffConstraints) CreateConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) {
+func createConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) {
 	isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
 	lib.GlobalDBSteward.FatalIfError(err, "while checking if table was renamed")
 	if isRenamed {
@@ -47,29 +40,29 @@ func (self *DiffConstraints) CreateConstraintsTable(ofs output.OutputFileSegment
 		return
 	}
 
-	for _, constraint := range self.GetNewConstraints(oldSchema, oldTable, newSchema, newTable, constraintType) {
+	for _, constraint := range getNewConstraints(oldSchema, oldTable, newSchema, newTable, constraintType) {
 		ofs.WriteSql(getTableContraintCreationSql(constraint)...)
 	}
 }
 
-func (self *DiffConstraints) DropConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, constraintType sql99.ConstraintType) {
+func dropConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, constraintType sql99.ConstraintType) {
 	for _, newTable := range newSchema.Tables {
 		var oldTable *ir.Table
 		if oldSchema != nil {
 			// TODO(feat) what about renames?
 			oldTable = oldSchema.TryGetTableNamed(newTable.Name)
 		}
-		self.DropConstraintsTable(ofs, oldSchema, oldTable, newSchema, newTable, constraintType)
+		dropConstraintsTable(ofs, oldSchema, oldTable, newSchema, newTable, constraintType)
 	}
 }
 
-func (self *DiffConstraints) DropConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) {
-	for _, constraint := range self.GetOldConstraints(oldSchema, oldTable, newSchema, newTable, constraintType) {
+func dropConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) {
+	for _, constraint := range getOldConstraints(oldSchema, oldTable, newSchema, newTable, constraintType) {
 		ofs.WriteSql(getTableConstraintDropSql(constraint)...)
 	}
 }
 
-func (self *DiffConstraints) GetOldConstraints(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) []*sql99.TableConstraint {
+func getOldConstraints(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) []*sql99.TableConstraint {
 	out := []*sql99.TableConstraint{}
 	if newTable != nil && oldTable != nil {
 		oldDb := lib.GlobalDBSteward.OldDatabase
@@ -84,7 +77,7 @@ func (self *DiffConstraints) GetOldConstraints(oldSchema *ir.Schema, oldTable *i
 	return out
 }
 
-func (self *DiffConstraints) GetNewConstraints(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) []*sql99.TableConstraint {
+func getNewConstraints(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) []*sql99.TableConstraint {
 	out := []*sql99.TableConstraint{}
 	if newTable != nil {
 		oldDb := lib.GlobalDBSteward.OldDatabase

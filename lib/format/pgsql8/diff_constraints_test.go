@@ -140,9 +140,8 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 		StripComments: true,
 	}
 	setOldNewDocs(oldDoc, newDoc)
-	diffConstraints := GlobalDiffConstraints
-	diffConstraints.DropConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, nil, sql99.ConstraintTypePrimaryKey)
-	diffConstraints.CreateConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], sql99.ConstraintTypePrimaryKey)
+	dropConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, nil, sql99.ConstraintTypePrimaryKey)
+	createConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], sql99.ConstraintTypePrimaryKey)
 
 	assert.Equal(t, []output.ToSql{
 		&sql.ConstraintDrop{
@@ -382,9 +381,8 @@ func diffConstraintsTableCommon(oldSchema, newSchema *ir.Schema, ctype sql99.Con
 		StripComments: true,
 	}
 	setOldNewDocs(oldDoc, newDoc)
-	diffConstraints := GlobalDiffConstraints
-	diffConstraints.DropConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
-	diffConstraints.CreateConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
+	dropConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
+	createConstraintsTable(ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
 	if ofs.Sql == nil {
 		return []output.ToSql{}
 	}

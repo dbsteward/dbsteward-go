@@ -940,7 +940,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	// define table primary keys before foreign keys so unique requirements are always met for FOREIGN KEY constraints
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
-			GlobalDiffConstraints.CreateConstraintsTable(ofs, nil, nil, schema, table, sql99.ConstraintTypePrimaryKey)
+			createConstraintsTable(ofs, nil, nil, schema, table, sql99.ConstraintTypePrimaryKey)
 		}
 	}
 
@@ -948,7 +948,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	// use the dependency order to specify foreign keys in an order that will satisfy nested foreign keys and etc
 	// TODO(feat) shouldn't this consider GlobalDBSteward.LimitToTables like BuildData does?
 	for _, entry := range tableDep {
-		GlobalDiffConstraints.CreateConstraintsTable(ofs, nil, nil, entry.Schema, entry.Table, sql99.ConstraintTypeConstraint)
+		createConstraintsTable(ofs, nil, nil, entry.Schema, entry.Table, sql99.ConstraintTypeConstraint)
 	}
 
 	// trigger definitions
