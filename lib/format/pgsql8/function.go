@@ -11,15 +11,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-type Function struct {
-	IncludeColumnDefaultNextvalInCreateSql bool
-}
-
-func NewFunction() *Function {
-	return &Function{}
-}
-
-func (self *Function) DefinitionReferencesTable(definition *ir.FunctionDefinition) *lib.QualifiedTable {
+func functionDefinitionReferencesTable(definition *ir.FunctionDefinition) *lib.QualifiedTable {
 	// TODO(feat) a function could reference many tables, but this only returns the first; make it understand many tables
 	// TODO(feat) this won't detect quoted table names
 	// TODO(go,pgsql) test this
@@ -42,8 +34,8 @@ func (self *Function) DefinitionReferencesTable(definition *ir.FunctionDefinitio
 	return &parsed
 }
 
-func (self *Function) GetCreationSql(schema *ir.Schema, function *ir.Function) []output.ToSql {
-	ref := sql.FunctionRef{schema.Name, function.Name, function.ParamSigs()}
+func getFunctionCreationSql(schema *ir.Schema, function *ir.Function) []output.ToSql {
+	ref := sql.FunctionRef{Schema: schema.Name, Function: function.Name, Params: function.ParamSigs()}
 	def := function.TryGetDefinition(ir.SqlFormatPgsql8)
 	out := []output.ToSql{
 		&sql.FunctionCreate{
@@ -72,27 +64,32 @@ func (self *Function) GetCreationSql(schema *ir.Schema, function *ir.Function) [
 	return out
 }
 
-func (self *Function) GetDropSql(schema *ir.Schema, function *ir.Function) []output.ToSql {
+func getFunctionDropSql(schema *ir.Schema, function *ir.Function) []output.ToSql {
 	types := function.ParamTypes()
 	for i, paramType := range types {
 		// TODO(feat) there's evidence in get_drop_sql that postgres only recognizes the normalized typenames here.
 		// we should look for other cases and validate behavior
-		types[i] = self.normalizeParameterType(paramType)
+		types[i] = normalizeFunctionParameterType(paramType)
 	}
 
 	return []output.ToSql{
-		&sql.FunctionDrop{sql.FunctionRef{schema.Name, function.Name, types}},
+		&sql.FunctionDrop{
+			Function: sql.FunctionRef{
+				Schema:   schema.Name,
+				Function: function.Name,
+				Params:   types,
+			}},
 	}
 }
 
-func (self *Function) normalizeParameterType(paramType string) string {
+func normalizeFunctionParameterType(paramType string) string {
 	if strings.EqualFold(paramType, "character varying") || strings.EqualFold(paramType, "varying") {
 		return "varchar"
 	}
 	return paramType
 }
 
-func (self *Function) GetGrantSql(doc *ir.Definition, schema *ir.Schema, fn *ir.Function, grant *ir.Grant) []output.ToSql {
+func getFunctionGrantSql(schema *ir.Schema, fn *ir.Function, grant *ir.Grant) []output.ToSql {
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
 		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)
@@ -109,7 +106,7 @@ func (self *Function) GetGrantSql(doc *ir.Definition, schema *ir.Schema, fn *ir.
 
 	ddl := []output.ToSql{
 		&sql.FunctionGrant{
-			Function: sql.FunctionRef{schema.Name, fn.Name, fn.ParamTypes()},
+			Function: sql.FunctionRef{Schema: schema.Name, Function: fn.Name, Params: fn.ParamTypes()},
 			Perms:    []string(grant.Permissions),
 			Roles:    roles,
 			CanGrant: grant.CanGrant(),
@@ -122,7 +119,7 @@ func (self *Function) GetGrantSql(doc *ir.Definition, schema *ir.Schema, fn *ir.
 }
 
 // TODO(go,3) move this to model
-func (self *Function) FunctionDependsOnType(fn *ir.Function, typeSchema *ir.Schema, datatype *ir.DataType) bool {
+func functionDependsOnType(fn *ir.Function, typeSchema *ir.Schema, datatype *ir.DataType) bool {
 	// TODO(feat) what about composite/domain types that are also dependent on the type? further refinement needed
 	qualifiedName := typeSchema.Name + "." + datatype.Name
 	returns := strings.TrimRight(fn.Returns, "[] ") // allow for arrays

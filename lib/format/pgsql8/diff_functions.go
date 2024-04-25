@@ -18,7 +18,7 @@ func (self *DiffFunctions) DiffFunctions(stage1 output.OutputFileSegmenter, stag
 	if oldSchema != nil {
 		for _, oldFunction := range oldSchema.Functions {
 			if newSchema.TryGetFunctionMatching(oldFunction) == nil {
-				stage3.WriteSql(GlobalFunction.GetDropSql(oldSchema, oldFunction)...)
+				stage3.WriteSql(getFunctionDropSql(oldSchema, oldFunction)...)
 			}
 		}
 	}
@@ -27,16 +27,16 @@ func (self *DiffFunctions) DiffFunctions(stage1 output.OutputFileSegmenter, stag
 	for _, newFunction := range newSchema.Functions {
 		oldFunction := oldSchema.TryGetFunctionMatching(newFunction)
 		if oldFunction == nil || !oldFunction.Equals(newFunction, ir.SqlFormatPgsql8) {
-			stage1.WriteSql(GlobalFunction.GetCreationSql(newSchema, newFunction)...)
+			stage1.WriteSql(getFunctionCreationSql(newSchema, newFunction)...)
 		} else if newFunction.ForceRedefine {
 			stage1.WriteSql(sql.NewComment("Function %s.%s has forceRedefine set to true", newSchema.Name, newFunction.Name))
-			stage1.WriteSql(GlobalFunction.GetCreationSql(newSchema, newFunction)...)
+			stage1.WriteSql(getFunctionCreationSql(newSchema, newFunction)...)
 		} else {
 			oldReturnType := oldSchema.TryGetTypeNamed(newFunction.Returns)
 			newReturnType := newSchema.TryGetTypeNamed(newFunction.Returns)
 			if oldReturnType != nil && newReturnType != nil && !oldReturnType.Equals(newReturnType) {
 				stage1.WriteSql(sql.NewComment("Function %s.%s return type %s has changed", newSchema.Name, newFunction.Name, newReturnType.Name))
-				stage1.WriteSql(GlobalFunction.GetCreationSql(newSchema, newFunction)...)
+				stage1.WriteSql(getFunctionCreationSql(newSchema, newFunction)...)
 			}
 		}
 	}

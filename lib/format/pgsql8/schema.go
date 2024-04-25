@@ -89,7 +89,7 @@ func (self *Schema) GetGrantSql(doc *ir.Definition, schema *ir.Schema, grant *ir
 func (self *Schema) GetFunctionsDependingOnType(schema *ir.Schema, datatype *ir.DataType) []*ir.Function {
 	out := []*ir.Function{}
 	for _, fn := range schema.Functions {
-		if GlobalFunction.FunctionDependsOnType(fn, schema, datatype) {
+		if functionDependsOnType(fn, schema, datatype) {
 			out = append(out, fn)
 		}
 	}

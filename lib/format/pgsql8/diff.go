@@ -324,7 +324,7 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 			oldFunc := oldSchema.TryGetFunctionMatching(newFunc)
 			for _, newGrant := range newFunc.Grants {
 				if oldFunc == nil || !ir.HasPermissionsOf(oldFunc, newGrant, ir.SqlFormatPgsql8) {
-					stage1.WriteSql(GlobalFunction.GetGrantSql(newDoc, newSchema, newFunc, newGrant)...)
+					stage1.WriteSql(getFunctionGrantSql(newSchema, newFunc, newGrant)...)
 				}
 			}
 		}

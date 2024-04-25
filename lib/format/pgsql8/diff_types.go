@@ -42,7 +42,7 @@ func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *ir.S
 				"Type migration of %s.%s requires recreating dependent function %s.%s",
 				newSchema.Name, newType.Name, oldSchema.Name, oldFunc.Name,
 			))
-			ofs.WriteSql(GlobalFunction.GetDropSql(oldSchema, oldFunc)...)
+			ofs.WriteSql(getFunctionDropSql(oldSchema, oldFunc)...)
 		}
 
 		columns, sql := GlobalDataType.AlterColumnTypePlaceholder(oldSchema, oldType)
@@ -59,7 +59,7 @@ func (self *DiffTypes) DiffTypes(ofs output.OutputFileSegmenter, oldSchema *ir.S
 
 		// functions are only recreated if they changed elsewise, so need to create them here
 		for _, newFunc := range GlobalSchema.GetFunctionsDependingOnType(newSchema, newType) {
-			ofs.WriteSql(GlobalFunction.GetCreationSql(newSchema, newFunc)...)
+			ofs.WriteSql(getFunctionCreationSql(newSchema, newFunc)...)
 		}
 
 		ofs.WriteSql(GlobalDataType.AlterColumnTypeRestore(columns, newSchema, newType)...)

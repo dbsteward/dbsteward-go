@@ -100,7 +100,7 @@ outer:
 		for _, function := range schema.Functions {
 			if definition := function.TryGetDefinition(ir.SqlFormatPgsql8); definition != nil {
 				if strings.EqualFold(definition.Language, "sql") {
-					referenced := GlobalFunction.DefinitionReferencesTable(definition)
+					referenced := functionDefinitionReferencesTable(definition)
 					if referenced == nil {
 						continue
 					}
@@ -918,12 +918,12 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	for _, schema := range doc.Schemas {
 		for _, function := range schema.Functions {
 			if function.HasDefinition(ir.SqlFormatPgsql8) {
-				ofs.WriteSql(GlobalFunction.GetCreationSql(schema, function)...)
+				ofs.WriteSql(getFunctionCreationSql(schema, function)...)
 				// when pg:build_schema() is doing its thing for straight builds, include function permissions
 				// they are not included in pg_function::get_creation_sql()
 
 				for _, grant := range function.Grants {
-					ofs.WriteSql(GlobalFunction.GetGrantSql(doc, schema, function, grant)...)
+					ofs.WriteSql(getFunctionGrantSql(schema, function, grant)...)
 				}
 			}
 		}
