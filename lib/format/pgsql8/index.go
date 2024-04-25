@@ -11,20 +11,13 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-type Index struct {
-}
-
-func NewIndex() *Index {
-	return &Index{}
-}
-
-func (self *Index) GetCreateSql(schema *ir.Schema, table *ir.Table, index *ir.Index) []output.ToSql {
+func getCreateIndexSql(schema *ir.Schema, table *ir.Table, index *ir.Index) []output.ToSql {
 	dims := make([]sql.Quotable, len(index.Dimensions))
 	for i, dim := range index.Dimensions {
 		if dim.Sql {
-			dims[i] = &sql.DoNotQuote{dim.Value}
+			dims[i] = &sql.DoNotQuote{Text: dim.Value}
 		} else {
-			dims[i] = &sql.QuoteObject{dim.Value}
+			dims[i] = &sql.QuoteObject{Ident: dim.Value}
 		}
 	}
 	condStr := ""
@@ -33,7 +26,7 @@ func (self *Index) GetCreateSql(schema *ir.Schema, table *ir.Table, index *ir.In
 	}
 	return []output.ToSql{
 		&sql.IndexCreate{
-			Table:        sql.TableRef{schema.Name, table.Name},
+			Table:        sql.TableRef{Schema: schema.Name, Table: table.Name},
 			Index:        index.Name,
 			Unique:       index.Unique,
 			Concurrently: index.Concurrently,
@@ -44,15 +37,15 @@ func (self *Index) GetCreateSql(schema *ir.Schema, table *ir.Table, index *ir.In
 	}
 }
 
-func (self *Index) GetDropSql(schema *ir.Schema, table *ir.Table, index *ir.Index) []output.ToSql {
+func getDropIndexSql(schema *ir.Schema, index *ir.Index) []output.ToSql {
 	return []output.ToSql{
 		&sql.IndexDrop{
-			Index: sql.IndexRef{schema.Name, table.Name},
+			Index: sql.IndexRef{Schema: schema.Name, Index: index.Name},
 		},
 	}
 }
 
-func (self *Index) GetTableIndexes(schema *ir.Schema, table *ir.Table) ([]*ir.Index, error) {
+func getTableIndexes(schema *ir.Schema, table *ir.Table) ([]*ir.Index, error) {
 	if table == nil {
 		return nil, nil
 	}
@@ -63,7 +56,7 @@ func (self *Index) GetTableIndexes(schema *ir.Schema, table *ir.Table) ([]*ir.In
 	for _, column := range table.Columns {
 		if column.Unique {
 			out = append(out, &ir.Index{
-				Name:   self.BuildSecondaryKeyName(table.Name, column.Name),
+				Name:   buildSecondaryKeyName(table.Name, column.Name),
 				Unique: true,
 				Using:  ir.IndexTypeBtree, // TODO(feat) can these support other types?
 				Dimensions: []*ir.IndexDim{{
@@ -79,7 +72,7 @@ func (self *Index) GetTableIndexes(schema *ir.Schema, table *ir.Table) ([]*ir.In
 	names := util.NewSet(util.IdentityId[string])
 	for _, index := range out {
 		if names.Has(index.Name) {
-			return out, fmt.Errorf("Duplicate index name %s on table %s.%s", index.Name, schema.Name, table.Name)
+			return out, fmt.Errorf("duplicate index name %s on table %s.%s", index.Name, schema.Name, table.Name)
 		} else {
 			names.Add(index.Name)
 		}
@@ -88,8 +81,8 @@ func (self *Index) GetTableIndexes(schema *ir.Schema, table *ir.Table) ([]*ir.In
 	return out, nil
 }
 
-func (self *Index) TryGetTableIndexNamed(schema *ir.Schema, table *ir.Table, name string) (*ir.Index, error) {
-	indexes, err := self.GetTableIndexes(schema, table)
+func tryGetTableIndexNamed(schema *ir.Schema, table *ir.Table, name string) (*ir.Index, error) {
+	indexes, err := getTableIndexes(schema, table)
 	if err != nil {
 		return nil, err
 	}
@@ -101,20 +94,20 @@ func (self *Index) TryGetTableIndexNamed(schema *ir.Schema, table *ir.Table, nam
 	return nil, nil
 }
 
-func (self *Index) BuildPrimaryKeyName(table string) string {
+func buildPrimaryKeyName(table string) string {
 	// primary key name does not use a column
-	return self.buildIndexName(table, "", "pkey")
+	return buildIndexName(table, "", "pkey")
 }
 
-func (self *Index) BuildSecondaryKeyName(table, column string) string {
-	return self.buildIndexName(table, column, "key")
+func buildSecondaryKeyName(table, column string) string {
+	return buildIndexName(table, column, "key")
 }
 
-func (self *Index) BuildForeignKeyName(table, column string) string {
-	return self.buildIndexName(table, column, "fkey")
+func buildForeignKeyName(table, column string) string {
+	return buildIndexName(table, column, "fkey")
 }
 
-func (self *Index) buildIndexName(table, column, suffix string) string {
+func buildIndexName(table, column, suffix string) string {
 	// TODO(feat) what happens with compound indexes?
 	// TODO(go,nth) can we merge this with Operations.buildIdentifierName?
 	tableLen := len(table)

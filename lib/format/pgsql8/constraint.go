@@ -34,7 +34,7 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 			lib.GlobalDBSteward.Fatal("Table %s.%s does not have all named primary keys %v", schema.Name, table.Name, table.PrimaryKey)
 		}
 		constraints = append(constraints, &sql99.TableConstraint{
-			Name:    util.CoalesceStr(table.PrimaryKeyName, GlobalIndex.BuildPrimaryKeyName(table.Name)),
+			Name:    util.CoalesceStr(table.PrimaryKeyName, buildPrimaryKeyName(table.Name)),
 			Type:    sql99.ConstraintTypePrimaryKey,
 			Schema:  schema,
 			Table:   table,
@@ -151,7 +151,7 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 			if ct.Includes(sql99.ConstraintTypeForeign) && column.HasForeignKey() {
 				ref := lib.GlobalDBX.ResolveForeignKeyColumn(doc, schema, table, column)
 				constraints = append(constraints, &sql99.TableConstraint{
-					Name:             util.CoalesceStr(column.ForeignKeyName, GlobalIndex.BuildForeignKeyName(table.Name, column.Name)),
+					Name:             util.CoalesceStr(column.ForeignKeyName, buildForeignKeyName(table.Name, column.Name)),
 					Type:             sql99.ConstraintTypeForeign,
 					Schema:           schema,
 					Table:            table,

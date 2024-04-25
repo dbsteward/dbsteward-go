@@ -3,7 +3,6 @@ package pgsql8
 import "github.com/dbsteward/dbsteward/lib/format"
 
 var GlobalOperations = NewOperations()
-var GlobalIndex = NewIndex()
 var GlobalLanguage = NewLanguage()
 var GlobalPermission = NewPermission()
 var GlobalSchema = NewSchema()

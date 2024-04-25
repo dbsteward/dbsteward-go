@@ -27,12 +27,12 @@ func (self *DiffIndexes) DiffIndexes(ofs output.OutputFileSegmenter, oldSchema *
 func (self *DiffIndexes) DiffIndexesTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) {
 	for _, oldIndex := range self.getOldIndexes(oldSchema, oldTable, newSchema, newTable) {
 		// TODO(go,pgsql) old code used new schema/table instead of old, but I believe that is incorrect. need to verify this behavior change
-		ofs.WriteSql(GlobalIndex.GetDropSql(oldSchema, oldTable, oldIndex)...)
+		ofs.WriteSql(getDropIndexSql(oldSchema, oldIndex)...)
 	}
 
 	// TODO(go,pgsql) old code used a different codepath if oldSchema = nil; need to verify this behavior change
 	for _, newIndex := range self.getNewIndexes(oldSchema, oldTable, newSchema, newTable) {
-		ofs.WriteSql(GlobalIndex.GetCreateSql(newSchema, newTable, newIndex)...)
+		ofs.WriteSql(getCreateIndexSql(newSchema, newTable, newIndex)...)
 	}
 }
 
@@ -48,10 +48,10 @@ func (self *DiffIndexes) getOldIndexes(oldSchema *ir.Schema, oldTable *ir.Table,
 		// TODO(go,nth) move Equals to model if there's not actually any variation between formats
 		// TODO(go,pgsql) this logic is slightly different than php. need to double check and test
 		// TODO(go,3) we should move that hallucination to the compositing/expansion phase, and use plain old model getters here
-		oldIndexes, err := GlobalIndex.GetTableIndexes(oldSchema, oldTable)
+		oldIndexes, err := getTableIndexes(oldSchema, oldTable)
 		lib.GlobalDBSteward.FatalIfError(err, "While finding old indexes")
 		for _, oldIndex := range oldIndexes {
-			newIndex, err := GlobalIndex.TryGetTableIndexNamed(newSchema, newTable, oldIndex.Name)
+			newIndex, err := tryGetTableIndexNamed(newSchema, newTable, oldIndex.Name)
 			lib.GlobalDBSteward.FatalIfError(err, "While finding new index corresponding to old")
 			if newIndex == nil || !oldIndex.Equals(newIndex, ir.SqlFormatPgsql8) {
 				out = append(out, oldIndex)
@@ -69,10 +69,10 @@ func (self *DiffIndexes) getNewIndexes(oldSchema *ir.Schema, oldTable *ir.Table,
 	// TODO(feat) detect index renames because renaming an index is almost certainly cheaper than re-indexing
 	if newTable != nil {
 		// TODO(go,pgsql) this logic is slightly different, make sure to test it
-		newIndexes, err := GlobalIndex.GetTableIndexes(newSchema, newTable)
+		newIndexes, err := getTableIndexes(newSchema, newTable)
 		lib.GlobalDBSteward.FatalIfError(err, "While finding new indexes")
 		for _, newIndex := range newIndexes {
-			oldIndex, err := GlobalIndex.TryGetTableIndexNamed(oldSchema, oldTable, newIndex.Name)
+			oldIndex, err := tryGetTableIndexNamed(oldSchema, oldTable, newIndex.Name)
 			lib.GlobalDBSteward.FatalIfError(err, "While finding old index corresponding to new")
 			if oldIndex == nil || !oldIndex.Equals(newIndex, ir.SqlFormatPgsql8) {
 				out = append(out, newIndex)
