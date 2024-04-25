@@ -7,14 +7,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type Language struct {
-}
-
-func NewLanguage() *Language {
-	return &Language{}
-}
-
-func (self *Language) GetCreationSql(lang *ir.Language) []output.ToSql {
+func getCreateLanguageSql(lang *ir.Language) []output.ToSql {
 	out := []output.ToSql{
 		&sql.LanguageCreate{
 			Language:   lang.Name,
@@ -36,7 +29,7 @@ func (self *Language) GetCreationSql(lang *ir.Language) []output.ToSql {
 	return out
 }
 
-func (self *Language) GetDropSql(lang *ir.Language) []output.ToSql {
+func getDropLanguageSql(lang *ir.Language) []output.ToSql {
 	return []output.ToSql{
 		&sql.LanguageDrop{
 			Language:   lang.Name,

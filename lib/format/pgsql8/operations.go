@@ -85,7 +85,7 @@ func (ops *Operations) Build(outputPrefix string, dbDoc *ir.Definition) {
 	// language definitions
 	if dbsteward.CreateLanguages {
 		for _, language := range dbDoc.Languages {
-			buildFileOfs.WriteSql(GlobalLanguage.GetCreationSql(language)...)
+			buildFileOfs.WriteSql(getCreateLanguageSql(language)...)
 		}
 	}
 

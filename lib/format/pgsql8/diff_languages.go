@@ -30,7 +30,7 @@ func (self *DiffLanguages) dropLanguages(ofs output.OutputFileSegmenter) {
 		for _, oldLang := range oldDoc.Languages {
 			newLang := newDoc.TryGetLanguageNamed(oldLang.Name)
 			if newLang == nil || !oldLang.Equals(newLang) {
-				ofs.WriteSql(GlobalLanguage.GetDropSql(oldLang)...)
+				ofs.WriteSql(getDropLanguageSql(oldLang)...)
 			}
 		}
 	}
@@ -44,7 +44,7 @@ func (self *DiffLanguages) createLanguages(ofs output.OutputFileSegmenter) {
 	for _, newLang := range newDoc.Languages {
 		oldLang := oldDoc.TryGetLanguageNamed(newLang.Name)
 		if oldLang == nil || !oldLang.Equals(newLang) {
-			ofs.WriteSql(GlobalLanguage.GetCreationSql(newLang)...)
+			ofs.WriteSql(getCreateLanguageSql(newLang)...)
 		}
 	}
 }
