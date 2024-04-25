@@ -24,7 +24,7 @@ func (self *DiffViews) CreateViewsOrdered(ofs output.OutputFileSegmenter, oldDoc
 			oldView = oldSchema.TryGetViewNamed(newRef.View.Name)
 		}
 		if self.shouldCreateView(oldView, newRef.View) {
-			ofs.WriteSql(GlobalView.GetCreationSql(newRef.Schema, newRef.View)...)
+			ofs.WriteSql(getCreateViewSql(newRef.Schema, newRef.View)...)
 		}
 	})
 }
@@ -38,7 +38,7 @@ func (self *DiffViews) DropViewsOrdered(ofs output.OutputFileSegmenter, oldDoc *
 		newSchema := newDoc.TryGetSchemaNamed(oldViewRef.Schema.Name)
 		newView := newSchema.TryGetViewNamed(oldViewRef.View.Name)
 		if self.shouldDropView(oldViewRef.View, newSchema, newView) {
-			ofs.WriteSql(GlobalView.GetDropSql(oldViewRef.Schema, oldViewRef.View)...)
+			ofs.WriteSql(getDropViewSql(oldViewRef.Schema, oldViewRef.View)...)
 		}
 	})
 }
@@ -74,7 +74,7 @@ func (self *DiffViews) dfsViewDeps(doc *ir.Definition, ref ir.ViewRef, visited m
 	}
 	visited[ref] = true
 
-	for _, dep := range GlobalView.GetDependencies(doc, ref.Schema, ref.View) {
+	for _, dep := range getViewDependencies(doc, ref.Schema, ref.View) {
 		self.dfsViewDeps(doc, dep, visited, callback)
 	}
 	callback(ref)

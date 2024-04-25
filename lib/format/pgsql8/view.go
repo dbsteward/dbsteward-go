@@ -10,15 +10,8 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-type View struct {
-}
-
-func NewView() *View {
-	return &View{}
-}
-
-func (self *View) GetCreationSql(schema *ir.Schema, view *ir.View) []output.ToSql {
-	ref := sql.ViewRef{schema.Name, view.Name}
+func getCreateViewSql(schema *ir.Schema, view *ir.View) []output.ToSql {
+	ref := sql.ViewRef{Schema: schema.Name, View: view.Name}
 	query := view.TryGetViewQuery(ir.SqlFormatPgsql8)
 	util.Assert(query != nil, "Calling View.GetCreationSql for a view not defined for this sqlformat")
 
@@ -45,15 +38,15 @@ func (self *View) GetCreationSql(schema *ir.Schema, view *ir.View) []output.ToSq
 	return out
 }
 
-func (self *View) GetDropSql(schema *ir.Schema, view *ir.View) []output.ToSql {
+func getDropViewSql(schema *ir.Schema, view *ir.View) []output.ToSql {
 	return []output.ToSql{
 		&sql.ViewDrop{
-			View: sql.ViewRef{schema.Name, view.Name},
+			View: sql.ViewRef{Schema: schema.Name, View: view.Name},
 		},
 	}
 }
 
-func (self *View) GetGrantSql(doc *ir.Definition, schema *ir.Schema, view *ir.View, grant *ir.Grant) []output.ToSql {
+func getViewGrantSql(doc *ir.Definition, schema *ir.Schema, view *ir.View, grant *ir.Grant) []output.ToSql {
 	// NOTE: pgsql views use table grants!
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
@@ -71,7 +64,7 @@ func (self *View) GetGrantSql(doc *ir.Definition, schema *ir.Schema, view *ir.Vi
 
 	ddl := []output.ToSql{
 		&sql.TableGrant{
-			Table:    sql.TableRef{schema.Name, view.Name},
+			Table:    sql.TableRef{Schema: schema.Name, Table: view.Name},
 			Perms:    []string(grant.Permissions),
 			Roles:    roles,
 			CanGrant: grant.CanGrant(),
@@ -83,7 +76,7 @@ func (self *View) GetGrantSql(doc *ir.Definition, schema *ir.Schema, view *ir.Vi
 	return ddl
 }
 
-func (self *View) GetDependencies(doc *ir.Definition, schema *ir.Schema, view *ir.View) []ir.ViewRef {
+func getViewDependencies(doc *ir.Definition, schema *ir.Schema, view *ir.View) []ir.ViewRef {
 	out := []ir.ViewRef{}
 	for _, viewName := range view.DependsOnViews {
 		parts := strings.Split(viewName, ".")
@@ -107,7 +100,7 @@ func (self *View) GetDependencies(doc *ir.Definition, schema *ir.Schema, view *i
 			lib.GlobalDBSteward.Fatal("Could not find view %s.%s depended on by view %s.%s", depSchema.Name, depViewName, schema.Name, view.Name)
 		}
 
-		out = append(out, ir.ViewRef{depSchema, depView})
+		out = append(out, ir.ViewRef{Schema: depSchema, View: depView})
 	}
 	return out
 }

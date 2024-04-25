@@ -333,7 +333,7 @@ func (self *Diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 ou
 			oldView := oldSchema.TryGetViewNamed(newView.Name)
 			for _, newGrant := range newView.Grants {
 				if lib.GlobalDBSteward.AlwaysRecreateViews || oldView == nil || !ir.HasPermissionsOf(oldView, newGrant, ir.SqlFormatPgsql8) || !oldView.Equals(newView, ir.SqlFormatPgsql8) {
-					stage3.WriteSql(GlobalView.GetGrantSql(newDoc, newSchema, newView, newGrant)...)
+					stage3.WriteSql(getViewGrantSql(newDoc, newSchema, newView, newGrant)...)
 				}
 			}
 		}

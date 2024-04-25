@@ -966,7 +966,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	for _, schema := range doc.Schemas {
 		for _, view := range schema.Views {
 			for _, grant := range view.Grants {
-				ofs.WriteSql(GlobalView.GetGrantSql(doc, schema, view, grant)...)
+				ofs.WriteSql(getViewGrantSql(doc, schema, view, grant)...)
 			}
 		}
 	}
