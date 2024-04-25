@@ -34,7 +34,7 @@ func (self *DiffTriggers) DiffTriggersTable(ofs output.OutputFileSegmenter, oldS
 			}
 			newTrigger := newSchema.TryGetTriggerMatching(oldTrigger)
 			if newTrigger == nil || !oldTrigger.Equals(newTrigger) {
-				ofs.WriteSql(GlobalTrigger.GetDropSql(oldSchema, oldTrigger)...)
+				ofs.WriteSql(getDropTriggerSql(oldSchema, oldTrigger)...)
 			}
 		}
 	}
@@ -47,7 +47,7 @@ func (self *DiffTriggers) DiffTriggersTable(ofs output.OutputFileSegmenter, oldS
 
 		oldTrigger := oldSchema.TryGetTriggerMatching(newTrigger)
 		if oldTrigger == nil || !oldTrigger.Equals(newTrigger) {
-			ofs.WriteSql(GlobalTrigger.GetCreationSql(newSchema, newTrigger)...)
+			ofs.WriteSql(getCreateTriggerSql(newSchema, newTrigger)...)
 		}
 	}
 }

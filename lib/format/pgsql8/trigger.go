@@ -7,15 +7,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-type Trigger struct {
-	IncludeColumnDefaultNextvalInCreateSql bool
-}
-
-func NewTrigger() *Trigger {
-	return &Trigger{}
-}
-
-func (self *Trigger) GetCreationSql(schema *ir.Schema, trigger *ir.Trigger) []output.ToSql {
+func getCreateTriggerSql(schema *ir.Schema, trigger *ir.Trigger) []output.ToSql {
 	// TODO(go,3) move validation elsewhere
 	if table := schema.TryGetTableNamed(trigger.Table); table == nil {
 		lib.GlobalDBSteward.Fatal("Failed to find trigger table %s.%s", schema.Name, trigger.Table)
@@ -29,8 +21,8 @@ func (self *Trigger) GetCreationSql(schema *ir.Schema, trigger *ir.Trigger) []ou
 
 	return []output.ToSql{
 		&sql.TriggerCreate{
-			Trigger:  sql.TriggerRef{schema.Name, trigger.Name},
-			Table:    sql.TableRef{schema.Name, trigger.Table},
+			Trigger:  sql.TriggerRef{Schema: schema.Name, Trigger: trigger.Name},
+			Table:    sql.TableRef{Schema: schema.Name, Table: trigger.Table},
 			Timing:   string(trigger.Timing),
 			Events:   trigger.Events,
 			ForEach:  string(trigger.ForEach),
@@ -39,11 +31,11 @@ func (self *Trigger) GetCreationSql(schema *ir.Schema, trigger *ir.Trigger) []ou
 	}
 }
 
-func (self *Trigger) GetDropSql(schema *ir.Schema, trigger *ir.Trigger) []output.ToSql {
+func getDropTriggerSql(schema *ir.Schema, trigger *ir.Trigger) []output.ToSql {
 	return []output.ToSql{
 		&sql.TriggerDrop{
-			Trigger: sql.TriggerRef{schema.Name, trigger.Name},
-			Table:   sql.TableRef{schema.Name, trigger.Table},
+			Trigger: sql.TriggerRef{Schema: schema.Name, Trigger: trigger.Name},
+			Table:   sql.TableRef{Schema: schema.Name, Table: trigger.Table},
 		},
 	}
 }

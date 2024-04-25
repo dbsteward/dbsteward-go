@@ -955,7 +955,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	for _, schema := range doc.Schemas {
 		for _, trigger := range schema.Triggers {
 			if trigger.SqlFormat.Equals(ir.SqlFormatPgsql8) {
-				ofs.WriteSql(GlobalTrigger.GetCreationSql(schema, trigger)...)
+				ofs.WriteSql(getCreateTriggerSql(schema, trigger)...)
 			}
 		}
 	}
