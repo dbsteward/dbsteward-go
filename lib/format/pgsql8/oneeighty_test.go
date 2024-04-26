@@ -28,7 +28,8 @@ import (
 // TODO list: Things that don't work yet but are feature improvements
 // * column UNIQUE setting is lost and turns into an index
 // * schema public description is not updated on create
-// * Data types
+// * Data types are not normalized nor standardized nor anything like that
+// * column check constraints are lost and converted to table constraints
 
 const aRole = "additional_role"
 
@@ -85,6 +86,15 @@ func TestOneEighty(t *testing.T) {
 								Name:     "description",
 								Type:     "text",
 								Nullable: true,
+							},
+							{
+								Name:            "nameref",
+								ForeignKeyName:  "name_fk_4602",
+								ForeignSchema:   "public",
+								ForeignTable:    "t1",
+								ForeignColumn:   "id",
+								ForeignOnUpdate: ir.ForeignKeyActionNoAction,
+								ForeignOnDelete: ir.ForeignKeyActionNoAction,
 							},
 						},
 					},
