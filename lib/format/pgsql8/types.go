@@ -46,10 +46,11 @@ type SequenceEntry struct {
 }
 
 type ViewEntry struct {
-	Schema     string
-	Name       string
-	Owner      string
-	Definition string
+	Schema      string
+	Name        string
+	Description string
+	Owner       string
+	Definition  string
 }
 
 type ConstraintEntry struct {

@@ -395,8 +395,9 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 		util.Assert(view == nil, "view %s.%s already defined in XML object -- unexpected", schema.Name, viewRow.Name)
 		roles.registerRole(roleContextOwner, viewRow.Owner)
 		schema.AddView(&ir.View{
-			Name:  viewRow.Name,
-			Owner: viewRow.Owner,
+			Name:        viewRow.Name,
+			Description: viewRow.Description,
+			Owner:       viewRow.Owner,
 			Queries: []*ir.ViewQuery{
 				{
 					SqlFormat: ir.SqlFormatPgsql8,

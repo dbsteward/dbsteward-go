@@ -102,6 +102,15 @@ func TestOneEighty(t *testing.T) {
 						}},
 					},
 				},
+				Views: []*ir.View{{
+					Name:        "view0",
+					Description: "test view 0",
+					Owner:       role,
+					Queries: []*ir.ViewQuery{{
+						SqlFormat: ir.SqlFormatPgsql8,
+						Text:      " SELECT id\n   FROM t2;",
+					}},
+				}},
 			},
 		},
 	}

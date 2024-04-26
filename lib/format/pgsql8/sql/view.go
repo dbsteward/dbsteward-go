@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/dbsteward/dbsteward/lib/output"
-	"github.com/dbsteward/dbsteward/lib/util"
 )
 
 type ViewCreate struct {
@@ -14,7 +13,7 @@ type ViewCreate struct {
 
 func (self *ViewCreate) ToSql(q output.Quoter) string {
 	// TODO(feat) OR REPLACE?
-	return fmt.Sprintf("CREATE OR REPLACE VIEW %s AS\n%s;", self.View.Qualified(q), util.PrefixLines(self.Query, "  "))
+	return fmt.Sprintf("CREATE OR REPLACE VIEW %s AS\n%s;", self.View.Qualified(q), self.Query)
 }
 
 type ViewSetComment struct {

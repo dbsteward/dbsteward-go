@@ -340,10 +340,15 @@ func (li *LiveIntrospector) GetSequencesForRel(schema, rel string) ([]SequenceEn
 
 func (li *LiveIntrospector) GetViews() ([]ViewEntry, error) {
 	res, err := li.conn.query(`
-		SELECT schemaname, viewname, viewowner, definition
-      FROM pg_catalog.pg_views
-      WHERE schemaname NOT IN ('information_schema', 'pg_catalog')
-      ORDER BY schemaname, viewname;
+		SELECT n.nspname AS schemaname,
+		c.relname AS viewname,
+		pg_get_userbyid(c.relowner) AS viewowner,
+		pg_get_viewdef(c.oid) AS definition,
+		coalesce(pg_catalog.obj_description(c.oid, 'pg_class'), '')
+		FROM pg_class c
+		LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE c.relkind = 'v'::"char"
+		AND n.nspname NOT IN ('information_schema', 'pg_catalog');
 	`)
 	if err != nil {
 		return nil, errors.Wrap(err, "while running query")
@@ -352,7 +357,7 @@ func (li *LiveIntrospector) GetViews() ([]ViewEntry, error) {
 	out := []ViewEntry{}
 	for res.Next() {
 		entry := ViewEntry{}
-		err := res.Scan(&entry.Schema, &entry.Name, &entry.Owner, &entry.Definition)
+		err := res.Scan(&entry.Schema, &entry.Name, &entry.Owner, &entry.Definition, &entry.Description)
 		if err != nil {
 			return nil, errors.Wrap(err, "while scanning result")
 		}
