@@ -241,6 +241,19 @@ func (mr *MockIntrospectorMockRecorder) GetTablePerms() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTablePerms", reflect.TypeOf((*MockIntrospector)(nil).GetTablePerms))
 }
 
+func (m *MockIntrospector) GetSchemaPerms() ([]SchemaPermEntry, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSchemaPerms")
+	ret0, _ := ret[0].([]SchemaPermEntry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (mr *MockIntrospectorMockRecorder) GetSchemaPerms() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchemaPerms", reflect.TypeOf((*MockIntrospector)(nil).GetSchemaPerms))
+}
+
 // GetTableStorageOptions mocks base method.
 func (m *MockIntrospector) GetTableStorageOptions(arg0, arg1 string) (map[string]string, error) {
 	m.ctrl.T.Helper()

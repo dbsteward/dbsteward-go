@@ -14,6 +14,7 @@ import (
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
 	"github.com/hexops/gotextdiff/span"
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 )
 
@@ -27,6 +28,9 @@ import (
 // TODO list: Things that don't work yet but are feature improvements
 // * column UNIQUE setting is lost and turns into an index
 // * schema public description is not updated on create
+// * Data types
+
+const aRole = "additional_role"
 
 func TestOneEighty(t *testing.T) {
 	c := initdb(t)
@@ -39,7 +43,9 @@ func TestOneEighty(t *testing.T) {
 		Database: &ir.Database{
 			SqlFormat: ir.SqlFormatPgsql8,
 			Roles: &ir.RoleAssignment{
-				Owner: role,
+				Owner:       role,
+				Application: role,
+				CustomRoles: []string{aRole},
 			},
 		},
 		Schemas: []*ir.Schema{
@@ -111,6 +117,23 @@ func TestOneEighty(t *testing.T) {
 						Text:      " SELECT id\n   FROM t2;",
 					}},
 				}},
+				Grants: []*ir.Grant{
+					{
+						Roles:       []string{aRole},
+						Permissions: []string{"USAGE"},
+					},
+					{
+						Roles:       []string{role},
+						Permissions: []string{"CREATE"},
+					},
+					{
+						Roles:       []string{role},
+						Permissions: []string{"USAGE"},
+					},
+				},
+				Types:     nil,
+				Sequences: nil,
+				Triggers:  nil,
 			},
 		},
 	}
@@ -177,6 +200,13 @@ func initdb(t *testing.T) *pgx.Conn {
 		t.Fatal(err)
 		return nil
 	}
+	_, err = conn.Exec(context.TODO(), fmt.Sprintf("CREATE ROLE %s", aRole))
+	if err != nil {
+		if (err.(*pgconn.PgError)).Code != "42710" { // Role exists
+			t.Fatal(err)
+			return nil
+		}
+	}
 	err = conn.Close(context.TODO())
 	if err != nil {
 		t.Fatal(err)
@@ -202,7 +232,14 @@ func teardowndb(t *testing.T, c *pgx.Conn) {
 		return
 	}
 	defer conn.Close(context.TODO())
-	_, _ = conn.Exec(context.TODO(), fmt.Sprintf("DROP DATABASE %s IF EXISTS", os.Getenv("DB_NAME")))
+	_, err = conn.Exec(context.TODO(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", os.Getenv("DB_NAME")))
+	if err != nil {
+		t.Log(err)
+	}
+	_, err = conn.Exec(context.TODO(), fmt.Sprintf("DROP ROLE IF EXISTS %s", aRole))
+	if err != nil {
+		t.Log(err)
+	}
 }
 
 func adminDSNFromEnv() string {

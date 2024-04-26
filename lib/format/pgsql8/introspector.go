@@ -55,6 +55,7 @@ type Introspector interface {
 	GetFunctions() ([]FunctionEntry, error)
 	GetFunctionArgs(Oid) ([]FunctionArgEntry, error)
 	GetTriggers() ([]TriggerEntry, error)
+	GetSchemaPerms() ([]SchemaPermEntry, error)
 	GetTablePerms() ([]TablePermEntry, error)
 	GetSequencePerms(seq string) ([]SequencePermEntry, error)
 }
@@ -623,6 +624,39 @@ func (li *LiveIntrospector) GetTriggers() ([]TriggerEntry, error) {
 	return out, nil
 }
 
+func (li *LiveIntrospector) GetSchemaPerms() ([]SchemaPermEntry, error) {
+	rows, err := li.conn.query(`
+		SELECT n.nspname AS "Name",
+		pg_catalog.array_to_string(n.nspacl, E'\n')
+		FROM pg_catalog.pg_namespace n
+		WHERE n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("quering schema perms: %w", err)
+	}
+	defer rows.Close()
+	var rv []SchemaPermEntry
+	for rows.Next() {
+		var schema, acl string
+		err = rows.Scan(&schema, &acl)
+		if err != nil {
+			return nil, fmt.Errorf("scanning schema perm row: %w", err)
+		}
+		aclmap := parseACL(acl)
+		for user, perms := range aclmap {
+			for _, perm := range perms {
+				entry := SchemaPermEntry{
+					Schema:  schema,
+					Grantee: user,
+					Type:    perm,
+				}
+				rv = append(rv, entry)
+			}
+		}
+	}
+	return rv, nil
+}
+
 func (li *LiveIntrospector) GetTablePerms() ([]TablePermEntry, error) {
 	res, err := li.conn.query(`
 		SELECT table_schema, table_name, grantee, privilege_type, is_grantable = 'YES'
@@ -630,9 +664,9 @@ func (li *LiveIntrospector) GetTablePerms() ([]TablePermEntry, error) {
 		WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
 	`)
 	if err != nil {
-		return nil, errors.Wrap(err, "while running query")
+		return nil, errors.Wrap(err, "querying table perms")
 	}
-
+	defer res.Close()
 	out := []TablePermEntry{}
 	for res.Next() {
 		entry := TablePermEntry{}

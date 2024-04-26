@@ -1,9 +1,12 @@
 package pgsql8
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"log"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -613,8 +616,54 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 		}
 	}
 
+	// Get any roles/grants on schemas and add to the roleIndex
+	schemaPerms, err := introspector.GetSchemaPerms()
+	if err != nil {
+		return nil, fmt.Errorf("extracting schema perms: %w", err)
+	}
+	for _, permEntry := range schemaPerms {
+		if permEntry.Grantee == "public" {
+			dbsteward.Warning("Ignoring grant on psuedo user \"public\"")
+		} else {
+			_, err := getOrAddSchema(doc, introspector, roles, permEntry.Schema, "")
+			if err != nil {
+				return nil, err
+			}
+			roles.registerRole(roleContextGrant, permEntry.Grantee)
+		}
+	}
+
 	// The entire list of roles is now available to be analyzed
 	doc.Database.Roles = roles.resolveRoles()
+
+	// Add any grants on the schema to the IR
+	// pseudo-roles may result in duplicate entries
+	for k := range schemaPerms {
+		p := schemaPerms[k]
+		p.Grantee = roles.get(p.Grantee)
+		schemaPerms[k] = p
+	}
+	slices.SortFunc(schemaPerms, func(a, b SchemaPermEntry) int {
+		c := cmp.Compare(a.Grantee, b.Grantee)
+		if c == 0 {
+			return cmp.Compare(a.Type, b.Type)
+		}
+		return c
+	})
+	schemaPerms = slices.Compact(schemaPerms)
+	for _, permEntry := range schemaPerms {
+		if permEntry.Grantee != "public" {
+			np := ir.Grant{
+				Roles:       []string{roles.get(permEntry.Grantee)},
+				Permissions: []string{permEntry.Type},
+			}
+			schema := doc.TryGetSchemaNamed(permEntry.Schema)
+			if schema == nil {
+				return nil, fmt.Errorf("perms found but no schema found for '%s'", permEntry.Schema)
+			}
+			schema.AddGrant(&np)
+		}
+	}
 
 	// analyze sequence grants and assign those to the IR
 	for _, schema := range doc.Schemas {
@@ -1187,17 +1236,64 @@ func buildIdentifierName(_, table, column, suffix string) string {
 	return fmt.Sprintf("%s_%s%s", identTable, identColumn, suffix)
 }
 
-func parseSequenceRelAcl(str string) map[string][]string {
-	// will be receiving something like '{superuser=rwU/superuser_role,normal_role=rw/superuser_role}'
-	// output {superuser: [select, usage, ...], ...}
+// https://www.postgresql.org/docs/current/ddl-priv.html
+var aclMapping = map[rune]string{
+	'a': "UPDATE", // "append" or update on table, column
+	'r': "SELECT",
+	'w': "UPDATE", // "update" on object, sequence, table, column
+	'd': "DELETE",
+	'D': "TRUNCATE",
+	'x': "REFERENCES",
+	't': "TRIGGER",
+	'C': "CREATE",  // DB, schema, tablespace
+	'c': "CONNECT", // to database
+	'T': "TEMPORARY",
+	'X': "EXECUTE",
+	'U': "USAGE",
+	's': "SET",          // config parameter
+	'A': "ALTER SYSTEM", // config parameter
+}
+
+// parseACL unmarshalls an ACL string into a map of users each
+// with an array of permissions
+// will be receiving something like:
+// pg_database_owner=UC/pg_database_owner
+// =U/pg_database_owner
+// additional_role=U/pg_database_owner
+// output {superuser: [select, usage, ...], ...}
+func parseACL(str string) map[string][]string {
 	out := map[string][]string{}
 
-	// TODO(feat) uhhh shouldn't there be more of these?
-	mapping := map[rune]string{
-		'a': "UPDATE",
-		'r': "SELECT",
-		'U': "USAGE",
+	for _, elem := range strings.Split(str, "\n") {
+		userperms := strings.SplitN(elem, "=", 2)
+		if len(userperms) == 1 {
+			// no perms
+			continue
+		}
+		user := userperms[0]
+		if user == "" {
+			user = "public"
+		}
+		perms := userperms[1]
+
+		for _, c := range strings.SplitN(perms, "/", 2)[0] {
+			perm, ok := aclMapping[c]
+			if !ok {
+				log.Panicf("unrecognized permission '%s'", string(c))
+			}
+			out[user] = append(out[user], perm)
+		}
 	}
+
+	return out
+}
+
+// parseACL unmarshalls an array of ACL strings into a map of users each
+// with an array of permissions
+// will be receiving something like '{superuser=rwU/superuser_role,normal_role=rw/superuser_role}'
+// output {superuser: [select, usage, ...], ...}
+func parseSequenceRelAcl(str string) map[string][]string {
+	out := map[string][]string{}
 
 	for _, elem := range parseSqlArray(str) {
 		userperms := strings.SplitN(elem, "=", 2)
@@ -1206,12 +1302,17 @@ func parseSequenceRelAcl(str string) map[string][]string {
 			continue
 		}
 		user := userperms[0]
+		if user == "" {
+			user = "public"
+		}
 		perms := userperms[1]
 
 		for _, c := range strings.SplitN(perms, "/", 2)[0] {
-			if perm, ok := mapping[c]; ok {
-				out[user] = append(out[user], perm)
+			perm, ok := aclMapping[c]
+			if !ok {
+				log.Panicf("unrecognized permission '%s'", string(c))
 			}
+			out[user] = append(out[user], perm)
 		}
 	}
 

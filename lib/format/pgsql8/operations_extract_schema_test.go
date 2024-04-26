@@ -22,36 +22,12 @@ var PG_8_0 pgsql8.VersionNum = pgsql8.NewVersionNum(8, 0)
 //                but this only tests ExtractSchema. We still should test the other layers, and come up with a story
 //                around e2e testing with a real db connection.
 
-/* Copy+paste and change for each test:
-func TestOperations_ExtractSchema_Something(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	introspector := pgsql8.NewMockIntrospector(ctrl)
-
-	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetTableList().AnyTimes()
-	introspector.EXPECT().GetColumns(gomock.Any(), gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetIndexes(gomock.Any(), gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetConstraints().AnyTimes()
-	introspector.EXPECT().GetForeignKeys().AnyTimes()
-	introspector.EXPECT().GetFunctions().AnyTimes()
-	introspector.EXPECT().GetFunctionArgs(gomock.Any()).AnyTimes()
-	introspector.EXPECT().GetTriggers().AnyTimes()
-	introspector.EXPECT().GetViews().AnyTimes()
-	introspector.EXPECT().GetTablePerms().AnyTimes()
-	introspector.EXPECT().GetSequencePerms(gomock.Any()).AnyTimes()
-
-	schema := commonExtract(introspector)
-	assert.Equal(t, ...)
-}
-*/
-
 func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	introspector.EXPECT().GetDatabase().Times(1)
+	introspector.EXPECT().GetSchemaPerms().AnyTimes()
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
@@ -156,6 +132,7 @@ func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
 	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	introspector.EXPECT().GetDatabase().Times(1)
+	introspector.EXPECT().GetSchemaPerms().AnyTimes()
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableStorageOptions(gomock.Any(), gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetSequenceRelList(gomock.Any(), gomock.Any()).AnyTimes()
@@ -232,6 +209,7 @@ func TestOperations_ExtractSchema_TableComments(t *testing.T) {
 	colDesc := "A description of col1 on the test table"
 
 	introspector.EXPECT().GetDatabase().Times(1)
+	introspector.EXPECT().GetSchemaPerms().AnyTimes()
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableList().Return([]pgsql8.TableEntry{
 		pgsql8.TableEntry{
@@ -282,6 +260,7 @@ END;
 `)
 
 	introspector.EXPECT().GetDatabase().Times(1)
+	introspector.EXPECT().GetSchemaPerms().AnyTimes()
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableList().AnyTimes()
 	introspector.EXPECT().GetColumns(gomock.Any(), gomock.Any()).AnyTimes()
@@ -337,6 +316,7 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 	body := `BEGIN RETURN 1; END;`
 
 	introspector.EXPECT().GetDatabase().Times(1)
+	introspector.EXPECT().GetSchemaPerms().AnyTimes()
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableList().AnyTimes()
 	introspector.EXPECT().GetColumns(gomock.Any(), gomock.Any()).AnyTimes()
@@ -434,6 +414,7 @@ func TestOperations_ExtractSchema_TableArrayType(t *testing.T) {
 	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	introspector.EXPECT().GetDatabase().Times(1)
+	introspector.EXPECT().GetSchemaPerms().AnyTimes()
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableList().Return([]pgsql8.TableEntry{
 		{Schema: "public", Table: "test"},
@@ -472,6 +453,7 @@ func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 	// );
 
 	introspector.EXPECT().GetDatabase().Times(1)
+	introspector.EXPECT().GetSchemaPerms().AnyTimes()
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableList().Return([]pgsql8.TableEntry{
 		{Schema: "public", Table: "dummy"},
@@ -544,6 +526,7 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 	introspector := pgsql8.NewMockIntrospector(ctrl)
 
 	introspector.EXPECT().GetDatabase().Times(1)
+	introspector.EXPECT().GetSchemaPerms().AnyTimes()
 	introspector.EXPECT().GetSchemaOwner(gomock.Any()).AnyTimes()
 	introspector.EXPECT().GetTableList().Return([]pgsql8.TableEntry{
 		{Schema: "public", Table: "user"},

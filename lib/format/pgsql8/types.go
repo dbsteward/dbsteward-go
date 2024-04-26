@@ -107,6 +107,13 @@ type TriggerEntry struct {
 	Statement   string
 }
 
+type SchemaPermEntry struct {
+	Schema    string
+	Grantee   string
+	Type      string
+	Grantable bool
+}
+
 type TablePermEntry struct {
 	Schema    string
 	Table     string
