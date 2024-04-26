@@ -8,7 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v4"
 
-	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 )
 
@@ -35,7 +34,7 @@ func (*liveConnectionFactory) newConnection(host string, port uint, name, user, 
 	// TODO(feat) support envvar password
 	dsnNoPass := fmt.Sprintf("host=%s port=%d user=%s dbname=%s", host, port, user, name)
 	dsn := dsnNoPass + fmt.Sprintf(" password=%s", pass)
-	conn, err := pgxpool.Connect(context.Background(), dsn)
+	conn, err := pgx.Connect(context.Background(), dsn)
 	if err != nil {
 		return nil, errors.Wrap(err, "Could not connect to postgres database")
 	}
@@ -60,7 +59,7 @@ type NullConnection struct {
 func (*NullConnection) disconnect() {}
 
 type liveConnection struct {
-	conn *pgxpool.Pool
+	conn *pgx.Conn
 }
 
 type StringMap map[string]string
@@ -77,7 +76,7 @@ func (self *liveConnection) version() (VersionNum, error) {
 }
 
 func (self *liveConnection) disconnect() {
-	self.conn.Close()
+	self.conn.Close(context.TODO())
 }
 
 func (self *liveConnection) query(query string, params ...interface{}) (pgx.Rows, error) {

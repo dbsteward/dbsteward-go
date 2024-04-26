@@ -1,6 +1,7 @@
 package pgsql8
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
+	"github.com/jackc/pgx/v4"
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/ir"
@@ -55,11 +57,17 @@ func (ops *Operations) GetQuoter() output.Quoter {
 	return ops.quoter
 }
 
+func (ops *Operations) CreateStatements(def ir.Definition) ([]output.DDLStatement, error) {
+	ofs := output.NewSegmenter(ops.GetQuoter())
+	err := ops.build(ofs, &def)
+	if err != nil {
+		return nil, err
+	}
+	return ofs.AllStatements(), nil
+}
+
 func (ops *Operations) Build(outputPrefix string, dbDoc *ir.Definition) {
-	// TODO(go,4) can we just consider a build(def) to be diff(null, def)?
-	// some shortcuts, since we're going to be typing a lot here
 	dbsteward := lib.GlobalDBSteward
-	dbx := lib.GlobalDBX
 
 	buildFileName := outputPrefix + "_build.sql"
 	dbsteward.Info("Building complete file %s", buildFileName)
@@ -68,6 +76,16 @@ func (ops *Operations) Build(outputPrefix string, dbDoc *ir.Definition) {
 	dbsteward.FatalIfError(err, "Failed to open file %s for output", buildFileName)
 
 	buildFileOfs := output.NewOutputFileSegmenterToFile(dbsteward, ops.GetQuoter(), buildFileName, 1, buildFile, buildFileName, dbsteward.OutputFileStatementLimit)
+	err = ops.build(buildFileOfs, dbDoc)
+	dbsteward.FatalIfError(err, "build error")
+}
+
+func (ops *Operations) build(buildFileOfs output.OutputFileSegmenter, dbDoc *ir.Definition) error {
+	// TODO(go,4) can we just consider a build(def) to be diff(null, def)?
+	// some shortcuts, since we're going to be typing a lot here
+	dbsteward := lib.GlobalDBSteward
+	dbx := lib.GlobalDBX
+
 	if len(dbsteward.LimitToTables) == 0 {
 		buildFileOfs.Write("-- full database definition file generated %s\n", time.Now().Format(time.RFC1123Z))
 	}
@@ -150,7 +168,9 @@ outer:
 
 	// TODO(go,slony)
 	// if dbsteward.GenerateSlonik {}
+	return nil
 }
+
 func (ops *Operations) BuildUpgrade(
 	oldOutputPrefix string, oldCompositeFile string, oldDoc *ir.Definition, oldFiles []string,
 	newOutputPrefix string, newCompositeFile string, newDoc *ir.Definition, newFiles []string,
@@ -168,6 +188,12 @@ func (ops *Operations) BuildUpgrade(
 	// TODO(go,slony)
 	// if lib.GlobalDBSteward.GenerateSlonik {}
 }
+
+func (ops *Operations) ExtractSchemaConn(ctx context.Context, c *pgx.Conn) (*ir.Definition, error) {
+	conn := &liveConnection{c}
+	return ops.extractSchema(conn)
+}
+
 func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass string) *ir.Definition {
 	dbsteward := lib.GlobalDBSteward
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as %s", host, port, name, user)
@@ -175,7 +201,19 @@ func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass st
 	dbsteward.FatalIfError(err, "could not connect to database")
 	// TODO(go,pgsql) this is deadlocking during a panic
 	defer conn.disconnect()
+	def, err := ops.extractSchema(conn)
+	dbsteward.FatalIfError(err, "extracting schema")
+	def.Database.Roles = &ir.RoleAssignment{
+		Application: user,
+		Owner:       user,
+		Replication: user,
+		ReadOnly:    user,
+	}
+	return def
+}
 
+func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
+	dbsteward := lib.GlobalDBSteward
 	introspector, err := ops.IntrospectorFactory.NewIntrospector(conn)
 	dbsteward.FatalIfError(err, "could not create schema introspector")
 
@@ -186,46 +224,14 @@ func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass st
 	doc := &ir.Definition{
 		Database: &ir.Database{
 			SqlFormat: ir.SqlFormatPgsql8,
-			Roles: &ir.RoleAssignment{
-				Application: user,
-				Owner:       user,
-				Replication: user,
-				ReadOnly:    user,
-			},
 		},
 	}
-
-	// NEW(2): Because I want to use the build -> diff -> extract -> diff workflow to help validate things
-	// in this rewrite, and I want to do it with as little human intervention as possible, we're adding
-	// a new feature that technically doesn't break any programmatic interface and makes humans' lives
-	// easier: as we encounter role names through the extract process, use some heuristics to assign them
-	// to the current role assignment table.
-	//
-	// The role that shows up most frequently as an owner will be the owner. A role suffixed _ro or _readonly
-	// will be the readonly role. The role that shows up most in grants will be the application role. Any
-	// other role will be added to the list of customRoles at the end.
-
-	// TODO(go,3) can we clean this up? move it elsewhere?
-	// TODO(go,4) ultimately I'd like to rework the role assignment system, so that multiple roles can fill
-	// each, uh, role. I've worked on a few DBs now where multiple applications or RO users connect. Application
-	// in its current form does nothing that `customRole` does not
-	const roleContextOwner = "owner"
-	const roleContextGrant = "grant"
-	ownerHeap := util.NewCountHeap(strings.ToLower)
-	appHeap := util.NewCountHeap(strings.ToLower)
-	roHeap := util.NewCountHeap(strings.ToLower)
-	registerRole := func(context string, role string) string {
-		if context == roleContextGrant && strings.HasSuffix(role, "_ro") || strings.HasSuffix(role, "_readonly") {
-			roHeap.Push(role)
-		} else if context == roleContextGrant {
-			appHeap.Push(role)
-		} else if context == roleContextOwner {
-			ownerHeap.Push(role)
-		}
-		return role
+	db, err := introspector.GetDatabase()
+	if err != nil {
+		return nil, err
 	}
+	roles := newRoleIndex(db.Owner)
 
-	// find all tables in the schema that aren't in the built-in schemas
 	tableRows, err := introspector.GetTableList()
 	dbsteward.FatalIfError(err, "Error with table query")
 	// serials that are implicitly created as part of a table, no need to explicitly create these
@@ -236,28 +242,18 @@ func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass st
 		tableName := row.Table
 
 		dbsteward.Info("Analyze table options %s.%s", row.Schema, row.Table)
-		// schemaname | tablename | tableowner | tablespace | hasindexes | hasrules | hastriggers
-		// create the schema if it is missing
-		schema := doc.TryGetSchemaNamed(schemaName)
-		if schema == nil {
-			schema = &ir.Schema{
-				Name:        schemaName,
-				Description: row.SchemaDescription,
-			}
-			doc.AddSchema(schema)
-
-			// TODO(feat) can we just add this to the main query?
-			owner, err := introspector.GetSchemaOwner(schemaName)
-			dbsteward.FatalIfError(err, "Error getting schema owner for schema")
-			schema.Owner = registerRole(roleContextOwner, owner)
+		schema, err := getOrAddSchema(doc, introspector, roles, schemaName)
+		if err != nil {
+			return nil, err
 		}
 
 		// create the table in the schema space
 		table := schema.TryGetTableNamed(tableName)
 		util.Assert(table == nil, "table %s.%s already defined in xml object - unexpected", schema.Name, tableName)
+		roles.registerRole(roleContextOwner, row.Owner)
 		table = &ir.Table{
 			Name:        tableName,
-			Owner:       registerRole(roleContextOwner, row.Owner),
+			Owner:       row.Owner,
 			Description: row.TableDescription,
 		}
 		schema.AddTable(table)
@@ -390,26 +386,17 @@ func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass st
 	dbsteward.FatalIfError(err, "Error with view query")
 	for _, viewRow := range viewRows {
 		dbsteward.Info("Analyze view %s.%s", viewRow.Schema, viewRow.Name)
-
-		schema := doc.TryGetSchemaNamed(viewRow.Schema)
-		if schema == nil {
-			schema = &ir.Schema{
-				Name: viewRow.Schema,
-			}
-			doc.AddSchema(schema)
-
-			// TODO(feat) can we just add this to the main query?
-			owner, err := introspector.GetSchemaOwner(schema.Name)
-			dbsteward.FatalIfError(err, "Error with schema owner lookup query for view")
-			schema.Owner = registerRole(roleContextOwner, owner)
+		schema, err := getOrAddSchema(doc, introspector, roles, viewRow.Schema)
+		if err != nil {
+			return nil, fmt.Errorf("accessing view schema '%s': %w", viewRow.Schema, err)
 		}
 
 		view := schema.TryGetViewNamed(viewRow.Name)
 		util.Assert(view == nil, "view %s.%s already defined in XML object -- unexpected", schema.Name, viewRow.Name)
-
+		roles.registerRole(roleContextOwner, viewRow.Owner)
 		schema.AddView(&ir.View{
 			Name:  viewRow.Name,
-			Owner: registerRole(roleContextOwner, viewRow.Owner),
+			Owner: viewRow.Owner,
 			Queries: []*ir.ViewQuery{
 				{
 					SqlFormat: ir.SqlFormatPgsql8,
@@ -521,26 +508,18 @@ func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass st
 			continue
 		}
 		dbsteward.Info("Analyze function %s.%s", fnRow.Schema, fnRow.Name)
-
-		schema := doc.TryGetSchemaNamed(fnRow.Schema)
-		if schema == nil {
-			schema = &ir.Schema{
-				Name: fnRow.Schema,
-			}
-			doc.AddSchema(schema)
-
-			// TODO(feat) can we just add this to the main query?
-			owner, err := introspector.GetSchemaOwner(schema.Name)
-			dbsteward.FatalIfError(err, "Error getting schema owner for function")
-			schema.Owner = registerRole(roleContextOwner, owner)
+		schema, err := getOrAddSchema(doc, introspector, roles, fnRow.Schema)
+		if err != nil {
+			return nil, fmt.Errorf("function schema '%s': %w", fnRow.Schema, err)
 		}
 
 		// TODO(feat) should we see if there's another function by this name already? that'd probably be unexpected, but would likely indicate a bug in our query
+		roles.registerRole(roleContextOwner, fnRow.Owner)
 		function := &ir.Function{
 			Name:        fnRow.Name,
+			Owner:       fnRow.Owner,
 			Returns:     fnRow.Return,
 			CachePolicy: fnRow.Volatility,
-			Owner:       registerRole(roleContextOwner, fnRow.Owner),
 			Description: fnRow.Description,
 			// TODO(feat): how is / figure out how to express securityDefiner attribute in the functions query
 			Definitions: []*ir.FunctionDefinition{
@@ -593,12 +572,12 @@ func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass st
 		trigger.Function = strings.TrimSpace(util.IReplaceAll(triggerRow.Statement, "EXECUTE PROCEDURE", ""))
 	}
 
-	// Find table/view grants and save them in the xml document
+	// Find table/view grants and save them in the roleIndex
 	// TODO(go,3) can simplify this by array_agg(privilege_type)
 	dbsteward.Info("Analyze table permissions")
-	grantRows, err := introspector.GetTablePerms()
+	relationGrants, err := introspector.GetTablePerms()
 	dbsteward.FatalIfError(err, "Error with grant query")
-	for _, grantRow := range grantRows {
+	for _, grantRow := range relationGrants {
 		schema := doc.TryGetSchemaNamed(grantRow.Schema)
 		util.Assert(schema != nil, "failed to find schema %s for trigger on table %s", grantRow.Schema, grantRow.Table)
 
@@ -609,26 +588,10 @@ func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass st
 		if strings.EqualFold(relation.GetOwner(), grantRow.Grantee) {
 			continue
 		}
-
-		// aggregate privileges by role
-		grantee := registerRole(roleContextGrant, grantRow.Grantee)
-		docGrants := relation.GetGrantsForRole(grantee)
-		var grant *ir.Grant
-		if len(docGrants) == 0 {
-			grant = &ir.Grant{
-				Roles: []string{grantee},
-			}
-			relation.AddGrant(grant)
-		} else {
-			grant = docGrants[0]
-		}
-		grant.AddPermission(grantRow.Type)
-		// TODO(feat) what should happen if two grants for the same role have different is_grantable?
-		// TODO(feat) what about other WITH flags?
-		grant.SetCanGrant(grantRow.Grantable)
+		roles.registerRole(roleContextGrant, grantRow.Grantee)
 	}
 
-	// analyze sequence grants and assign those to the xml document as well
+	// analyze sequence grants and assign those to the roleIndex
 	dbsteward.Info("Analyze isolated sequence permissions")
 	for _, schema := range doc.Schemas {
 		for _, sequence := range schema.Sequences {
@@ -642,8 +605,33 @@ func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass st
 					continue
 				}
 				grantPerms := parseSequenceRelAcl(grantRow.Acl)
+				for user := range grantPerms {
+					roles.registerRole(roleContextGrant, user)
+				}
+			}
+		}
+	}
+
+	// The entire list of roles is now available to be analyzed
+	doc.Database.Roles = roles.resolveRoles()
+
+	// analyze sequence grants and assign those to the IR
+	for _, schema := range doc.Schemas {
+		schema.Owner = roles.get(schema.Owner) // Replace meta-role with actual role if needed
+		for _, sequence := range schema.Sequences {
+			sequence.Owner = roles.get(sequence.Owner) // Replace meta-role with actual role if needed
+			grantRows, err := introspector.GetSequencePerms(sequence.Name)
+			dbsteward.FatalIfError(err, "Error with sequence grant query")
+			for _, grantRow := range grantRows {
+				// privileges for unassociated sequences are not listed in
+				// information_schema.sequences; i think this is probably the most
+				// accurate way to get sequence-level grants
+				if grantRow.Acl == "" {
+					continue
+				}
+				grantPerms := parseSequenceRelAcl(grantRow.Acl)
 				for user, perms := range grantPerms {
-					grantee := registerRole(roleContextGrant, user)
+					grantee := roles.get(user)
 					for _, perm := range perms {
 						// TODO(feat) what about revokes?
 						grants := sequence.GetGrantsForRole(grantee)
@@ -661,40 +649,13 @@ func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass st
 				}
 			}
 		}
-	}
 
-	// NEW(2) now that we've seen all possible roles, determine the results of the popularity contest
-	customRoles := util.NewSet(strings.ToLower)
-	if appHeap.Len() > 0 {
-		doc.Database.Roles.Application = appHeap.Pop()
-	}
-	customRoles.AddFrom(appHeap.PopAll())
-
-	if ownerHeap.Len() > 0 {
-		doc.Database.Roles.Owner = ownerHeap.Pop()
-	}
-	customRoles.AddFrom(ownerHeap.PopAll())
-
-	if roHeap.Len() > 0 {
-		doc.Database.Roles.ReadOnly = roHeap.Pop()
-	}
-	customRoles.AddFrom(roHeap.PopAll())
-	customRoles.Remove(
-		doc.Database.Roles.Application,
-		doc.Database.Roles.Owner,
-		doc.Database.Roles.Replication,
-		doc.Database.Roles.ReadOnly,
-	)
-	doc.Database.Roles.CustomRoles = append(doc.Database.Roles.CustomRoles, customRoles.Items()...)
-
-	// scan all now defined tables
-	// TODO(go,4) replace all role fields with macro equivalents if possible
-	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
+			table.Owner = roles.get(table.Owner)
 			// if table does not have a primary key defined, add placeholder
 			if len(table.PrimaryKey) == 0 {
 				table.PrimaryKey = []string{"dbsteward_primary_key_not_found"}
-				tableNoticeDesc := fmt.Sprintf("DBSTEWARD_EXTRACTION_WARNING: primary key definition not found for %s - placeholder has been specified for DTD validity", table.Name)
+				tableNoticeDesc := fmt.Sprintf("DBSTEWARD_EXTRACTION_WARNING: primary key definition not found for %s.%s - placeholder has been specified for DTD validity", schema.Name, table.Name)
 				dbsteward.Warning(tableNoticeDesc)
 				if len(table.Description) == 0 {
 					table.Description = tableNoticeDesc
@@ -717,8 +678,62 @@ func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass st
 		}
 	}
 
-	return doc
+	// Assign roles to the IR
+	for _, relationGrant := range relationGrants {
+		schema, err := doc.GetSchemaNamed(relationGrant.Schema)
+		if err != nil {
+			return nil, fmt.Errorf("fetching schema %s: %w", relationGrant.Schema, err)
+		}
+		relation := schema.TryGetRelationNamed(relationGrant.Table) // relation = table|view
+		util.Assert(relation != nil, "failed to find relation %s.%s for trigger", relationGrant.Schema, relationGrant.Table)
+
+		// ignore owner roles; those permissions are implicitly assigned by ALTER ... OWNER
+		if strings.EqualFold(roles.get(relation.GetOwner()), roles.get(relationGrant.Grantee)) {
+			continue
+		}
+
+		// aggregate privileges by role
+		grantee := roles.get(relationGrant.Grantee)
+		docGrants := relation.GetGrantsForRole(grantee)
+		var grant *ir.Grant
+		if len(docGrants) == 0 {
+			grant = &ir.Grant{
+				Roles: []string{grantee},
+			}
+			relation.AddGrant(grant)
+		} else {
+			grant = docGrants[0]
+		}
+		grant.AddPermission(relationGrant.Type)
+		// TODO(feat) what should happen if two grants for the same role have different is_grantable?
+		// TODO(feat) what about other WITH flags?
+		grant.SetCanGrant(relationGrant.Grantable)
+	}
+
+	return doc, nil
 }
+
+// getOrAddSchema returns the schema if it's already in the IR
+// or creates a schema record and stores it in the IR, then returns it
+// Ensures the schema's owner is registered with the roleIndex
+func getOrAddSchema(doc *ir.Definition, introspector Introspector, roles *roleIndex, name string) (*ir.Schema, error) {
+	schema := doc.TryGetSchemaNamed(name)
+	if schema == nil {
+		// TODO(feat) can we just add this to the main query?
+		owner, err := introspector.GetSchemaOwner(name)
+		if err != nil {
+			return nil, fmt.Errorf("getting schema '%s' owner: %w", name, err)
+		}
+		schema = &ir.Schema{
+			Name:  name,
+			Owner: owner,
+		}
+		doc.AddSchema(schema)
+		roles.registerRole(roleContextOwner, owner)
+	}
+	return schema, nil
+}
+
 func (ops *Operations) CompareDbData(doc *ir.Definition, host string, port uint, name, user, pass string) *ir.Definition {
 	dbsteward := lib.GlobalDBSteward
 

@@ -33,6 +33,14 @@ func (m *MockIntrospector) EXPECT() *MockIntrospectorMockRecorder {
 	return m.recorder
 }
 
+func (m *MockIntrospector) GetDatabase() (Database, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDatabase")
+	ret0, _ := ret[0].(Database)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
 // GetColumns mocks base method.
 func (m *MockIntrospector) GetColumns(arg0, arg1 string) ([]ColumnEntry, error) {
 	m.ctrl.T.Helper()
