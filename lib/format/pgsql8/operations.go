@@ -242,7 +242,7 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 		tableName := row.Table
 
 		dbsteward.Info("Analyze table options %s.%s", row.Schema, row.Table)
-		schema, err := getOrAddSchema(doc, introspector, roles, schemaName)
+		schema, err := getOrAddSchema(doc, introspector, roles, schemaName, row.SchemaDescription)
 		if err != nil {
 			return nil, err
 		}
@@ -386,7 +386,7 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 	dbsteward.FatalIfError(err, "Error with view query")
 	for _, viewRow := range viewRows {
 		dbsteward.Info("Analyze view %s.%s", viewRow.Schema, viewRow.Name)
-		schema, err := getOrAddSchema(doc, introspector, roles, viewRow.Schema)
+		schema, err := getOrAddSchema(doc, introspector, roles, viewRow.Schema, "")
 		if err != nil {
 			return nil, fmt.Errorf("accessing view schema '%s': %w", viewRow.Schema, err)
 		}
@@ -508,7 +508,7 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 			continue
 		}
 		dbsteward.Info("Analyze function %s.%s", fnRow.Schema, fnRow.Name)
-		schema, err := getOrAddSchema(doc, introspector, roles, fnRow.Schema)
+		schema, err := getOrAddSchema(doc, introspector, roles, fnRow.Schema, "")
 		if err != nil {
 			return nil, fmt.Errorf("function schema '%s': %w", fnRow.Schema, err)
 		}
@@ -526,7 +526,7 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 				{
 					SqlFormat: ir.SqlFormatPgsql8,
 					Language:  fnRow.Language,
-					Text:      fnRow.Source,
+					Text:      strings.TrimSpace(fnRow.Source),
 				},
 			},
 		}
@@ -536,7 +536,7 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 		dbsteward.FatalIfError(err, "Error with function args query")
 		for _, argsRow := range argsRows {
 			// TODO(feat) param direction?
-			function.AddParameter(argsRow.Name, argsRow.Type)
+			function.AddParameter(argsRow.Name, argsRow.Type, ir.FuncParamDir(argsRow.Direction))
 		}
 	}
 
@@ -716,7 +716,12 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 // getOrAddSchema returns the schema if it's already in the IR
 // or creates a schema record and stores it in the IR, then returns it
 // Ensures the schema's owner is registered with the roleIndex
-func getOrAddSchema(doc *ir.Definition, introspector Introspector, roles *roleIndex, name string) (*ir.Schema, error) {
+func getOrAddSchema(
+	doc *ir.Definition,
+	introspector Introspector,
+	roles *roleIndex,
+	name, description string,
+) (*ir.Schema, error) {
 	schema := doc.TryGetSchemaNamed(name)
 	if schema == nil {
 		// TODO(feat) can we just add this to the main query?
@@ -725,8 +730,9 @@ func getOrAddSchema(doc *ir.Definition, introspector Introspector, roles *roleIn
 			return nil, fmt.Errorf("getting schema '%s' owner: %w", name, err)
 		}
 		schema = &ir.Schema{
-			Name:  name,
-			Owner: owner,
+			Name:        name,
+			Description: description,
+			Owner:       owner,
 		}
 		doc.AddSchema(schema)
 		roles.registerRole(roleContextOwner, owner)

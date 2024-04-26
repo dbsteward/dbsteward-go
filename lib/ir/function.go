@@ -74,11 +74,12 @@ func (self *Function) TryGetDefinition(sqlFormat SqlFormat) *FunctionDefinition 
 	return nil
 }
 
-func (self *Function) AddParameter(name, datatype string) {
+func (self *Function) AddParameter(name, datatype string, direction FuncParamDir) {
 	// TODO(feat) sanity check
 	self.Parameters = append(self.Parameters, &FunctionParameter{
-		Name: name,
-		Type: datatype,
+		Name:      name,
+		Type:      datatype,
+		Direction: direction,
 	})
 }
 

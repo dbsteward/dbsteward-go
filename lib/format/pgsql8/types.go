@@ -91,8 +91,9 @@ type FunctionEntry struct {
 }
 
 type FunctionArgEntry struct {
-	Name string
-	Type string
+	Name      string
+	Type      string
+	Direction string
 }
 
 type TriggerEntry struct {

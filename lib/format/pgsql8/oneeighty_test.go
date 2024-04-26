@@ -24,6 +24,10 @@ import (
 // To run:
 // DB_HOST=localhost DB_USER=postgres DB_SUPERUSER=postgres DB_NAME=test DB_PORT=5432 go test ./...
 
+// TODO list: Things that don't work yet but are feature improvements
+// * column UNIQUE setting is lost and turns into an index
+// * schema public description is not updated on create
+
 func TestOneEighty(t *testing.T) {
 	c := initdb(t)
 	if c == nil {
@@ -40,11 +44,13 @@ func TestOneEighty(t *testing.T) {
 		},
 		Schemas: []*ir.Schema{
 			{
-				Name:  "public",
-				Owner: role,
+				Name:        "public",
+				Description: "standard public schema",
+				Owner:       role,
 				Tables: []*ir.Table{
 					{
 						Name:           "t1",
+						Description:    "Test table 1",
 						Owner:          role,
 						PrimaryKey:     []string{"id"},
 						PrimaryKeyName: "t1_pkey",
@@ -58,6 +64,42 @@ func TestOneEighty(t *testing.T) {
 								Type: "text",
 							},
 						},
+					},
+					{
+						Name:           "t2",
+						Owner:          role,
+						PrimaryKey:     []string{"id"},
+						PrimaryKeyName: "t2_pkey",
+						Columns: []*ir.Column{
+							{
+								Name: "id",
+								Type: "serial",
+							},
+							{
+								Name:     "description",
+								Type:     "text",
+								Nullable: true,
+							},
+						},
+					},
+				},
+				Functions: []*ir.Function{
+					{
+						Name:        "func1",
+						Owner:       role,
+						Description: "Text Function 1",
+						CachePolicy: "VOLATILE",
+						Returns:     "integer",
+						Parameters: []*ir.FunctionParameter{{
+							Name:      "f1p1",
+							Type:      "integer",
+							Direction: ir.FuncParamDirIn,
+						}},
+						Definitions: []*ir.FunctionDefinition{{
+							SqlFormat: ir.SqlFormatPgsql8,
+							Language:  "sql",
+							Text:      "SELECT $1",
+						}},
 					},
 				},
 			},

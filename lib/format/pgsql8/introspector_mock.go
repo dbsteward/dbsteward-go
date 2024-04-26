@@ -41,6 +41,11 @@ func (m *MockIntrospector) GetDatabase() (Database, error) {
 	return ret0, ret1
 }
 
+func (mr *MockIntrospectorMockRecorder) GetDatabase() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDatabase", reflect.TypeOf((*MockIntrospector)(nil).GetColumns))
+}
+
 // GetColumns mocks base method.
 func (m *MockIntrospector) GetColumns(arg0, arg1 string) ([]ColumnEntry, error) {
 	m.ctrl.T.Helper()

@@ -542,8 +542,15 @@ func (li *LiveIntrospector) GetFunctionArgs(fnOid Oid) ([]FunctionArgEntry, erro
 					FROM unnest(coalesce(proallargtypes, proargtypes))
 				)]::int[])
 			)) as parameter_name,
-			format_type(unnest(coalesce(proallargtypes, proargtypes)), NULL) AS data_type
-		FROM pg_proc pr
+			format_type(unnest(coalesce(proallargtypes, proargtypes)), NULL) AS data_type,
+			unnest(coalesce(
+				proargmodes,
+				array_fill('i'::text, ARRAY[(
+					SELECT count(*)
+					FROM unnest(coalesce(proallargtypes, proargtypes))
+				)]::INT[])
+			)) as parameter_mode
+		FROM pg_proc AS pr
 		WHERE oid = $1
 	`, fnOid)
 	if err != nil {
@@ -552,10 +559,21 @@ func (li *LiveIntrospector) GetFunctionArgs(fnOid Oid) ([]FunctionArgEntry, erro
 
 	out := []FunctionArgEntry{}
 	for res.Next() {
+		var mode string
 		entry := FunctionArgEntry{}
-		err := res.Scan(&entry.Name, &entry.Type)
+		err := res.Scan(&entry.Name, &entry.Type, &mode)
 		if err != nil {
 			return nil, errors.Wrap(err, "while scanning result")
+		}
+		switch mode {
+		case "i":
+			entry.Direction = "IN"
+		case "o":
+			entry.Direction = "OUT"
+		case "b":
+			entry.Direction = "INOUT"
+		default:
+			return nil, fmt.Errorf("unsupported function argument mode '%s'", mode)
 		}
 		out = append(out, entry)
 	}
