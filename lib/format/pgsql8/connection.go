@@ -11,8 +11,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-//go:generate $ROOTDIR/run _mockgen connection
-
 type connection interface {
 	version() (VersionNum, error)
 	disconnect()
