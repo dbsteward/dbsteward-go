@@ -7,6 +7,7 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
+	"github.com/jackc/pgtype"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -238,7 +239,7 @@ END;
 		}},
 		Functions: []functionEntry{
 			{
-				Oid:        Oid{1},
+				Oid:        pgtype.OID(1),
 				Schema:     "public",
 				Name:       "rates_overlap",
 				Return:     "boolean",
@@ -285,7 +286,7 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 		}},
 		Functions: []functionEntry{
 			{ // array type and argument names
-				Oid:      Oid{1},
+				Oid:      pgtype.OID(1),
 				Schema:   "public",
 				Name:     "increment1",
 				Return:   "integer",
@@ -298,7 +299,7 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 				},
 			},
 			{ // array type and no argument names
-				Oid:      Oid{2},
+				Oid:      pgtype.OID(2),
 				Schema:   "public",
 				Name:     "increment2",
 				Return:   "integer",
@@ -311,7 +312,7 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 				},
 			},
 			{ // array type and mixed argument names
-				Oid:      Oid{3},
+				Oid:      pgtype.OID(3),
 				Schema:   "public",
 				Name:     "increment3",
 				Return:   "integer",
@@ -324,7 +325,7 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 				},
 			},
 			{
-				Oid:      Oid{4},
+				Oid:      pgtype.OID(4),
 				Schema:   "public",
 				Name:     "increment4",
 				Return:   "integer",

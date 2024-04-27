@@ -107,12 +107,8 @@ type foreignKeyEntry struct {
 	ForeignColumns []string
 }
 
-type Oid struct {
-	pgtype.OID
-}
-
 type functionEntry struct {
-	Oid         Oid
+	Oid         pgtype.OID
 	Schema      string
 	Name        string
 	Return      string

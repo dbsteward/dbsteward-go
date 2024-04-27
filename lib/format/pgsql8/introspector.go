@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/util"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
 )
@@ -616,7 +617,7 @@ func (li *introspector) getFunctions() ([]functionEntry, error) {
 	return out, nil
 }
 
-func (li *introspector) getFunctionArgs(fnOid Oid) ([]functionArgEntry, error) {
+func (li *introspector) getFunctionArgs(fnOid pgtype.OID) ([]functionArgEntry, error) {
 	// unnest the proargtypes (which are in ordinal order) and get the correct format for them.
 	// information_schema.parameters does not contain enough information to get correct type (e.g. ARRAY)
 	//   Note: * proargnames can be empty (not null) if there are no parameters names
