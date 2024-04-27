@@ -9,8 +9,6 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-//go:generate $ROOTDIR/run _mockgen OutputFileSegmenter
-
 const CommentLinePrefix = "--"
 
 type ToSql interface {

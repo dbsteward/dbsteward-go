@@ -70,6 +70,67 @@ func TestOneEighty(t *testing.T) {
 					Max:         util.Some(9876543),
 					Increment:   util.Some(2),
 				}},
+			}, {
+				Name:        "other_function_schema",
+				Description: "used as part of column_default_function_schema to test cross-schema default func references",
+				Owner:       role,
+				Functions: []*ir.Function{
+					{
+						Name:        "test",
+						Owner:       role,
+						Description: "Test Function",
+						CachePolicy: "VOLATILE",
+						Returns:     "integer",
+						Definitions: []*ir.FunctionDefinition{{
+							SqlFormat: ir.SqlFormatPgsql8,
+							Language:  "sql",
+							Text:      "SELECT 1",
+						}},
+					},
+				},
+			},
+			{
+				Name:        "column_default_function_schema",
+				Description: "test column default is a function works properly",
+				Owner:       role,
+				Functions: []*ir.Function{
+					{
+						Name:        "test",
+						Owner:       role,
+						Description: "Test Function 1",
+						CachePolicy: "VOLATILE",
+						Returns:     "integer",
+						Definitions: []*ir.FunctionDefinition{{
+							SqlFormat: ir.SqlFormatPgsql8,
+							Language:  "sql",
+							Text:      "SELECT 1",
+						}},
+					},
+				},
+				Tables: []*ir.Table{
+					{
+						Name:           "rate_group",
+						Owner:          role,
+						PrimaryKeyName: "rate_group_pkey",
+						PrimaryKey:     []string{"rate_group_id"},
+						Columns: []*ir.Column{
+							{Name: "rate_group_id", Type: "integer", Nullable: false, Default: "column_default_function_schema.test()"},
+							{Name: "rate_group_name", Type: "character varying(100)", Nullable: true},
+							{Name: "rate_group_enabled", Type: "boolean", Nullable: false, Default: "true"},
+						},
+					},
+					{
+						Name:           "rate_group_n",
+						Owner:          role,
+						PrimaryKeyName: "rate_group_n_pkey",
+						PrimaryKey:     []string{"rate_group_id"},
+						Columns: []*ir.Column{
+							{Name: "rate_group_id", Type: "integer", Nullable: false, Default: "other_function_schema.test()"},
+							{Name: "rate_group_name", Type: "character varying(100)", Nullable: true},
+							{Name: "rate_group_enabled", Type: "boolean", Nullable: false, Default: "true"},
+						},
+					},
+				},
 			},
 			{
 				Name:        "public",
