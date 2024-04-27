@@ -11,6 +11,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/ir"
+	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
 	"github.com/hexops/gotextdiff/span"
@@ -54,6 +55,21 @@ func TestOneEighty(t *testing.T) {
 				Name:        "empty_schema",
 				Description: "test empty schema properly processed",
 				Owner:       role,
+			},
+			{
+				Name:        "sequence_schema",
+				Description: "test schema with a single sequence",
+				Owner:       role,
+				Sequences: []*ir.Sequence{{
+					Name:        "test_seq",
+					Owner:       role,
+					Description: "Test sequence detached from serial",
+					Cache:       util.Some(3),
+					Start:       util.Some(7),
+					Min:         util.Some(5),
+					Max:         util.Some(9876543),
+					Increment:   util.Some(2),
+				}},
 			},
 			{
 				Name:        "public",

@@ -23,19 +23,17 @@ import (
 type Operations struct {
 	*sql99.Operations
 
-	EscapeStringValues  bool
-	IntrospectorFactory IntrospectorFactory
-	ConnectionFactory   connectionFactory
+	EscapeStringValues bool
+	ConnectionFactory  connectionFactory
 
 	quoter output.Quoter
 }
 
 func NewOperations() *Operations {
 	pgsql := &Operations{
-		Operations:          sql99.NewOperations(),
-		EscapeStringValues:  false,
-		IntrospectorFactory: &LiveIntrospectorFactory{},
-		ConnectionFactory:   &liveConnectionFactory{},
+		Operations:         sql99.NewOperations(),
+		EscapeStringValues: false,
+		ConnectionFactory:  &liveConnectionFactory{},
 	}
 	pgsql.Operations.Operations = pgsql
 	return pgsql
@@ -227,42 +225,33 @@ func (ops *Operations) ExtractSchemaOrError(host string, port uint, name, user, 
 
 func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 	dbsteward := lib.GlobalDBSteward
-	introspector, err := ops.IntrospectorFactory.NewIntrospector(conn)
-	dbsteward.FatalIfError(err, "could not create schema introspector")
+	introspector := introspector{conn: conn}
+	pgDoc, err := introspector.GetFullStructure()
+	if err != nil {
+		return nil, err
+	}
+	dbsteward.Info("Connected to database, server version %s", pgDoc.Version)
+	return ops.pgToIR(pgDoc)
+}
 
-	version, err := introspector.GetServerVersion()
-	dbsteward.FatalIfError(err, "could not establish server version")
-	dbsteward.Info("Connected to database, server version %s", version)
-
+func (ops *Operations) pgToIR(pgDoc Structure) (*ir.Definition, error) {
+	dbsteward := lib.GlobalDBSteward
 	doc := &ir.Definition{
 		Database: &ir.Database{
 			SqlFormat: ir.SqlFormatPgsql8,
 		},
 	}
-	db, err := introspector.GetDatabase()
-	if err != nil {
-		return nil, err
-	}
-	roles := newRoleIndex(db.Owner)
+	roles := newRoleIndex(pgDoc.Database.Owner)
 
-	schemas, err := introspector.GetSchemaList()
-	if err != nil {
-		return nil, err
-	}
-	for _, schema := range schemas {
+	for _, schema := range pgDoc.Schemas {
 		storeSchema(doc, roles, schema)
 	}
 
-	tableRows, err := introspector.GetTableList()
-	dbsteward.FatalIfError(err, "Error with table query")
-	// serials that are implicitly created as part of a table, no need to explicitly create these
-	sequenceCols := []string{}
-	tableSerials := []string{}
-	for _, row := range tableRows {
-		schemaName := row.Schema
-		tableName := row.Table
+	for _, pgTable := range pgDoc.Tables {
+		schemaName := pgTable.Schema
+		tableName := pgTable.Table
 
-		dbsteward.Info("Analyze table options %s.%s", row.Schema, row.Table)
+		dbsteward.Info("Analyze table options %s.%s", pgTable.Schema, pgTable.Table)
 		schema := doc.TryGetSchemaNamed(schemaName)
 		if schema == nil {
 			return nil, fmt.Errorf("table '%s' references missing schema '%s'", tableName, schemaName)
@@ -271,43 +260,37 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 		// create the table in the schema space
 		table := schema.TryGetTableNamed(tableName)
 		util.Assert(table == nil, "table %s.%s already defined in xml object - unexpected", schema.Name, tableName)
-		roles.registerRole(roleContextOwner, row.Owner)
+		roles.registerRole(roleContextOwner, pgTable.Owner)
 		table = &ir.Table{
 			Name:        tableName,
-			Owner:       row.Owner,
-			Description: row.TableDescription,
+			Owner:       pgTable.Owner,
+			Description: pgTable.TableDescription,
 		}
 		schema.AddTable(table)
 
 		// extract tablespace as a tableOption
-		if row.Tablespace != nil {
-			table.SetTableOption(ir.SqlFormatPgsql8, "tablespace", *row.Tablespace)
+		if pgTable.Tablespace != nil {
+			table.SetTableOption(ir.SqlFormatPgsql8, "tablespace", *pgTable.Tablespace)
 		}
 
-		// extract storage parameters as a tableOption
-		opts, err := introspector.GetTableStorageOptions(schema.Name, table.Name)
-		dbsteward.FatalIfError(err, "Error with table storage option query")
-		if len(opts) > 0 {
-			table.SetTableOption(ir.SqlFormatPgsql8, "with", "("+util.EncodeKV(opts, ",", "=")+")")
+		if len(pgTable.StorageOptions) > 0 {
+			table.SetTableOption(ir.SqlFormatPgsql8, "with", "("+util.EncodeKV(pgTable.StorageOptions, ",", "=")+")")
 		}
 
 		// NEW(2): extract table inheritance. need this to complete example diffing validation
-		if len(row.ParentTables) > 1 {
+		if len(pgTable.ParentTables) > 1 {
 			// TODO(go,4) remove this restriction
-			dbsteward.Fatal("Unsupported: Table %s.%s inherits from more than one table: %v", schema.Name, table.Name, row.ParentTables)
+			dbsteward.Fatal("Unsupported: Table %s.%s inherits from more than one table: %v", schema.Name, table.Name, pgTable.ParentTables)
 		}
-		if len(row.ParentTables) == 1 {
-			parts := strings.Split(row.ParentTables[0], ".")
+		if len(pgTable.ParentTables) == 1 {
+			parts := strings.Split(pgTable.ParentTables[0], ".")
 			table.InheritsSchema = parts[0]
 			table.InheritsTable = parts[1]
 		}
 
 		dbsteward.Info("Analyze table columns %s.%s", schema.Name, table.Name)
 		// hasindexes | hasrules | hastriggers handled later
-		// get columns for the table
-		colRows, err := introspector.GetColumns(schema.Name, table.Name)
-		dbsteward.FatalIfError(err, "Error with column query")
-		for _, colRow := range colRows {
+		for _, colRow := range pgTable.Columns {
 			column := &ir.Column{
 				Name:        colRow.Name,
 				Description: colRow.Description, // note that column numbers are 1-indexed
@@ -334,17 +317,6 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 				if strings.EqualFold("column_default", "bigint") {
 					column.Type = "bigserial"
 				}
-
-				// store sequences that will be implicitly genreated during table create
-				// could use pgsql8::identifier_name and fully qualify the table but it will just truncate "for us" anyhow, so manually prepend schema
-				identName := schema.Name + "." + buildSequenceName(schema.Name, table.Name, column.Name)
-				tableSerials = append(tableSerials, identName)
-
-				// column.Default is: "nextval('test_blah_seq'::regclass)"
-				// splitting gives {"nextval(", "test_blah_seq", "::regclass)"}
-				seqName := strings.Split(column.Default, "'")
-				sequenceCols = append(sequenceCols, seqName[1])
-
 				// TODO(feat) legacy logic doesn't set default or nullable for serial types... is that correct?
 				column.Nullable = false
 				column.Default = ""
@@ -352,9 +324,7 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 		}
 
 		dbsteward.Info("Analyze table indexes %s.%s", schema.Name, table.Name)
-		indexRows, err := introspector.GetIndexes(schema.Name, table.Name)
-		dbsteward.FatalIfError(err, "Error with index query")
-		for _, indexRow := range indexRows {
+		for _, indexRow := range pgTable.Indexes {
 			// only add a unique index if the column was unique
 			index := &ir.Index{
 				Name:   indexRow.Name,
@@ -369,43 +339,27 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 		}
 	}
 
-	for _, schema := range doc.Schemas {
-		dbsteward.Info("Analyze isolated sequences in schema %s", schema.Name)
-
-		// filter by sequences we've defined as part of a table already and get the owner of each sequence
-		seqListRows, err := introspector.GetSequenceRelList(schema.Name, sequenceCols)
-		dbsteward.FatalIfError(err, "Error with sequence list query")
-		for _, seqListRow := range seqListRows {
-			// TODO(feat) can we do away with the N+1 here?
-			seqRows, err := introspector.GetSequencesForRel(schema.Name, seqListRow.Name)
-			dbsteward.FatalIfError(err, "Error with sequence query")
-			for _, seqRow := range seqRows {
-				// TODO(feat) what does it even mean to have multiple sequence definitions here? is this correct??
-				seq := schema.TryGetSequenceNamed(seqListRow.Name)
-				if seq != nil {
-					continue
-				}
-				// is sequence being implicity generated? if so, skip it
-				if util.IndexOf(tableSerials, fmt.Sprintf("%s.%s", schema.Name, seqListRow.Name)) >= 0 {
-					continue
-				}
-				schema.AddSequence(&ir.Sequence{
-					Name:      seqListRow.Name,
-					Owner:     seqListRow.Owner, // TODO(feat) should this have a translateRoleName call?
-					Cache:     util.OptFromSQLNullInt64(seqRow.Cache),
-					Start:     util.OptFromSQLNullInt64(seqRow.Start),
-					Min:       util.OptFromSQLNullInt64(seqRow.Min),
-					Max:       util.OptFromSQLNullInt64(seqRow.Max),
-					Increment: util.OptFromSQLNullInt64(seqRow.Increment),
-					Cycle:     seqRow.Cycled,
-				})
-			}
+	for _, sequence := range pgDoc.Sequences {
+		schema := doc.TryGetSchemaNamed(sequence.Schema)
+		if schema == nil {
+			return nil, fmt.Errorf("sequence '%s' missing schema '%s'", sequence.Name, sequence.Schema)
 		}
+		schema.AddSequence(
+			&ir.Sequence{
+				Name:        sequence.Name,
+				Description: sequence.Description,
+				Owner:       sequence.Owner,
+				Cache:       util.OptFromSQLNullInt64(sequence.Cache),
+				Start:       util.OptFromSQLNullInt64(sequence.Start),
+				Min:         util.OptFromSQLNullInt64(sequence.Min),
+				Max:         util.OptFromSQLNullInt64(sequence.Max),
+				Increment:   util.OptFromSQLNullInt64(sequence.Increment),
+				Cycle:       sequence.Cycled,
+			},
+		)
 	}
 
-	viewRows, err := introspector.GetViews()
-	dbsteward.FatalIfError(err, "Error with view query")
-	for _, viewRow := range viewRows {
+	for _, viewRow := range pgDoc.Views {
 		dbsteward.Info("Analyze view %s.%s", viewRow.Schema, viewRow.Name)
 		schema := doc.TryGetSchemaNamed(viewRow.Schema)
 		if schema == nil {
@@ -430,9 +384,7 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 
 	// for all schemas, all tables - get table constraints that are not type 'FOREIGN KEY'
 	// TODO(go,4) support constraint deferredness
-	constraintRows, err := introspector.GetConstraints()
-	dbsteward.FatalIfError(err, "Error with constraint query")
-	for _, constraintRow := range constraintRows {
+	for _, constraintRow := range pgDoc.Constraints {
 		dbsteward.Info("Analyze table constraints %s.%s", constraintRow.Schema, constraintRow.Table)
 
 		schema := doc.TryGetSchemaNamed(constraintRow.Schema)
@@ -471,9 +423,7 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 		"n": ir.ForeignKeyActionSetNull,
 		"d": ir.ForeignKeyActionSetDefault,
 	}
-	fkRows, err := introspector.GetForeignKeys()
-	dbsteward.FatalIfError(err, "Error with foreign key query")
-	for _, fkRow := range fkRows {
+	for _, fkRow := range pgDoc.ForeignKeys {
 		if len(fkRow.LocalColumns) != len(fkRow.ForeignColumns) {
 			dbsteward.Fatal(
 				"Unexpected: Foreign key columns (%v) on %s.%s are mismatched with columns (%v) on %s.%s",
@@ -518,9 +468,7 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 	// extract normal and trigger functions
 	// NEW(2) no longer excludes trigger functions, but now ignores/warns on aggregate/window functions. added warning for c-lang functions
 	// TODO(go,4) support aggregate/window, c functions
-	fnRows, err := introspector.GetFunctions()
-	dbsteward.FatalIfError(err, "Error with function query")
-	for _, fnRow := range fnRows {
+	for _, fnRow := range pgDoc.Functions {
 		if fnRow.Type == "window" || fnRow.Type == "aggregate" {
 			dbsteward.Warning("Ignoring %s function %s.%s, this is not currently supported by DBSteward", fnRow.Type, fnRow.Schema, fnRow.Name)
 			continue
@@ -554,18 +502,14 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 		}
 		schema.AddFunction(function)
 
-		argsRows, err := introspector.GetFunctionArgs(fnRow.Oid)
-		dbsteward.FatalIfError(err, "Error with function args query")
-		for _, argsRow := range argsRows {
+		for _, argsRow := range fnRow.Args {
 			// TODO(feat) param direction?
 			function.AddParameter(argsRow.Name, argsRow.Type, ir.FuncParamDir(argsRow.Direction))
 		}
 	}
 
 	// TODO(go,nth) don't use *, name columns explicitly
-	triggerRows, err := introspector.GetTriggers()
-	dbsteward.FatalIfError(err, "Error with trigger query")
-	for _, triggerRow := range triggerRows {
+	for _, triggerRow := range pgDoc.Triggers {
 		dbsteward.Info("Analyze trigger %s.%s", triggerRow.Schema, triggerRow.Name)
 
 		schema := doc.TryGetSchemaNamed(triggerRow.Schema)
@@ -597,9 +541,7 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 	// Find table/view grants and save them in the roleIndex
 	// TODO(go,3) can simplify this by array_agg(privilege_type)
 	dbsteward.Info("Analyze table permissions")
-	relationGrants, err := introspector.GetTablePerms()
-	dbsteward.FatalIfError(err, "Error with grant query")
-	for _, grantRow := range relationGrants {
+	for _, grantRow := range pgDoc.TablePerms {
 		schema := doc.TryGetSchemaNamed(grantRow.Schema)
 		util.Assert(schema != nil, "failed to find schema %s for trigger on table %s", grantRow.Schema, grantRow.Table)
 
@@ -615,31 +557,23 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 
 	// analyze sequence grants and assign those to the roleIndex
 	dbsteward.Info("Analyze isolated sequence permissions")
-	for _, schema := range doc.Schemas {
-		for _, sequence := range schema.Sequences {
-			grantRows, err := introspector.GetSequencePerms(sequence.Name)
-			dbsteward.FatalIfError(err, "Error with sequence grant query")
-			for _, grantRow := range grantRows {
-				// privileges for unassociated sequences are not listed in
-				// information_schema.sequences; i think this is probably the most
-				// accurate way to get sequence-level grants
-				if grantRow.Acl == "" {
-					continue
-				}
-				grantPerms := parseSequenceRelAcl(grantRow.Acl)
-				for user := range grantPerms {
-					roles.registerRole(roleContextGrant, user)
-				}
+	for _, sequence := range pgDoc.Sequences {
+		for _, grantRow := range sequence.ACL {
+			// privileges for unassociated sequences are not listed in
+			// information_schema.sequences; i think this is probably the most
+			// accurate way to get sequence-level grants
+			if grantRow == "" {
+				continue
+			}
+			grantPerms := parseSequenceRelAcl(grantRow)
+			for user := range grantPerms {
+				roles.registerRole(roleContextGrant, user)
 			}
 		}
 	}
 
 	// Get any roles/grants on schemas and add to the roleIndex
-	schemaPerms, err := introspector.GetSchemaPerms()
-	if err != nil {
-		return nil, fmt.Errorf("extracting schema perms: %w", err)
-	}
-	for _, permEntry := range schemaPerms {
+	for _, permEntry := range pgDoc.SchemaPerms {
 		if permEntry.Grantee == "public" {
 			dbsteward.Warning("Ignoring grant on psuedo user \"public\"")
 		} else {
@@ -652,20 +586,20 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 
 	// Add any grants on the schema to the IR
 	// pseudo-roles may result in duplicate entries
-	for k := range schemaPerms {
-		p := schemaPerms[k]
+	for k := range pgDoc.SchemaPerms {
+		p := pgDoc.SchemaPerms[k]
 		p.Grantee = roles.get(p.Grantee)
-		schemaPerms[k] = p
+		pgDoc.SchemaPerms[k] = p
 	}
-	slices.SortFunc(schemaPerms, func(a, b SchemaPermEntry) int {
+	slices.SortFunc(pgDoc.SchemaPerms, func(a, b SchemaPermEntry) int {
 		c := cmp.Compare(a.Grantee, b.Grantee)
 		if c == 0 {
 			return cmp.Compare(a.Type, b.Type)
 		}
 		return c
 	})
-	schemaPerms = slices.Compact(schemaPerms)
-	for _, permEntry := range schemaPerms {
+	pgDoc.SchemaPerms = slices.Compact(pgDoc.SchemaPerms)
+	for _, permEntry := range pgDoc.SchemaPerms {
 		if permEntry.Grantee != "public" {
 			np := ir.Grant{
 				Roles:       []string{roles.get(permEntry.Grantee)},
@@ -680,40 +614,50 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 	}
 
 	// analyze sequence grants and assign those to the IR
-	for _, schema := range doc.Schemas {
-		schema.Owner = roles.get(schema.Owner) // Replace meta-role with actual role if needed
-		for _, sequence := range schema.Sequences {
-			sequence.Owner = roles.get(sequence.Owner) // Replace meta-role with actual role if needed
-			grantRows, err := introspector.GetSequencePerms(sequence.Name)
-			dbsteward.FatalIfError(err, "Error with sequence grant query")
-			for _, grantRow := range grantRows {
-				// privileges for unassociated sequences are not listed in
-				// information_schema.sequences; i think this is probably the most
-				// accurate way to get sequence-level grants
-				if grantRow.Acl == "" {
-					continue
-				}
-				grantPerms := parseSequenceRelAcl(grantRow.Acl)
-				for user, perms := range grantPerms {
-					grantee := roles.get(user)
-					for _, perm := range perms {
-						// TODO(feat) what about revokes?
-						grants := sequence.GetGrantsForRole(grantee)
-						var grant *ir.Grant
-						if len(grants) == 0 {
-							grant = &ir.Grant{
-								Roles: []string{grantee},
-							}
-							sequence.AddGrant(grant)
-						} else {
-							grant = grants[0]
+	for _, pgSequence := range pgDoc.Sequences {
+		for _, grantRow := range pgSequence.ACL {
+			// privileges for unassociated sequences are not listed in
+			// information_schema.sequences; i think this is probably the most
+			// accurate way to get sequence-level grants
+			if grantRow == "" {
+				continue
+			}
+			schema, err := doc.GetSchemaNamed(pgSequence.Schema)
+			if err != nil {
+				return doc, fmt.Errorf(
+					"sequence '%s' schema match: %w",
+					pgSequence.Name, err,
+				)
+			}
+			sequence := schema.TryGetSequenceNamed(pgSequence.Name)
+			if sequence == nil {
+				return doc, fmt.Errorf(
+					"sequence '%s.%s' missing from IR",
+					pgSequence.Schema, pgSequence.Name,
+				)
+			}
+			grantPerms := parseSequenceRelAcl(grantRow)
+			for user, perms := range grantPerms {
+				grantee := roles.get(user)
+				for _, perm := range perms {
+					// TODO(feat) what about revokes?
+					grants := sequence.GetGrantsForRole(grantee)
+					var grant *ir.Grant
+					if len(grants) == 0 {
+						grant = &ir.Grant{
+							Roles: []string{grantee},
 						}
-						grant.AddPermission(perm)
+						sequence.AddGrant(grant)
+					} else {
+						grant = grants[0]
 					}
+					grant.AddPermission(perm)
 				}
 			}
 		}
-
+	}
+	for _, schema := range doc.Schemas {
+		schema.Owner = roles.get(schema.Owner) // Replace meta-role with actual role if needed
 		for _, table := range schema.Tables {
 			table.Owner = roles.get(table.Owner)
 			// if table does not have a primary key defined, add placeholder
@@ -743,7 +687,7 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 	}
 
 	// Assign roles to the IR
-	for _, relationGrant := range relationGrants {
+	for _, relationGrant := range pgDoc.TablePerms {
 		schema, err := doc.GetSchemaNamed(relationGrant.Schema)
 		if err != nil {
 			return nil, fmt.Errorf("fetching schema %s: %w", relationGrant.Schema, err)

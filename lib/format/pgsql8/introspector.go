@@ -3,6 +3,7 @@ package pgsql8
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/jackc/pgx/v4"
@@ -13,64 +14,80 @@ import (
 
 // TODO(go, pgsql) Add unit tests for all of this... somehow
 
-type IntrospectorFactory interface {
-	NewIntrospector(connection) (Introspector, error)
-}
-
-type LiveIntrospectorFactory struct{}
-
-var _ IntrospectorFactory = &LiveIntrospectorFactory{}
-
-func (*LiveIntrospectorFactory) NewIntrospector(conn connection) (Introspector, error) {
-	vers, err := conn.version()
-	if err != nil {
-		return nil, err
-	}
-	return &LiveIntrospector{conn, vers}, nil
-}
-
-type ConstantIntrospectorFactory struct {
-	Introspector Introspector
-}
-
-var _ IntrospectorFactory = &ConstantIntrospectorFactory{}
-
-func (li *ConstantIntrospectorFactory) NewIntrospector(connection) (Introspector, error) {
-	return li.Introspector, nil
-}
-
-type Introspector interface {
-	GetServerVersion() (VersionNum, error)
-	GetDatabase() (Database, error)
-	GetSchemaList() ([]SchemaEntry, error)
-	// GetTableList return all tables that aren't system tables
-	GetTableList() ([]TableEntry, error)
-	GetSchemaOwner(schema string) (string, error)
-	GetTableStorageOptions(schema, table string) (map[string]string, error)
-	GetColumns(schema, table string) ([]ColumnEntry, error)
-	GetIndexes(schema, table string) ([]IndexEntry, error)
-	GetSequenceRelList(schema string, sequenceCols []string) ([]SequenceRelEntry, error)
-	GetSequencesForRel(schema, rel string) ([]SequenceEntry, error)
-	GetViews() ([]ViewEntry, error)
-	GetConstraints() ([]ConstraintEntry, error)
-	GetForeignKeys() ([]ForeignKeyEntry, error)
-	GetFunctions() ([]FunctionEntry, error)
-	GetFunctionArgs(Oid) ([]FunctionArgEntry, error)
-	GetTriggers() ([]TriggerEntry, error)
-	GetSchemaPerms() ([]SchemaPermEntry, error)
-	GetTablePerms() ([]TablePermEntry, error)
-	GetSequencePerms(seq string) ([]SequencePermEntry, error)
-}
-
-type LiveIntrospector struct {
+type introspector struct {
 	conn connection
 	vers VersionNum
 }
 
-var _ Introspector = &LiveIntrospector{}
+func (li *introspector) GetFullStructure() (Structure, error) {
+	rv := Structure{}
+	var err error
+	li.vers, err = li.conn.version()
+	if err != nil {
+		return rv, fmt.Errorf("getting server version: %w", err)
+	}
+	rv.Version = li.getServerVersion()
+	rv.Database, err = li.GetDatabase()
+	if err != nil {
+		return rv, err
+	}
+	rv.Schemas, err = li.getSchemaList()
+	if err != nil {
+		return rv, err
+	}
+	rv.Tables, err = li.getTableList()
+	if err != nil {
+		return rv, err
+	}
+	var colBoundSequences []string
+	for _, table := range rv.Tables {
+		for _, column := range table.Columns {
+			if util.IIndex(column.Default, "nextval") == 0 && util.IIndex(column.Default, "_seq") >= 0 {
+				seqName := strings.Split(column.Default, "'")
+				colBoundSequences = append(colBoundSequences, seqName[1])
+			}
+		}
+	}
+	for _, schema := range rv.Schemas {
+		sequences, err := li.getSequenceRelList(schema.Name, colBoundSequences)
+		if err != nil {
+			return rv, fmt.Errorf("schema '%s': %w", schema.Name, err)
+		}
+		rv.Sequences = append(rv.Sequences, sequences...)
+	}
+	rv.Views, err = li.getViews()
+	if err != nil {
+		return rv, err
+	}
+	rv.Constraints, err = li.getConstraints()
+	if err != nil {
+		return rv, err
+	}
+	rv.ForeignKeys, err = li.getForeignKeys()
+	if err != nil {
+		return rv, err
+	}
+	rv.Functions, err = li.getFunctions()
+	if err != nil {
+		return rv, err
+	}
+	rv.Triggers, err = li.getTriggers()
+	if err != nil {
+		return rv, err
+	}
+	rv.TablePerms, err = li.getTablePerms()
+	if err != nil {
+		return rv, err
+	}
+	rv.SchemaPerms, err = li.getSchemaPerms()
+	if err != nil {
+		return rv, err
+	}
+	return rv, nil
+}
 
-func (li *LiveIntrospector) GetServerVersion() (VersionNum, error) {
-	return li.vers, nil
+func (li *introspector) getServerVersion() VersionNum {
+	return li.vers
 }
 
 type Database struct {
@@ -78,7 +95,7 @@ type Database struct {
 	Owner string
 }
 
-func (li *LiveIntrospector) GetDatabase() (Database, error) {
+func (li *introspector) GetDatabase() (Database, error) {
 	row := li.conn.queryRow(`
 	    SELECT d.datname, a.rolname
 		FROM pg_catalog.pg_database AS d
@@ -94,7 +111,7 @@ func (li *LiveIntrospector) GetDatabase() (Database, error) {
 	return db, nil
 }
 
-func (li *LiveIntrospector) GetSchemaList() ([]SchemaEntry, error) {
+func (li *introspector) getSchemaList() ([]SchemaEntry, error) {
 	rows, err := li.conn.query(`
 		SELECT n.nspname AS "Name",
 		pg_catalog.pg_get_userbyid(n.nspowner) AS "Owner",
@@ -123,7 +140,7 @@ func (li *LiveIntrospector) GetSchemaList() ([]SchemaEntry, error) {
 // TODO(go,3) can we elevate this to an engine-agnostic interface?
 // TODO(go,3) can we defer this to model operations entirely?
 
-func (li *LiveIntrospector) GetTableList() ([]TableEntry, error) {
+func (li *introspector) getTableList() ([]TableEntry, error) {
 	// TODO(go,3) move column description to column query
 	// Note that old versions of postgres don't support array_agg(description ORDER BY objsubid)
 	// so we need to use subquery to do ordering
@@ -161,19 +178,32 @@ func (li *LiveIntrospector) GetTableList() ([]TableEntry, error) {
 		}
 		out = append(out, entry)
 	}
-	if err := res.Err(); err != nil {
-		return nil, errors.Wrap(err, "while iterating results")
+	for idx := range out {
+		table := out[idx]
+		table.StorageOptions, err = li.getTableStorageOptions(table.Schema, table.Table)
+		if err != nil {
+			return nil, fmt.Errorf("table '%s.%s': %w", table.Schema, table.Table, err)
+		}
+		table.Columns, err = li.getColumns(table.Schema, table.Table)
+		if err != nil {
+			return nil, fmt.Errorf("table '%s.%s': %w", table.Schema, table.Table, err)
+		}
+		table.Indexes, err = li.getIndexes(table.Schema, table.Table)
+		if err != nil {
+			return nil, fmt.Errorf("table '%s.%s': %w", table.Schema, table.Table, err)
+		}
+		out[idx] = table
 	}
 	return out, nil
 }
 
-func (li *LiveIntrospector) GetSchemaOwner(schema string) (string, error) {
+func (li *introspector) GetSchemaOwner(schema string) (string, error) {
 	var owner string
 	err := li.conn.queryVal(&owner, `SELECT schema_owner FROM information_schema.schemata WHERE schema_name = $1`, schema)
 	return owner, err
 }
 
-func (li *LiveIntrospector) GetTableStorageOptions(schema, table string) (map[string]string, error) {
+func (li *introspector) getTableStorageOptions(schema, table string) (map[string]string, error) {
 	// TODO(feat) can we just add this to the main query?
 	// NOTE: pg 11.0 dropped support for "with oids" or "oids=true" in DDL
 	//       pg 12.0 drops the relhasoids column from pg_class
@@ -183,7 +213,7 @@ func (li *LiveIntrospector) GetTableStorageOptions(schema, table string) (map[st
 	}
 
 	relhasoidsCol := "false as relhasoids"
-	if li.vers.IsOlderThan(12, 0) {
+	if li.getServerVersion().IsOlderThan(12, 0) {
 		relhasoidsCol = "relhasoids"
 	}
 
@@ -214,7 +244,7 @@ func (li *LiveIntrospector) GetTableStorageOptions(schema, table string) (map[st
 	return params, nil
 }
 
-func (li *LiveIntrospector) GetColumns(schema, table string) ([]ColumnEntry, error) {
+func (li *introspector) getColumns(schema, table string) ([]ColumnEntry, error) {
 	res, err := li.conn.query(`
 		SELECT
 			column_name, column_default, is_nullable = 'YES', pgd.description,
@@ -251,7 +281,7 @@ func (li *LiveIntrospector) GetColumns(schema, table string) ([]ColumnEntry, err
 	return out, nil
 }
 
-func (li *LiveIntrospector) GetIndexes(schema, table string) ([]IndexEntry, error) {
+func (li *introspector) getIndexes(schema, table string) ([]IndexEntry, error) {
 	// TODO(go,nth) double check the `relname NOT IN` clause, it smells fishy to me
 	res, err := li.conn.query(`
 		SELECT
@@ -293,12 +323,15 @@ func (li *LiveIntrospector) GetIndexes(schema, table string) ([]IndexEntry, erro
 	return out, nil
 }
 
-func (li *LiveIntrospector) GetSequenceRelList(schema string, sequenceCols []string) ([]SequenceRelEntry, error) {
+// getSequenceRelList returns all sequences that aren't associated
+// with a SERIAL-type column
+func (li *introspector) getSequenceRelList(schema string, sequenceCols []string) ([]SequenceRelEntry, error) {
 	sql := `
-		SELECT s.relname, r.rolname
+		SELECT s.relname, r.rolname, d.description
 		FROM pg_statio_all_sequences s
 		JOIN pg_class c ON (s.relname = c.relname)
 		JOIN pg_roles r ON (c.relowner = r.oid)
+		LEFT OUTER JOIN pg_catalog.pg_description AS d ON (d.objoid = c.oid)
 		WHERE schemaname = $1
 	`
 	params := []interface{}{schema}
@@ -306,28 +339,49 @@ func (li *LiveIntrospector) GetSequenceRelList(schema string, sequenceCols []str
 		sql += `AND s.relname != ANY($2)`
 		params = append(params, sequenceCols)
 	}
-	sql += `GROUP BY s.relname, r.rolname`
+	sql += `GROUP BY s.relname, r.rolname, d.description`
 	res, err := li.conn.query(sql, params...)
 	if err != nil {
-		return nil, errors.Wrap(err, "while running query")
+		return nil, fmt.Errorf("getting sequence list for schema '%s': %w", schema, err)
 	}
-
+	defer res.Close()
 	out := []SequenceRelEntry{}
 	for res.Next() {
-		entry := SequenceRelEntry{}
-		err := res.Scan(&entry.Name, &entry.Owner)
+		entry := SequenceRelEntry{Schema: schema}
+		err := res.Scan(&entry.Name, &entry.Owner, &maybeStr{&entry.Description})
 		if err != nil {
 			return nil, errors.Wrap(err, "while scanning result")
 		}
 		out = append(out, entry)
 	}
-	if err := res.Err(); err != nil {
-		return nil, errors.Wrap(err, "while iterating results")
+	for idx := range out {
+		sre := out[idx]
+		params, err := li.getSequencesForRel(sre.Schema, sre.Name)
+		if err != nil {
+			return out, err
+		}
+		if len(params) != 1 {
+			return out, fmt.Errorf(
+				"expect single param for sequence '%s.%s' but '%+v'",
+				sre.Schema, sre.Name, params,
+			)
+		}
+		sre.Cache = params[0].Cache
+		sre.Start = params[0].Start
+		sre.Min = params[0].Min
+		sre.Max = params[0].Max
+		sre.Increment = params[0].Increment
+		sre.Cycled = params[0].Cycled
+		sre.ACL, err = li.getSequencePerms(sre.Name)
+		if err != nil {
+			return out, err
+		}
+		out[idx] = sre
 	}
 	return out, nil
 }
 
-func (li *LiveIntrospector) GetSequencesForRel(schema, rel string) ([]SequenceEntry, error) {
+func (li *introspector) getSequencesForRel(schema, rel string) ([]SequenceEntry, error) {
 	// TODO(feat) can we merge into GetSequenceRelList()? This is kept separate just because
 	// the old code was too
 	var res pgx.Rows
@@ -351,7 +405,7 @@ func (li *LiveIntrospector) GetSequencesForRel(schema, rel string) ([]SequenceEn
 	if err != nil {
 		return nil, errors.Wrap(err, "while running query")
 	}
-
+	defer res.Close()
 	out := []SequenceEntry{}
 	for res.Next() {
 		entry := SequenceEntry{}
@@ -367,7 +421,7 @@ func (li *LiveIntrospector) GetSequencesForRel(schema, rel string) ([]SequenceEn
 	return out, nil
 }
 
-func (li *LiveIntrospector) GetViews() ([]ViewEntry, error) {
+func (li *introspector) getViews() ([]ViewEntry, error) {
 	res, err := li.conn.query(`
 		SELECT n.nspname AS schemaname,
 		c.relname AS viewname,
@@ -398,7 +452,7 @@ func (li *LiveIntrospector) GetViews() ([]ViewEntry, error) {
 	return out, nil
 }
 
-func (li *LiveIntrospector) GetConstraints() ([]ConstraintEntry, error) {
+func (li *introspector) getConstraints() ([]ConstraintEntry, error) {
 	consrcCol := "consrc AS check_src"
 	if FEAT_CONSTRAINT_USE_GETTER(li.vers) {
 		// NOTE: Passing `true` as second parameter "pretty-prints" the definition, however:
@@ -447,7 +501,7 @@ func (li *LiveIntrospector) GetConstraints() ([]ConstraintEntry, error) {
 	return out, nil
 }
 
-func (li *LiveIntrospector) GetForeignKeys() ([]ForeignKeyEntry, error) {
+func (li *introspector) getForeignKeys() ([]ForeignKeyEntry, error) {
 	// We cannot accurately retrieve FOREIGN KEYs via information_schema
 	// We must rely on getting them from pg_catalog instead
 	// See http://stackoverflow.com/questions/1152260/postgres-sql-to-list-table-foreign-keys
@@ -499,7 +553,7 @@ func (li *LiveIntrospector) GetForeignKeys() ([]ForeignKeyEntry, error) {
 	return out, nil
 }
 
-func (li *LiveIntrospector) GetFunctions() ([]FunctionEntry, error) {
+func (li *introspector) getFunctions() ([]FunctionEntry, error) {
 	typeCase := `
 		WHEN p.proisagg THEN 'aggregate'
 		WHEN p.proiswindow THEN 'window'
@@ -537,7 +591,7 @@ func (li *LiveIntrospector) GetFunctions() ([]FunctionEntry, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "while running query")
 	}
-
+	defer res.Close()
 	out := []FunctionEntry{}
 	for res.Next() {
 		entry := FunctionEntry{}
@@ -551,13 +605,18 @@ func (li *LiveIntrospector) GetFunctions() ([]FunctionEntry, error) {
 		}
 		out = append(out, entry)
 	}
-	if err := res.Err(); err != nil {
-		return nil, errors.Wrap(err, "while iterating results")
+	for idx := range out {
+		fn := out[idx]
+		fn.Args, err = li.getFunctionArgs(fn.Oid)
+		if err != nil {
+			return out, fmt.Errorf("function '%s': %w", fn.Name, err)
+		}
+		out[idx] = fn
 	}
 	return out, nil
 }
 
-func (li *LiveIntrospector) GetFunctionArgs(fnOid Oid) ([]FunctionArgEntry, error) {
+func (li *introspector) getFunctionArgs(fnOid Oid) ([]FunctionArgEntry, error) {
 	// unnest the proargtypes (which are in ordinal order) and get the correct format for them.
 	// information_schema.parameters does not contain enough information to get correct type (e.g. ARRAY)
 	//   Note: * proargnames can be empty (not null) if there are no parameters names
@@ -617,7 +676,7 @@ func (li *LiveIntrospector) GetFunctionArgs(fnOid Oid) ([]FunctionArgEntry, erro
 	return out, nil
 }
 
-func (li *LiveIntrospector) GetTriggers() ([]TriggerEntry, error) {
+func (li *introspector) getTriggers() ([]TriggerEntry, error) {
 	timingCol := "condition_timing"
 	if FEAT_TRIGGER_USE_ACTION_TIMING(li.vers) {
 		timingCol = "action_timing"
@@ -652,7 +711,7 @@ func (li *LiveIntrospector) GetTriggers() ([]TriggerEntry, error) {
 	return out, nil
 }
 
-func (li *LiveIntrospector) GetSchemaPerms() ([]SchemaPermEntry, error) {
+func (li *introspector) getSchemaPerms() ([]SchemaPermEntry, error) {
 	rows, err := li.conn.query(`
 		SELECT n.nspname AS "Name",
 		pg_catalog.array_to_string(n.nspacl, E'\n')
@@ -689,7 +748,7 @@ func (li *LiveIntrospector) GetSchemaPerms() ([]SchemaPermEntry, error) {
 	return rv, nil
 }
 
-func (li *LiveIntrospector) GetTablePerms() ([]TablePermEntry, error) {
+func (li *introspector) getTablePerms() ([]TablePermEntry, error) {
 	res, err := li.conn.query(`
 		SELECT table_schema, table_name, grantee, privilege_type, is_grantable = 'YES'
 		FROM information_schema.table_privileges
@@ -714,23 +773,22 @@ func (li *LiveIntrospector) GetTablePerms() ([]TablePermEntry, error) {
 	return out, nil
 }
 
-func (li *LiveIntrospector) GetSequencePerms(seq string) ([]SequencePermEntry, error) {
+func (li *introspector) getSequencePerms(seq string) ([]string, error) {
 	res, err := li.conn.query(`SELECT relacl FROM pg_class WHERE relname = $1`, seq)
 	if err != nil {
-		return nil, errors.Wrap(err, "while running query")
+		return nil, fmt.Errorf("querying ACLs for sequence '%s': %w", seq, err)
 	}
-
-	out := []SequencePermEntry{}
+	defer res.Close()
+	var out []string
 	for res.Next() {
-		entry := SequencePermEntry{}
-		err := res.Scan(&entry.Acl)
+		var entry sql.NullString
+		err := res.Scan(&entry)
 		if err != nil {
-			return nil, errors.Wrap(err, "while scanning result")
+			return nil, fmt.Errorf("scanning ACL row for sequence '%s': %w", seq, err)
 		}
-		out = append(out, entry)
-	}
-	if err := res.Err(); err != nil {
-		return nil, errors.Wrap(err, "while iterating results")
+		if entry.Valid {
+			out = append(out, entry.String)
+		}
 	}
 	return out, nil
 }

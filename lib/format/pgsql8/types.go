@@ -6,6 +6,21 @@ import (
 	"github.com/jackc/pgtype"
 )
 
+type Structure struct {
+	Version     VersionNum
+	Database    Database
+	Schemas     []SchemaEntry
+	Tables      []TableEntry
+	Sequences   []SequenceRelEntry
+	Views       []ViewEntry
+	Constraints []ConstraintEntry
+	ForeignKeys []ForeignKeyEntry
+	Functions   []FunctionEntry
+	Triggers    []TriggerEntry
+	TablePerms  []TablePermEntry
+	SchemaPerms []SchemaPermEntry
+}
+
 type SchemaEntry struct {
 	Name        string
 	Owner       string
@@ -16,10 +31,13 @@ type TableEntry struct {
 	Schema            string
 	Table             string
 	Owner             string
+	Columns           []ColumnEntry
+	Indexes           []IndexEntry
 	Tablespace        *string
 	SchemaDescription string
 	TableDescription  string
 	ParentTables      []string
+	StorageOptions    map[string]string
 }
 
 type ColumnEntry struct {
@@ -38,8 +56,17 @@ type IndexEntry struct {
 }
 
 type SequenceRelEntry struct {
-	Name  string
-	Owner string
+	Schema      string
+	Name        string
+	Description string
+	Owner       string
+	Cache       sql.NullInt64
+	Start       sql.NullInt64
+	Min         sql.NullInt64
+	Max         sql.NullInt64
+	Increment   sql.NullInt64
+	Cycled      bool
+	ACL         []string
 }
 
 type SequenceEntry struct {
@@ -95,6 +122,7 @@ type FunctionEntry struct {
 	Language    string
 	Source      string
 	Description string
+	Args        []FunctionArgEntry
 }
 
 type FunctionArgEntry struct {
@@ -126,8 +154,4 @@ type TablePermEntry struct {
 	Grantee   string
 	Type      string
 	Grantable bool
-}
-
-type SequencePermEntry struct {
-	Acl string
 }
