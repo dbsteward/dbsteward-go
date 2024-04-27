@@ -196,31 +196,21 @@ func (ops *Operations) ExtractSchemaConn(ctx context.Context, c *pgx.Conn) (*ir.
 }
 
 func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass string) *ir.Definition {
-	def, err := ops.ExtractSchemaOrError(host, port, name, user, pass)
-	lib.GlobalDBSteward.FatalIfError(err, "extraction failed")
-	return def
-}
-
-func (ops *Operations) ExtractSchemaOrError(host string, port uint, name, user, pass string) (*ir.Definition, error) {
 	dbsteward := lib.GlobalDBSteward
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as %s", host, port, name, user)
 	conn, err := ops.ConnectionFactory.newConnection(host, port, name, user, pass)
-	if err != nil {
-		return nil, err
-	}
+	dbsteward.FatalIfError(err, "connecting to database")
 	// TODO(go,pgsql) this is deadlocking during a panic
 	defer conn.disconnect()
 	def, err := ops.extractSchema(conn)
-	if err != nil {
-		return nil, err
-	}
+	dbsteward.FatalIfError(err, "extracting schema")
 	def.Database.Roles = &ir.RoleAssignment{
 		Application: user,
 		Owner:       user,
 		Replication: user,
 		ReadOnly:    user,
 	}
-	return def, nil
+	return def
 }
 
 func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
