@@ -19,8 +19,8 @@ type introspector struct {
 	vers VersionNum
 }
 
-func (li *introspector) GetFullStructure() (Structure, error) {
-	rv := Structure{}
+func (li *introspector) GetFullStructure() (structure, error) {
+	rv := structure{}
 	var err error
 	li.vers, err = li.conn.version()
 	if err != nil {
@@ -111,7 +111,7 @@ func (li *introspector) GetDatabase() (Database, error) {
 	return db, nil
 }
 
-func (li *introspector) getSchemaList() ([]SchemaEntry, error) {
+func (li *introspector) getSchemaList() ([]schemaEntry, error) {
 	rows, err := li.conn.query(`
 		SELECT n.nspname AS "Name",
 		pg_catalog.pg_get_userbyid(n.nspowner) AS "Owner",
@@ -123,9 +123,9 @@ func (li *introspector) getSchemaList() ([]SchemaEntry, error) {
 		return nil, errors.Wrap(err, "running get schema query")
 	}
 	defer rows.Close()
-	out := []SchemaEntry{}
+	out := []schemaEntry{}
 	for rows.Next() {
-		entry := SchemaEntry{}
+		entry := schemaEntry{}
 		err := rows.Scan(
 			&entry.Name, &entry.Owner, &maybeStr{&entry.Description},
 		)
@@ -140,7 +140,7 @@ func (li *introspector) getSchemaList() ([]SchemaEntry, error) {
 // TODO(go,3) can we elevate this to an engine-agnostic interface?
 // TODO(go,3) can we defer this to model operations entirely?
 
-func (li *introspector) getTableList() ([]TableEntry, error) {
+func (li *introspector) getTableList() ([]tableEntry, error) {
 	// TODO(go,3) move column description to column query
 	// Note that old versions of postgres don't support array_agg(description ORDER BY objsubid)
 	// so we need to use subquery to do ordering
@@ -165,9 +165,9 @@ func (li *introspector) getTableList() ([]TableEntry, error) {
 		return nil, errors.Wrap(err, "while running query")
 	}
 	defer res.Close()
-	out := []TableEntry{}
+	out := []tableEntry{}
 	for res.Next() {
-		entry := TableEntry{}
+		entry := tableEntry{}
 		err := res.Scan(
 			&entry.Schema, &entry.Table, &entry.Owner, &entry.Tablespace,
 			&maybeStr{&entry.SchemaDescription}, &maybeStr{&entry.TableDescription},
@@ -244,7 +244,7 @@ func (li *introspector) getTableStorageOptions(schema, table string) (map[string
 	return params, nil
 }
 
-func (li *introspector) getColumns(schema, table string) ([]ColumnEntry, error) {
+func (li *introspector) getColumns(schema, table string) ([]columnEntry, error) {
 	res, err := li.conn.query(`
 		SELECT
 			column_name, column_default, is_nullable = 'YES', pgd.description,
@@ -263,9 +263,9 @@ func (li *introspector) getColumns(schema, table string) ([]ColumnEntry, error) 
 		return nil, errors.Wrap(err, "while running query")
 	}
 
-	out := []ColumnEntry{}
+	out := []columnEntry{}
 	for res.Next() {
-		entry := ColumnEntry{}
+		entry := columnEntry{}
 		err := res.Scan(
 			&entry.Name, &maybeStr{&entry.Default}, &entry.Nullable,
 			&maybeStr{&entry.Description}, &entry.Position, &entry.AttrType,
@@ -281,7 +281,7 @@ func (li *introspector) getColumns(schema, table string) ([]ColumnEntry, error) 
 	return out, nil
 }
 
-func (li *introspector) getIndexes(schema, table string) ([]IndexEntry, error) {
+func (li *introspector) getIndexes(schema, table string) ([]indexEntry, error) {
 	// TODO(go,nth) double check the `relname NOT IN` clause, it smells fishy to me
 	res, err := li.conn.query(`
 		SELECT
@@ -308,9 +308,9 @@ func (li *introspector) getIndexes(schema, table string) ([]IndexEntry, error) {
 		return nil, errors.Wrap(err, "while running query")
 	}
 
-	out := []IndexEntry{}
+	out := []indexEntry{}
 	for res.Next() {
-		entry := IndexEntry{}
+		entry := indexEntry{}
 		err := res.Scan(&entry.Name, &entry.Unique, &entry.Dimensions)
 		if err != nil {
 			return nil, errors.Wrap(err, "while scanning result")
@@ -325,7 +325,7 @@ func (li *introspector) getIndexes(schema, table string) ([]IndexEntry, error) {
 
 // getSequenceRelList returns all sequences that aren't associated
 // with a SERIAL-type column
-func (li *introspector) getSequenceRelList(schema string, sequenceCols []string) ([]SequenceRelEntry, error) {
+func (li *introspector) getSequenceRelList(schema string, sequenceCols []string) ([]sequenceRelEntry, error) {
 	sql := `
 		SELECT s.relname, r.rolname, d.description
 		FROM pg_statio_all_sequences s
@@ -345,9 +345,9 @@ func (li *introspector) getSequenceRelList(schema string, sequenceCols []string)
 		return nil, fmt.Errorf("getting sequence list for schema '%s': %w", schema, err)
 	}
 	defer res.Close()
-	out := []SequenceRelEntry{}
+	out := []sequenceRelEntry{}
 	for res.Next() {
-		entry := SequenceRelEntry{Schema: schema}
+		entry := sequenceRelEntry{Schema: schema}
 		err := res.Scan(&entry.Name, &entry.Owner, &maybeStr{&entry.Description})
 		if err != nil {
 			return nil, errors.Wrap(err, "while scanning result")
@@ -381,7 +381,7 @@ func (li *introspector) getSequenceRelList(schema string, sequenceCols []string)
 	return out, nil
 }
 
-func (li *introspector) getSequencesForRel(schema, rel string) ([]SequenceEntry, error) {
+func (li *introspector) getSequencesForRel(schema, rel string) ([]sequenceEntry, error) {
 	// TODO(feat) can we merge into GetSequenceRelList()? This is kept separate just because
 	// the old code was too
 	var res pgx.Rows
@@ -406,9 +406,9 @@ func (li *introspector) getSequencesForRel(schema, rel string) ([]SequenceEntry,
 		return nil, errors.Wrap(err, "while running query")
 	}
 	defer res.Close()
-	out := []SequenceEntry{}
+	out := []sequenceEntry{}
 	for res.Next() {
-		entry := SequenceEntry{}
+		entry := sequenceEntry{}
 		err := res.Scan(&entry.Cache, &entry.Start, &entry.Min, &entry.Max, &entry.Increment, &entry.Cycled)
 		if err != nil {
 			return nil, errors.Wrap(err, "while scanning result")
@@ -421,7 +421,7 @@ func (li *introspector) getSequencesForRel(schema, rel string) ([]SequenceEntry,
 	return out, nil
 }
 
-func (li *introspector) getViews() ([]ViewEntry, error) {
+func (li *introspector) getViews() ([]viewEntry, error) {
 	res, err := li.conn.query(`
 		SELECT n.nspname AS schemaname,
 		c.relname AS viewname,
@@ -437,9 +437,9 @@ func (li *introspector) getViews() ([]ViewEntry, error) {
 		return nil, errors.Wrap(err, "while running query")
 	}
 
-	out := []ViewEntry{}
+	out := []viewEntry{}
 	for res.Next() {
-		entry := ViewEntry{}
+		entry := viewEntry{}
 		err := res.Scan(&entry.Schema, &entry.Name, &entry.Owner, &entry.Definition, &entry.Description)
 		if err != nil {
 			return nil, errors.Wrap(err, "while scanning result")
@@ -452,7 +452,7 @@ func (li *introspector) getViews() ([]ViewEntry, error) {
 	return out, nil
 }
 
-func (li *introspector) getConstraints() ([]ConstraintEntry, error) {
+func (li *introspector) getConstraints() ([]constraintEntry, error) {
 	consrcCol := "consrc AS check_src"
 	if FEAT_CONSTRAINT_USE_GETTER(li.vers) {
 		// NOTE: Passing `true` as second parameter "pretty-prints" the definition, however:
@@ -486,9 +486,9 @@ func (li *introspector) getConstraints() ([]ConstraintEntry, error) {
 		return nil, errors.Wrap(err, "while running query")
 	}
 
-	out := []ConstraintEntry{}
+	out := []constraintEntry{}
 	for res.Next() {
-		entry := ConstraintEntry{}
+		entry := constraintEntry{}
 		err := res.Scan(&entry.Schema, &entry.Table, &entry.Name, &char2str{&entry.Type}, &entry.CheckDef, &entry.Columns)
 		if err != nil {
 			return nil, errors.Wrap(err, "while scanning result")
@@ -501,7 +501,7 @@ func (li *introspector) getConstraints() ([]ConstraintEntry, error) {
 	return out, nil
 }
 
-func (li *introspector) getForeignKeys() ([]ForeignKeyEntry, error) {
+func (li *introspector) getForeignKeys() ([]foreignKeyEntry, error) {
 	// We cannot accurately retrieve FOREIGN KEYs via information_schema
 	// We must rely on getting them from pg_catalog instead
 	// See http://stackoverflow.com/questions/1152260/postgres-sql-to-list-table-foreign-keys
@@ -534,9 +534,9 @@ func (li *introspector) getForeignKeys() ([]ForeignKeyEntry, error) {
 		return nil, errors.Wrap(err, "while running query")
 	}
 
-	out := []ForeignKeyEntry{}
+	out := []foreignKeyEntry{}
 	for res.Next() {
-		entry := ForeignKeyEntry{}
+		entry := foreignKeyEntry{}
 		err := res.Scan(
 			&entry.ConstraintName, &char2str{&entry.UpdateRule}, &char2str{&entry.DeleteRule},
 			&entry.LocalSchema, &entry.LocalTable, &entry.LocalColumns,
@@ -553,7 +553,7 @@ func (li *introspector) getForeignKeys() ([]ForeignKeyEntry, error) {
 	return out, nil
 }
 
-func (li *introspector) getFunctions() ([]FunctionEntry, error) {
+func (li *introspector) getFunctions() ([]functionEntry, error) {
 	typeCase := `
 		WHEN p.proisagg THEN 'aggregate'
 		WHEN p.proiswindow THEN 'window'
@@ -592,9 +592,9 @@ func (li *introspector) getFunctions() ([]FunctionEntry, error) {
 		return nil, errors.Wrap(err, "while running query")
 	}
 	defer res.Close()
-	out := []FunctionEntry{}
+	out := []functionEntry{}
 	for res.Next() {
-		entry := FunctionEntry{}
+		entry := functionEntry{}
 		err := res.Scan(
 			&entry.Oid, &entry.Schema, &entry.Name, &entry.Return,
 			&entry.Type, &entry.Volatility, &entry.Owner,
@@ -616,7 +616,7 @@ func (li *introspector) getFunctions() ([]FunctionEntry, error) {
 	return out, nil
 }
 
-func (li *introspector) getFunctionArgs(fnOid Oid) ([]FunctionArgEntry, error) {
+func (li *introspector) getFunctionArgs(fnOid Oid) ([]functionArgEntry, error) {
 	// unnest the proargtypes (which are in ordinal order) and get the correct format for them.
 	// information_schema.parameters does not contain enough information to get correct type (e.g. ARRAY)
 	//   Note: * proargnames can be empty (not null) if there are no parameters names
@@ -650,10 +650,10 @@ func (li *introspector) getFunctionArgs(fnOid Oid) ([]FunctionArgEntry, error) {
 		return nil, errors.Wrap(err, "while running query")
 	}
 
-	out := []FunctionArgEntry{}
+	out := []functionArgEntry{}
 	for res.Next() {
 		var mode string
-		entry := FunctionArgEntry{}
+		entry := functionArgEntry{}
 		err := res.Scan(&entry.Name, &entry.Type, &mode)
 		if err != nil {
 			return nil, errors.Wrap(err, "while scanning result")
@@ -676,7 +676,7 @@ func (li *introspector) getFunctionArgs(fnOid Oid) ([]FunctionArgEntry, error) {
 	return out, nil
 }
 
-func (li *introspector) getTriggers() ([]TriggerEntry, error) {
+func (li *introspector) getTriggers() ([]triggerEntry, error) {
 	timingCol := "condition_timing"
 	if FEAT_TRIGGER_USE_ACTION_TIMING(li.vers) {
 		timingCol = "action_timing"
@@ -693,9 +693,9 @@ func (li *introspector) getTriggers() ([]TriggerEntry, error) {
 		return nil, errors.Wrap(err, "while running query")
 	}
 
-	out := []TriggerEntry{}
+	out := []triggerEntry{}
 	for res.Next() {
-		entry := TriggerEntry{}
+		entry := triggerEntry{}
 		err := res.Scan(
 			&entry.Schema, &entry.Table, &entry.Name, &entry.Event,
 			&entry.Timing, &entry.Orientation, &entry.Statement,
@@ -711,7 +711,7 @@ func (li *introspector) getTriggers() ([]TriggerEntry, error) {
 	return out, nil
 }
 
-func (li *introspector) getSchemaPerms() ([]SchemaPermEntry, error) {
+func (li *introspector) getSchemaPerms() ([]schemaPermEntry, error) {
 	rows, err := li.conn.query(`
 		SELECT n.nspname AS "Name",
 		pg_catalog.array_to_string(n.nspacl, E'\n')
@@ -722,7 +722,7 @@ func (li *introspector) getSchemaPerms() ([]SchemaPermEntry, error) {
 		return nil, fmt.Errorf("quering schema perms: %w", err)
 	}
 	defer rows.Close()
-	var rv []SchemaPermEntry
+	var rv []schemaPermEntry
 	for rows.Next() {
 		var schema string
 		var acl sql.NullString
@@ -735,7 +735,7 @@ func (li *introspector) getSchemaPerms() ([]SchemaPermEntry, error) {
 			aclmap := parseACL(acl.String)
 			for user, perms := range aclmap {
 				for _, perm := range perms {
-					entry := SchemaPermEntry{
+					entry := schemaPermEntry{
 						Schema:  schema,
 						Grantee: user,
 						Type:    perm,
@@ -748,7 +748,7 @@ func (li *introspector) getSchemaPerms() ([]SchemaPermEntry, error) {
 	return rv, nil
 }
 
-func (li *introspector) getTablePerms() ([]TablePermEntry, error) {
+func (li *introspector) getTablePerms() ([]tablePermEntry, error) {
 	res, err := li.conn.query(`
 		SELECT table_schema, table_name, grantee, privilege_type, is_grantable = 'YES'
 		FROM information_schema.table_privileges
@@ -758,9 +758,9 @@ func (li *introspector) getTablePerms() ([]TablePermEntry, error) {
 		return nil, errors.Wrap(err, "querying table perms")
 	}
 	defer res.Close()
-	out := []TablePermEntry{}
+	out := []tablePermEntry{}
 	for res.Next() {
-		entry := TablePermEntry{}
+		entry := tablePermEntry{}
 		err := res.Scan(&entry.Schema, &entry.Table, &entry.Grantee, &entry.Type, &entry.Grantable)
 		if err != nil {
 			return nil, errors.Wrap(err, "while scanning result")

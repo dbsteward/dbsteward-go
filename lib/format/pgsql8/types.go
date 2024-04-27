@@ -6,33 +6,33 @@ import (
 	"github.com/jackc/pgtype"
 )
 
-type Structure struct {
+type structure struct {
 	Version     VersionNum
 	Database    Database
-	Schemas     []SchemaEntry
-	Tables      []TableEntry
-	Sequences   []SequenceRelEntry
-	Views       []ViewEntry
-	Constraints []ConstraintEntry
-	ForeignKeys []ForeignKeyEntry
-	Functions   []FunctionEntry
-	Triggers    []TriggerEntry
-	TablePerms  []TablePermEntry
-	SchemaPerms []SchemaPermEntry
+	Schemas     []schemaEntry
+	Tables      []tableEntry
+	Sequences   []sequenceRelEntry
+	Views       []viewEntry
+	Constraints []constraintEntry
+	ForeignKeys []foreignKeyEntry
+	Functions   []functionEntry
+	Triggers    []triggerEntry
+	TablePerms  []tablePermEntry
+	SchemaPerms []schemaPermEntry
 }
 
-type SchemaEntry struct {
+type schemaEntry struct {
 	Name        string
 	Owner       string
 	Description string
 }
 
-type TableEntry struct {
+type tableEntry struct {
 	Schema            string
 	Table             string
 	Owner             string
-	Columns           []ColumnEntry
-	Indexes           []IndexEntry
+	Columns           []columnEntry
+	Indexes           []indexEntry
 	Tablespace        *string
 	SchemaDescription string
 	TableDescription  string
@@ -40,7 +40,7 @@ type TableEntry struct {
 	StorageOptions    map[string]string
 }
 
-type ColumnEntry struct {
+type columnEntry struct {
 	Name        string
 	Default     string
 	Nullable    bool
@@ -49,13 +49,13 @@ type ColumnEntry struct {
 	AttrType    string
 }
 
-type IndexEntry struct {
+type indexEntry struct {
 	Name       string
 	Unique     bool
 	Dimensions []string
 }
 
-type SequenceRelEntry struct {
+type sequenceRelEntry struct {
 	Schema      string
 	Name        string
 	Description string
@@ -69,7 +69,7 @@ type SequenceRelEntry struct {
 	ACL         []string
 }
 
-type SequenceEntry struct {
+type sequenceEntry struct {
 	Cache     sql.NullInt64
 	Start     sql.NullInt64
 	Min       sql.NullInt64
@@ -78,7 +78,7 @@ type SequenceEntry struct {
 	Cycled    bool
 }
 
-type ViewEntry struct {
+type viewEntry struct {
 	Schema      string
 	Name        string
 	Description string
@@ -86,7 +86,7 @@ type ViewEntry struct {
 	Definition  string
 }
 
-type ConstraintEntry struct {
+type constraintEntry struct {
 	Schema   string
 	Table    string
 	Name     string
@@ -95,7 +95,7 @@ type ConstraintEntry struct {
 	Columns  []string
 }
 
-type ForeignKeyEntry struct {
+type foreignKeyEntry struct {
 	ConstraintName string
 	UpdateRule     string
 	DeleteRule     string
@@ -111,7 +111,7 @@ type Oid struct {
 	pgtype.OID
 }
 
-type FunctionEntry struct {
+type functionEntry struct {
 	Oid         Oid
 	Schema      string
 	Name        string
@@ -122,16 +122,16 @@ type FunctionEntry struct {
 	Language    string
 	Source      string
 	Description string
-	Args        []FunctionArgEntry
+	Args        []functionArgEntry
 }
 
-type FunctionArgEntry struct {
+type functionArgEntry struct {
 	Name      string
 	Type      string
 	Direction string
 }
 
-type TriggerEntry struct {
+type triggerEntry struct {
 	Schema      string
 	Table       string
 	Name        string
@@ -141,14 +141,14 @@ type TriggerEntry struct {
 	Statement   string
 }
 
-type SchemaPermEntry struct {
+type schemaPermEntry struct {
 	Schema    string
 	Grantee   string
 	Type      string
 	Grantable bool
 }
 
-type TablePermEntry struct {
+type tablePermEntry struct {
 	Schema    string
 	Table     string
 	Grantee   string

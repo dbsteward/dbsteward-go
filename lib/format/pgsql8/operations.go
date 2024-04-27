@@ -224,7 +224,7 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 	return ops.pgToIR(pgDoc)
 }
 
-func (ops *Operations) pgToIR(pgDoc Structure) (*ir.Definition, error) {
+func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 	dbsteward := lib.GlobalDBSteward
 	doc := &ir.Definition{
 		Database: &ir.Database{
@@ -581,7 +581,7 @@ func (ops *Operations) pgToIR(pgDoc Structure) (*ir.Definition, error) {
 		p.Grantee = roles.get(p.Grantee)
 		pgDoc.SchemaPerms[k] = p
 	}
-	slices.SortFunc(pgDoc.SchemaPerms, func(a, b SchemaPermEntry) int {
+	slices.SortFunc(pgDoc.SchemaPerms, func(a, b schemaPermEntry) int {
 		c := cmp.Compare(a.Grantee, b.Grantee)
 		if c == 0 {
 			return cmp.Compare(a.Type, b.Type)
@@ -713,7 +713,7 @@ func (ops *Operations) pgToIR(pgDoc Structure) (*ir.Definition, error) {
 
 // storeSchema creates a schema record and stores it in the IR
 // Ensures the schema's owner is registered with the roleIndex
-func storeSchema(doc *ir.Definition, roles *roleIndex, schema SchemaEntry) {
+func storeSchema(doc *ir.Definition, roles *roleIndex, schema schemaEntry) {
 	irSchema := &ir.Schema{
 		Name:        schema.Name,
 		Description: schema.Description,

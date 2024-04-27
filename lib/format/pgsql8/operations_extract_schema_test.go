@@ -18,15 +18,15 @@ var PG_8_0 VersionNum = NewVersionNum(8, 0)
 //                around e2e testing with a real db connection.
 
 func TestOperations_ExtractSchema_Indexes(t *testing.T) {
-	pgDoc := Structure{
+	pgDoc := structure{
 		Version: PG_8_0,
-		Schemas: []SchemaEntry{{
+		Schemas: []schemaEntry{{
 			Name: "public",
 		}},
-		Tables: []TableEntry{{
+		Tables: []tableEntry{{
 			Schema: "public",
 			Table:  "test",
-			Columns: []ColumnEntry{
+			Columns: []columnEntry{
 				{
 					Name:     "col1",
 					AttrType: "text",
@@ -43,7 +43,7 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 					Position: 3,
 				},
 			},
-			Indexes: []IndexEntry{
+			Indexes: []indexEntry{
 				// test that both column and functional expressions work as expected
 				{
 					Name: "testidx",
@@ -111,16 +111,16 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 }
 
 func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
-	pgDoc := Structure{
+	pgDoc := structure{
 		Version: PG_8_0,
-		Schemas: []SchemaEntry{{
+		Schemas: []schemaEntry{{
 			Name: "public",
 		}},
-		Tables: []TableEntry{
+		Tables: []tableEntry{
 			{
 				Schema: "public",
 				Table:  "test",
-				Columns: []ColumnEntry{
+				Columns: []columnEntry{
 					{
 						Name:     "col1",
 						AttrType: "bigint",
@@ -148,7 +148,7 @@ func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
 				},
 			},
 		},
-		Constraints: []ConstraintEntry{
+		Constraints: []constraintEntry{
 			{
 				Schema:  "public",
 				Table:   "test",
@@ -181,19 +181,19 @@ func TestOperations_ExtractSchema_TableComments(t *testing.T) {
 		tableDesc  = "A description of the test table"
 		colDesc    = "A description of col1 on the test table"
 	)
-	pgDoc := Structure{
+	pgDoc := structure{
 		Version: PG_8_0,
-		Schemas: []SchemaEntry{{
+		Schemas: []schemaEntry{{
 			Name:        "public",
 			Description: schemaDesc,
 		}},
-		Tables: []TableEntry{
+		Tables: []tableEntry{
 			{
 				Schema:            "public",
 				SchemaDescription: schemaDesc,
 				Table:             "test",
 				TableDescription:  tableDesc,
-				Columns: []ColumnEntry{
+				Columns: []columnEntry{
 					{
 						Name:        "col1",
 						AttrType:    "text",
@@ -202,7 +202,7 @@ func TestOperations_ExtractSchema_TableComments(t *testing.T) {
 				},
 			},
 		},
-		Constraints: []ConstraintEntry{
+		Constraints: []constraintEntry{
 			{
 				Schema:  "public",
 				Table:   "test",
@@ -231,12 +231,12 @@ BEGIN
 	RETURN overlap;
 END;
 `)
-	pgDoc := Structure{
+	pgDoc := structure{
 		Version: PG_8_0,
-		Schemas: []SchemaEntry{{
+		Schemas: []schemaEntry{{
 			Name: "public",
 		}},
-		Functions: []FunctionEntry{
+		Functions: []functionEntry{
 			{
 				Oid:        Oid{1},
 				Schema:     "public",
@@ -247,7 +247,7 @@ END;
 				Owner:      "app",
 				Language:   "plpgsql",
 				Source:     body,
-				Args: []FunctionArgEntry{
+				Args: []functionArgEntry{
 					{"rates_a", "money", "IN"},
 					{"rates_b", "money", "IN"},
 				},
@@ -278,12 +278,12 @@ END;
 
 func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 	const body = `BEGIN RETURN 1; END;`
-	pgDoc := Structure{
+	pgDoc := structure{
 		Version: PG_8_0,
-		Schemas: []SchemaEntry{{
+		Schemas: []schemaEntry{{
 			Name: "public",
 		}},
-		Functions: []FunctionEntry{
+		Functions: []functionEntry{
 			{ // array type and argument names
 				Oid:      Oid{1},
 				Schema:   "public",
@@ -292,7 +292,7 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 				Type:     "normal",
 				Language: "plpgsql",
 				Source:   body,
-				Args: []FunctionArgEntry{
+				Args: []functionArgEntry{
 					{"arg1", "integer[]", "IN"},
 					{"arg2", "uuid[]", "IN"},
 				},
@@ -305,7 +305,7 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 				Type:     "normal",
 				Language: "plpgsql",
 				Source:   body,
-				Args: []FunctionArgEntry{
+				Args: []functionArgEntry{
 					{"", "integer[]", "IN"},
 					{"", "uuid[]", "IN"},
 				},
@@ -318,7 +318,7 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 				Type:     "normal",
 				Language: "plpgsql",
 				Source:   body,
-				Args: []FunctionArgEntry{
+				Args: []functionArgEntry{
 					{"arg1", "integer[]", "IN"},
 					{"", "uuid[]", "IN"},
 				},
@@ -331,7 +331,7 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 				Type:     "normal",
 				Language: "plpgsql",
 				Source:   body,
-				Args: []FunctionArgEntry{
+				Args: []functionArgEntry{
 					{"", "integer[]", "IN"},
 					{"arg1", "uuid[]", "IN"},
 				},
@@ -366,16 +366,16 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 }
 
 func TestOperations_ExtractSchema_TableArrayType(t *testing.T) {
-	pgDoc := Structure{
+	pgDoc := structure{
 		Version: PG_8_0,
-		Schemas: []SchemaEntry{{
+		Schemas: []schemaEntry{{
 			Name: "public",
 		}},
-		Tables: []TableEntry{
+		Tables: []tableEntry{
 			{
 				Schema: "public",
 				Table:  "test",
-				Columns: []ColumnEntry{
+				Columns: []columnEntry{
 					{Name: "name", AttrType: "text[]"},
 				},
 			},
@@ -399,16 +399,16 @@ func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 	// 		ON UPDATE NO ACTION
 	// 		ON DELETE SET NULL
 	// );
-	pgDoc := Structure{
+	pgDoc := structure{
 		Version: PG_8_0,
-		Schemas: []SchemaEntry{{
+		Schemas: []schemaEntry{{
 			Name: "public",
 		}},
-		Tables: []TableEntry{
+		Tables: []tableEntry{
 			{
 				Schema: "public",
 				Table:  "dummy",
-				Columns: []ColumnEntry{
+				Columns: []columnEntry{
 					{Name: "feux", AttrType: "integer"},
 					{Name: "barf", AttrType: "character varying(32)"},
 				},
@@ -416,18 +416,18 @@ func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 			{
 				Schema: "public",
 				Table:  "test",
-				Columns: []ColumnEntry{
+				Columns: []columnEntry{
 					{Name: "id", AttrType: "integer"},
 					{Name: "foo", AttrType: "integer"},
 					{Name: "bar", AttrType: "character varying(32)"},
 				},
 			},
 		},
-		Constraints: []ConstraintEntry{
+		Constraints: []constraintEntry{
 			{Schema: "public", Table: "dummy", Name: "dummy_pkey", Type: "p", Columns: []string{"foo", "bar"}},
 			{Schema: "public", Table: "test", Name: "test_pkey", Type: "p", Columns: []string{"id"}},
 		},
-		ForeignKeys: []ForeignKeyEntry{
+		ForeignKeys: []foreignKeyEntry{
 			{
 				ConstraintName: "test_foo_fkey",
 				UpdateRule:     "a",
@@ -471,22 +471,22 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 	// - ExtractionTest::testDoNotExtractSequenceFromTable (b)
 	// the ones marked (a) test whether a seq which is not used as a default in a column is extracted as a sequence element
 	// the ones marked (b) test that sequences which are used as defaults in a column are extracted as a serial column instead
-	pgDoc := Structure{
+	pgDoc := structure{
 		Version: PG_8_0,
-		Schemas: []SchemaEntry{{
+		Schemas: []schemaEntry{{
 			Name: "public",
 		}},
-		Tables: []TableEntry{
+		Tables: []tableEntry{
 			{
 				Schema: "public",
 				Table:  "user",
-				Columns: []ColumnEntry{
+				Columns: []columnEntry{
 					{Name: "user_id", AttrType: "integer", Default: "nextval('test_seq')"},
 					{Name: "user_name", AttrType: "varchar(100)"},
 				},
 			},
 		},
-		Sequences: []SequenceRelEntry{
+		Sequences: []sequenceRelEntry{
 			{
 				Schema: "public",
 				Name:   "blah",
@@ -496,7 +496,7 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 				Max:    sql.NullInt64{Int64: 10, Valid: true},
 			},
 		},
-		Constraints: []ConstraintEntry{
+		Constraints: []constraintEntry{
 			{Schema: "public", Table: "user", Name: "user_pkey", Type: "p", Columns: []string{"user_id"}},
 		},
 	}
