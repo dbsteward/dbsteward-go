@@ -5,12 +5,36 @@ jobs:
   build:
     # TODO can we make this run inside dev/dev.Dockerfile?
     runs-on: ubuntu-latest
+    services:
+      # Label used to access the service container
+      postgres:
+        # Docker Hub image
+        image: postgres
+        # Provide the password for postgres
+        env:
+          POSTGRES_PASSWORD: postgres
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          # Maps tcp port 5432 on service container to the host
+          - 5432:5432
     steps:
       - uses: actions/setup-go@v1
         with:
           go-version: '1.22'
       - uses: actions/checkout@v2
       - run: go test -v -coverprofile=profile.cov ./...
+        env:
+          DB_HOST: postgres
+          DB_PASSWORD: postgres
+          DB_USER: postgres
+          DB_SUPERUSER: postgres
+          DB_NAME: unit_test
+          DB_PORT: 5432
       - uses: shogo82148/actions-goveralls@v1
         with:
           path-to-profile: profile.cov
