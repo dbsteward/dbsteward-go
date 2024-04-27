@@ -5,6 +5,7 @@
 package pgsql8
 
 import (
+	"log"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -31,19 +32,6 @@ func NewMockIntrospector(ctrl *gomock.Controller) *MockIntrospector {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockIntrospector) EXPECT() *MockIntrospectorMockRecorder {
 	return m.recorder
-}
-
-func (m *MockIntrospector) GetDatabase() (Database, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDatabase")
-	ret0, _ := ret[0].(Database)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (mr *MockIntrospectorMockRecorder) GetDatabase() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDatabase", reflect.TypeOf((*MockIntrospector)(nil).GetColumns))
 }
 
 // GetColumns mocks base method.
@@ -74,6 +62,21 @@ func (m *MockIntrospector) GetConstraints() ([]ConstraintEntry, error) {
 func (mr *MockIntrospectorMockRecorder) GetConstraints() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConstraints", reflect.TypeOf((*MockIntrospector)(nil).GetConstraints))
+}
+
+// GetDatabase mocks base method.
+func (m *MockIntrospector) GetDatabase() (Database, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDatabase")
+	ret0, _ := ret[0].(Database)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDatabase indicates an expected call of GetDatabase.
+func (mr *MockIntrospectorMockRecorder) GetDatabase() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDatabase", reflect.TypeOf((*MockIntrospector)(nil).GetDatabase))
 }
 
 // GetForeignKeys mocks base method.
@@ -136,6 +139,22 @@ func (mr *MockIntrospectorMockRecorder) GetIndexes(arg0, arg1 interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIndexes", reflect.TypeOf((*MockIntrospector)(nil).GetIndexes), arg0, arg1)
 }
 
+// GetSchemaList mocks base method.
+func (m *MockIntrospector) GetSchemaList() ([]SchemaEntry, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSchemaList")
+	ret0, _ := ret[0].([]SchemaEntry)
+	ret1, _ := ret[1].(error)
+	log.Printf("Returning %+v", ret0)
+	return ret0, ret1
+}
+
+// GetSchemaList indicates an expected call of GetSchemaList.
+func (mr *MockIntrospectorMockRecorder) GetSchemaList() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchemaList", reflect.TypeOf((*MockIntrospector)(nil).GetSchemaList))
+}
+
 // GetSchemaOwner mocks base method.
 func (m *MockIntrospector) GetSchemaOwner(arg0 string) (string, error) {
 	m.ctrl.T.Helper()
@@ -149,6 +168,21 @@ func (m *MockIntrospector) GetSchemaOwner(arg0 string) (string, error) {
 func (mr *MockIntrospectorMockRecorder) GetSchemaOwner(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchemaOwner", reflect.TypeOf((*MockIntrospector)(nil).GetSchemaOwner), arg0)
+}
+
+// GetSchemaPerms mocks base method.
+func (m *MockIntrospector) GetSchemaPerms() ([]SchemaPermEntry, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSchemaPerms")
+	ret0, _ := ret[0].([]SchemaPermEntry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSchemaPerms indicates an expected call of GetSchemaPerms.
+func (mr *MockIntrospectorMockRecorder) GetSchemaPerms() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchemaPerms", reflect.TypeOf((*MockIntrospector)(nil).GetSchemaPerms))
 }
 
 // GetSequencePerms mocks base method.
@@ -239,19 +273,6 @@ func (m *MockIntrospector) GetTablePerms() ([]TablePermEntry, error) {
 func (mr *MockIntrospectorMockRecorder) GetTablePerms() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTablePerms", reflect.TypeOf((*MockIntrospector)(nil).GetTablePerms))
-}
-
-func (m *MockIntrospector) GetSchemaPerms() ([]SchemaPermEntry, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSchemaPerms")
-	ret0, _ := ret[0].([]SchemaPermEntry)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (mr *MockIntrospectorMockRecorder) GetSchemaPerms() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchemaPerms", reflect.TypeOf((*MockIntrospector)(nil).GetSchemaPerms))
 }
 
 // GetTableStorageOptions mocks base method.

@@ -198,21 +198,31 @@ func (ops *Operations) ExtractSchemaConn(ctx context.Context, c *pgx.Conn) (*ir.
 }
 
 func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass string) *ir.Definition {
+	def, err := ops.ExtractSchemaOrError(host, port, name, user, pass)
+	lib.GlobalDBSteward.FatalIfError(err, "extraction failed")
+	return def
+}
+
+func (ops *Operations) ExtractSchemaOrError(host string, port uint, name, user, pass string) (*ir.Definition, error) {
 	dbsteward := lib.GlobalDBSteward
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as %s", host, port, name, user)
 	conn, err := ops.ConnectionFactory.newConnection(host, port, name, user, pass)
-	dbsteward.FatalIfError(err, "could not connect to database")
+	if err != nil {
+		return nil, err
+	}
 	// TODO(go,pgsql) this is deadlocking during a panic
 	defer conn.disconnect()
 	def, err := ops.extractSchema(conn)
-	dbsteward.FatalIfError(err, "extracting schema")
+	if err != nil {
+		return nil, err
+	}
 	def.Database.Roles = &ir.RoleAssignment{
 		Application: user,
 		Owner:       user,
 		Replication: user,
 		ReadOnly:    user,
 	}
-	return def
+	return def, nil
 }
 
 func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
@@ -235,6 +245,14 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 	}
 	roles := newRoleIndex(db.Owner)
 
+	schemas, err := introspector.GetSchemaList()
+	if err != nil {
+		return nil, err
+	}
+	for _, schema := range schemas {
+		storeSchema(doc, roles, schema)
+	}
+
 	tableRows, err := introspector.GetTableList()
 	dbsteward.FatalIfError(err, "Error with table query")
 	// serials that are implicitly created as part of a table, no need to explicitly create these
@@ -245,9 +263,9 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 		tableName := row.Table
 
 		dbsteward.Info("Analyze table options %s.%s", row.Schema, row.Table)
-		schema, err := getOrAddSchema(doc, introspector, roles, schemaName, row.SchemaDescription)
-		if err != nil {
-			return nil, err
+		schema := doc.TryGetSchemaNamed(schemaName)
+		if schema == nil {
+			return nil, fmt.Errorf("table '%s' references missing schema '%s'", tableName, schemaName)
 		}
 
 		// create the table in the schema space
@@ -389,9 +407,9 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 	dbsteward.FatalIfError(err, "Error with view query")
 	for _, viewRow := range viewRows {
 		dbsteward.Info("Analyze view %s.%s", viewRow.Schema, viewRow.Name)
-		schema, err := getOrAddSchema(doc, introspector, roles, viewRow.Schema, "")
-		if err != nil {
-			return nil, fmt.Errorf("accessing view schema '%s': %w", viewRow.Schema, err)
+		schema := doc.TryGetSchemaNamed(viewRow.Schema)
+		if schema == nil {
+			return nil, fmt.Errorf("view '%s' references missing schema '%s'", viewRow.Name, viewRow.Schema)
 		}
 
 		view := schema.TryGetViewNamed(viewRow.Name)
@@ -512,9 +530,9 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 			continue
 		}
 		dbsteward.Info("Analyze function %s.%s", fnRow.Schema, fnRow.Name)
-		schema, err := getOrAddSchema(doc, introspector, roles, fnRow.Schema, "")
-		if err != nil {
-			return nil, fmt.Errorf("function schema '%s': %w", fnRow.Schema, err)
+		schema := doc.TryGetSchemaNamed(fnRow.Schema)
+		if schema == nil {
+			return nil, fmt.Errorf("function '%s' references missing schema '%s'", fnRow.Name, fnRow.Schema)
 		}
 
 		// TODO(feat) should we see if there's another function by this name already? that'd probably be unexpected, but would likely indicate a bug in our query
@@ -625,10 +643,6 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 		if permEntry.Grantee == "public" {
 			dbsteward.Warning("Ignoring grant on psuedo user \"public\"")
 		} else {
-			_, err := getOrAddSchema(doc, introspector, roles, permEntry.Schema, "")
-			if err != nil {
-				return nil, err
-			}
 			roles.registerRole(roleContextGrant, permEntry.Grantee)
 		}
 	}
@@ -763,31 +777,16 @@ func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
 	return doc, nil
 }
 
-// getOrAddSchema returns the schema if it's already in the IR
-// or creates a schema record and stores it in the IR, then returns it
+// storeSchema creates a schema record and stores it in the IR
 // Ensures the schema's owner is registered with the roleIndex
-func getOrAddSchema(
-	doc *ir.Definition,
-	introspector Introspector,
-	roles *roleIndex,
-	name, description string,
-) (*ir.Schema, error) {
-	schema := doc.TryGetSchemaNamed(name)
-	if schema == nil {
-		// TODO(feat) can we just add this to the main query?
-		owner, err := introspector.GetSchemaOwner(name)
-		if err != nil {
-			return nil, fmt.Errorf("getting schema '%s' owner: %w", name, err)
-		}
-		schema = &ir.Schema{
-			Name:        name,
-			Description: description,
-			Owner:       owner,
-		}
-		doc.AddSchema(schema)
-		roles.registerRole(roleContextOwner, owner)
+func storeSchema(doc *ir.Definition, roles *roleIndex, schema SchemaEntry) {
+	irSchema := &ir.Schema{
+		Name:        schema.Name,
+		Description: schema.Description,
+		Owner:       schema.Owner,
 	}
-	return schema, nil
+	doc.AddSchema(irSchema)
+	roles.registerRole(roleContextOwner, schema.Owner)
 }
 
 func (ops *Operations) CompareDbData(doc *ir.Definition, host string, port uint, name, user, pass string) *ir.Definition {

@@ -51,6 +51,11 @@ func TestOneEighty(t *testing.T) {
 		},
 		Schemas: []*ir.Schema{
 			{
+				Name:        "empty_schema",
+				Description: "test empty schema properly processed",
+				Owner:       role,
+			},
+			{
 				Name:        "public",
 				Description: "standard public schema",
 				Owner:       role,

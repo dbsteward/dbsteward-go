@@ -6,6 +6,12 @@ import (
 	"github.com/jackc/pgtype"
 )
 
+type SchemaEntry struct {
+	Name        string
+	Owner       string
+	Description string
+}
+
 type TableEntry struct {
 	Schema            string
 	Table             string

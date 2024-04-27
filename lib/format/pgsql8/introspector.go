@@ -1,6 +1,7 @@
 package pgsql8
 
 import (
+	"database/sql"
 	"fmt"
 
 	"github.com/dbsteward/dbsteward/lib/util"
@@ -41,6 +42,7 @@ func (li *ConstantIntrospectorFactory) NewIntrospector(connection) (Introspector
 type Introspector interface {
 	GetServerVersion() (VersionNum, error)
 	GetDatabase() (Database, error)
+	GetSchemaList() ([]SchemaEntry, error)
 	// GetTableList return all tables that aren't system tables
 	GetTableList() ([]TableEntry, error)
 	GetSchemaOwner(schema string) (string, error)
@@ -90,6 +92,32 @@ func (li *LiveIntrospector) GetDatabase() (Database, error) {
 		return Database{}, fmt.Errorf("extracting database information: %w", err)
 	}
 	return db, nil
+}
+
+func (li *LiveIntrospector) GetSchemaList() ([]SchemaEntry, error) {
+	rows, err := li.conn.query(`
+		SELECT n.nspname AS "Name",
+		pg_catalog.pg_get_userbyid(n.nspowner) AS "Owner",
+		pg_catalog.obj_description(n.oid, 'pg_namespace') AS "Description"
+		FROM pg_catalog.pg_namespace n
+		WHERE n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+	`)
+	if err != nil {
+		return nil, errors.Wrap(err, "running get schema query")
+	}
+	defer rows.Close()
+	out := []SchemaEntry{}
+	for rows.Next() {
+		entry := SchemaEntry{}
+		err := rows.Scan(
+			&entry.Name, &entry.Owner, &maybeStr{&entry.Description},
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "scanning schema row")
+		}
+		out = append(out, entry)
+	}
+	return out, nil
 }
 
 // TODO(go,3) can we elevate this to an engine-agnostic interface?
@@ -637,20 +665,24 @@ func (li *LiveIntrospector) GetSchemaPerms() ([]SchemaPermEntry, error) {
 	defer rows.Close()
 	var rv []SchemaPermEntry
 	for rows.Next() {
-		var schema, acl string
+		var schema string
+		var acl sql.NullString
 		err = rows.Scan(&schema, &acl)
 		if err != nil {
 			return nil, fmt.Errorf("scanning schema perm row: %w", err)
 		}
-		aclmap := parseACL(acl)
-		for user, perms := range aclmap {
-			for _, perm := range perms {
-				entry := SchemaPermEntry{
-					Schema:  schema,
-					Grantee: user,
-					Type:    perm,
+		if acl.Valid {
+			// If schema has no grants the ACL will be NULL
+			aclmap := parseACL(acl.String)
+			for user, perms := range aclmap {
+				for _, perm := range perms {
+					entry := SchemaPermEntry{
+						Schema:  schema,
+						Grantee: user,
+						Type:    perm,
+					}
+					rv = append(rv, entry)
 				}
-				rv = append(rv, entry)
 			}
 		}
 	}
