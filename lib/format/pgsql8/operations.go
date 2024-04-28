@@ -22,18 +22,14 @@ import (
 
 type Operations struct {
 	*sql99.Operations
-
 	EscapeStringValues bool
-	ConnectionFactory  connectionFactory
-
-	quoter output.Quoter
+	quoter             output.Quoter
 }
 
 func NewOperations() *Operations {
 	pgsql := &Operations{
 		Operations:         sql99.NewOperations(),
 		EscapeStringValues: false,
-		ConnectionFactory:  &liveConnectionFactory{},
 	}
 	pgsql.Operations.Operations = pgsql
 	return pgsql
@@ -155,7 +151,10 @@ outer:
 
 	if dbsteward.OnlySchemaSql || !dbsteward.OnlyDataSql {
 		dbsteward.Info("Defining structure")
-		buildSchema(dbDoc, buildFileOfs, tableDependency)
+		err := buildSchema(dbDoc, buildFileOfs, tableDependency)
+		if err != nil {
+			return err
+		}
 	}
 	if !dbsteward.OnlySchemaSql || dbsteward.OnlyDataSql {
 		dbsteward.Info("Defining data inserts")
@@ -192,17 +191,17 @@ func (ops *Operations) BuildUpgrade(
 
 func (ops *Operations) ExtractSchemaConn(ctx context.Context, c *pgx.Conn) (*ir.Definition, error) {
 	conn := &liveConnection{c}
-	return ops.extractSchema(conn)
+	return ops.extractSchema(ctx, conn)
 }
 
 func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass string) *ir.Definition {
 	dbsteward := lib.GlobalDBSteward
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as %s", host, port, name, user)
-	conn, err := ops.ConnectionFactory.newConnection(host, port, name, user, pass)
+	conn, err := newConnection(host, port, name, user, pass)
 	dbsteward.FatalIfError(err, "connecting to database")
 	// TODO(go,pgsql) this is deadlocking during a panic
 	defer conn.disconnect()
-	def, err := ops.extractSchema(conn)
+	def, err := ops.extractSchema(context.TODO(), conn)
 	dbsteward.FatalIfError(err, "extracting schema")
 	def.Database.Roles = &ir.RoleAssignment{
 		Application: user,
@@ -213,10 +212,10 @@ func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass st
 	return def
 }
 
-func (ops *Operations) extractSchema(conn connection) (*ir.Definition, error) {
+func (ops *Operations) extractSchema(ctx context.Context, conn *liveConnection) (*ir.Definition, error) {
 	dbsteward := lib.GlobalDBSteward
 	introspector := introspector{conn: conn}
-	pgDoc, err := introspector.GetFullStructure()
+	pgDoc, err := introspector.GetFullStructure(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -336,15 +335,18 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 		}
 		schema.AddSequence(
 			&ir.Sequence{
-				Name:        sequence.Name,
-				Description: sequence.Description,
-				Owner:       sequence.Owner,
-				Cache:       util.OptFromSQLNullInt64(sequence.Cache),
-				Start:       util.OptFromSQLNullInt64(sequence.Start),
-				Min:         util.OptFromSQLNullInt64(sequence.Min),
-				Max:         util.OptFromSQLNullInt64(sequence.Max),
-				Increment:   util.OptFromSQLNullInt64(sequence.Increment),
-				Cycle:       sequence.Cycled,
+				Name:          sequence.Name,
+				Description:   sequence.Description,
+				Owner:         sequence.Owner,
+				Cache:         util.OptFromSQLNullInt64(sequence.Cache),
+				Start:         util.OptFromSQLNullInt64(sequence.Start),
+				Min:           util.OptFromSQLNullInt64(sequence.Min),
+				Max:           util.OptFromSQLNullInt64(sequence.Max),
+				Increment:     util.OptFromSQLNullInt64(sequence.Increment),
+				Cycle:         sequence.Cycled,
+				OwnedBySchema: sequence.SerialSchema,
+				OwnedByTable:  sequence.SerialTable,
+				OwnedByColumn: sequence.SerialColumn,
 			},
 		)
 	}
@@ -727,7 +729,7 @@ func (ops *Operations) CompareDbData(doc *ir.Definition, host string, port uint,
 	dbsteward := lib.GlobalDBSteward
 
 	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as user %s", host, port, name, user)
-	conn, err := ops.ConnectionFactory.newConnection(host, port, name, user, pass)
+	conn, err := newConnection(host, port, name, user, pass)
 	dbsteward.FatalIfError(err, "Could not compare db data")
 	defer conn.disconnect()
 
@@ -817,7 +819,7 @@ func (ops *Operations) CompareDbData(doc *ir.Definition, host string, port uint,
 	}
 	return doc
 }
-func compareDbDataRow(conn connection, colType, xmlValue, dbValue string) (bool, string, string) {
+func compareDbDataRow(conn *liveConnection, colType, xmlValue, dbValue string) (bool, string, string) {
 	colType = strings.ToLower(colType)
 	xmlValue = pgdataHomogenize(colType, xmlValue)
 	dbValue = pgdataHomogenize(colType, dbValue)
@@ -861,7 +863,7 @@ func (ops *Operations) SqlDiff(old, new []string, upgradePrefix string) {
 	differ.DiffSql(old, new, upgradePrefix)
 }
 
-func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {
+func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) error {
 	// TODO(go,3) roll this into diffing nil -> doc
 	// schema creation
 	for _, schema := range doc.Schemas {
@@ -902,11 +904,21 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 
 		// sequences contained in the schema
 		for _, sequence := range schema.Sequences {
-			ofs.WriteSql(getCreateSequenceSql(schema, sequence)...)
+			if sequence.OwnedByColumn == "" {
+				sql, err := getCreateSequenceSql(schema, sequence)
+				if err != nil {
+					return err
+				}
+				ofs.WriteSql(sql...)
+			} else {
+				// If sequence already created as part of a serial, generate
+				// an ALTER against a default sequence
+				ofs.WriteSql(getAlterSequenceSql(schema.Name, &ir.Sequence{}, sequence))
+			}
 
 			// sequence permission grants
 			for _, grant := range sequence.Grants {
-				ofs.WriteSql(getSequenceGrantSql(doc, schema, sequence, grant)...)
+				ofs.WriteSql(getSequenceGrantSql(schema, sequence, grant)...)
 			}
 		}
 
@@ -976,6 +988,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	}
 
 	differ.UpdateDatabaseConfigParameters(ofs, nil, doc)
+	return nil
 }
 
 func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {

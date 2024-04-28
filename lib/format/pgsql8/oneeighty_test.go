@@ -2,21 +2,17 @@ package pgsql8
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
-	"github.com/hexops/gotextdiff"
-	"github.com/hexops/gotextdiff/myers"
-	"github.com/hexops/gotextdiff/span"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	"github.com/stretchr/testify/assert"
 )
 
 // one eighty test uses and IR to build a database
@@ -57,6 +53,34 @@ func TestOneEighty(t *testing.T) {
 				Owner:       role,
 			},
 			{
+				Name:        "serial_schema",
+				Description: "test serials handled appropriately",
+				Owner:       role,
+				Tables: []*ir.Table{
+					{
+						Name:           "t1",
+						Owner:          role,
+						PrimaryKeyName: "t1_pkey",
+						PrimaryKey:     []string{"id"},
+						Columns: []*ir.Column{
+							{Name: "id", Type: "serial"},
+						},
+					},
+				},
+				Sequences: []*ir.Sequence{{
+					Name:          "t1_id_seq",
+					Owner:         "postgres",
+					OwnedBySchema: "serial_schema",
+					OwnedByTable:  "t1",
+					OwnedByColumn: "id",
+					Cache:         util.Some(1),
+					Start:         util.Some(1),
+					Min:           util.Some(1),
+					Max:           util.Some(2147483647),
+					Increment:     util.Some(1),
+				}},
+			},
+			{
 				Name:        "sequence_schema",
 				Description: "test schema with a single sequence",
 				Owner:       role,
@@ -70,7 +94,8 @@ func TestOneEighty(t *testing.T) {
 					Max:         util.Some(9876543),
 					Increment:   util.Some(2),
 				}},
-			}, {
+			},
+			{
 				Name:        "other_function_schema",
 				Description: "used as part of column_default_function_schema to test cross-schema default func references",
 				Owner:       role,
@@ -182,7 +207,7 @@ func TestOneEighty(t *testing.T) {
 						Columns: []*ir.Column{
 							{
 								Name: "id",
-								Type: "serial",
+								Type: "bigint",
 							},
 							{
 								Name:     "description",
@@ -278,18 +303,7 @@ func TestOneEighty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(def, *reflection) {
-		mExpect, err := json.MarshalIndent(def, "", " ")
-		if err != nil {
-			t.Fatal(err)
-		}
-		mActual, err := json.MarshalIndent(*reflection, "", " ")
-		if err != nil {
-			t.Fatal(err)
-		}
-		edits := myers.ComputeEdits(span.URI(""), string(mExpect), string(mActual))
-		t.Fatal(fmt.Sprint(gotextdiff.ToUnified("Expected", "Actual", string(mExpect), edits)))
-	}
+	assert.Equal(t, def, *reflection, "reflection does not match original")
 }
 
 func initdb(t *testing.T) *pgx.Conn {

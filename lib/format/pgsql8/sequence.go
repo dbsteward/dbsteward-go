@@ -1,6 +1,8 @@
 package pgsql8
 
 import (
+	"fmt"
+
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
@@ -8,12 +10,15 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-func getCreateSequenceSql(schema *ir.Schema, sequence *ir.Sequence) []output.ToSql {
+func getCreateSequenceSql(schema *ir.Schema, sequence *ir.Sequence) ([]output.ToSql, error) {
 	// TODO(go,3) put validation elsewhere
-
-	if cache, ok := sequence.Cache.Maybe(); !ok || cache < 1 {
+	cache, cacheValueSet := sequence.Cache.Maybe()
+	if !cacheValueSet {
+		cache = 1
+	}
+	if cacheValueSet && cache < 1 {
 		// TODO better formatting for optional value?
-		lib.GlobalDBSteward.Fatal("Sequence %s.%s must have cache value >= 1, %d was given", schema.Name, sequence.Name, cache)
+		return nil, fmt.Errorf("sequence %s.%s must have cache value >= 1, %d was given", schema.Name, sequence.Name, cache)
 	}
 
 	ref := sql.SequenceRef{Schema: schema.Name, Sequence: sequence.Name}
@@ -46,7 +51,7 @@ func getCreateSequenceSql(schema *ir.Schema, sequence *ir.Sequence) []output.ToS
 		})
 	}
 
-	return ddl
+	return ddl, nil
 }
 
 func getDropSequenceSql(schema *ir.Schema, sequence *ir.Sequence) []output.ToSql {
@@ -57,7 +62,7 @@ func getDropSequenceSql(schema *ir.Schema, sequence *ir.Sequence) []output.ToSql
 	}
 }
 
-func getSequenceGrantSql(doc *ir.Definition, schema *ir.Schema, seq *ir.Sequence, grant *ir.Grant) []output.ToSql {
+func getSequenceGrantSql(schema *ir.Schema, seq *ir.Sequence, grant *ir.Grant) []output.ToSql {
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
 		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)

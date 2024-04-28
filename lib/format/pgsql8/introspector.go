@@ -1,6 +1,7 @@
 package pgsql8
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -16,11 +17,11 @@ import (
 // TODO(go, pgsql) Add unit tests for all of this... somehow
 
 type introspector struct {
-	conn connection
+	conn *liveConnection
 	vers VersionNum
 }
 
-func (li *introspector) GetFullStructure() (structure, error) {
+func (li *introspector) GetFullStructure(ctx context.Context) (structure, error) {
 	rv := structure{}
 	var err error
 	li.vers, err = li.conn.version()
@@ -50,7 +51,7 @@ func (li *introspector) GetFullStructure() (structure, error) {
 		}
 	}
 	for _, schema := range rv.Schemas {
-		sequences, err := li.getSequenceRelList(schema.Name, colBoundSequences)
+		sequences, err := li.getSequenceRelList(ctx, schema.Name, colBoundSequences)
 		if err != nil {
 			return rv, fmt.Errorf("schema '%s': %w", schema.Name, err)
 		}
@@ -326,7 +327,7 @@ func (li *introspector) getIndexes(schema, table string) ([]indexEntry, error) {
 
 // getSequenceRelList returns all sequences that aren't associated
 // with a SERIAL-type column
-func (li *introspector) getSequenceRelList(schema string, sequenceCols []string) ([]sequenceRelEntry, error) {
+func (li *introspector) getSequenceRelList(ctx context.Context, schema string, sequenceCols []string) ([]sequenceRelEntry, error) {
 	sql := `
 		SELECT s.relname, r.rolname, d.description
 		FROM pg_statio_all_sequences s
@@ -377,9 +378,57 @@ func (li *introspector) getSequenceRelList(schema string, sequenceCols []string)
 		if err != nil {
 			return out, err
 		}
+		sre.SerialSchema, sre.SerialTable, sre.SerialColumn, err = li.getSequenceSerialReference(ctx, sre.Schema, sre.Name)
+		if err != nil {
+			return out, err
+		}
 		out[idx] = sre
 	}
 	return out, nil
+}
+
+/*
+SELECT table_schema.nspname AS schema,
+
+	table_class.relname AS table,
+	cols.attname AS column
+
+FROM pg_class AS seq_class
+JOIN pg_depend ON pg_depend.objid = seq_class.oid
+JOIN pg_class AS table_class ON pg_depend.refobjid = table_class.oid
+JOIN pg_namespace AS table_schema ON table_class.relnamespace = table_schema.oid
+JOIN pg_namespace AS seq_schema ON seq_class.relnamespace = seq_schema.oid
+JOIN pg_attribute AS cols ON table_class.oid = cols.attrelid AND cols.attnum = pg_depend.refobjsubid
+WHERE seq_class.relkind = 'S'
+AND seq_schema.nspname = 'public'
+AND seq_class.relname = 't1_id_seq';
+*/
+func (li *introspector) getSequenceSerialReference(
+	ctx context.Context, seqSchema, seqName string,
+) (schema, table, col string, err error) {
+	err = li.conn.conn.QueryRow(
+		ctx,
+		`SELECT table_schema.nspname AS schema,
+			table_class.relname AS table,
+			cols.attname AS column
+		FROM pg_class AS seq_class
+		JOIN pg_depend ON pg_depend.objid = seq_class.oid
+		JOIN pg_class AS table_class ON pg_depend.refobjid = table_class.oid
+		JOIN pg_namespace AS table_schema ON table_class.relnamespace = table_schema.oid
+		JOIN pg_namespace AS seq_schema ON seq_class.relnamespace = seq_schema.oid
+		JOIN pg_attribute AS cols ON table_class.oid = cols.attrelid AND cols.attnum = pg_depend.refobjsubid
+		WHERE seq_class.relkind = 'S'
+		AND seq_schema.nspname = $1
+		AND seq_class.relname = $2`,
+		seqSchema, seqName,
+	).Scan(&schema, &table, &col)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", "", "", nil
+		}
+		return "", "", "", fmt.Errorf("looking up sequence references for %s.%s: %w", seqSchema, seqName, err)
+	}
+	return schema, table, col, nil
 }
 
 func (li *introspector) getSequencesForRel(schema, rel string) ([]sequenceEntry, error) {

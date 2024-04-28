@@ -6,7 +6,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-func diffSequences(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
+func diffSequences(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) error {
 	// drop old sequences
 	if oldSchema != nil {
 		for _, oldSeq := range oldSchema.Sequences {
@@ -15,36 +15,41 @@ func diffSequences(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSche
 			}
 		}
 	}
-
 	// create new sequences, alter changed sequences
 	for _, newSeq := range newSchema.Sequences {
 		oldSeq := oldSchema.TryGetSequenceNamed(newSeq.Name)
 		if oldSeq == nil {
-			ofs.WriteSql(getCreateSequenceSql(newSchema, newSeq)...)
-			continue
+			sql, err := getCreateSequenceSql(newSchema, newSeq)
+			if err != nil {
+				return err
+			}
+			ofs.WriteSql(sql...)
+		} else {
+			ofs.WriteSql(getAlterSequenceSql(newSchema.Name, oldSeq, newSeq))
 		}
+	}
+	return nil
+}
 
-		parts := []sql.SequenceAlterPart{}
-
-		if !oldSeq.Increment.Equals(newSeq.Increment) {
-			parts = append(parts, &sql.SequenceAlterPartIncrement{Value: newSeq.Increment})
-		}
-		if !oldSeq.Min.Equals(newSeq.Min) {
-			parts = append(parts, &sql.SequenceAlterPartMinValue{Value: newSeq.Min})
-		}
-		if !oldSeq.Max.Equals(newSeq.Max) {
-			parts = append(parts, &sql.SequenceAlterPartMaxValue{Value: newSeq.Max})
-		}
-		if !oldSeq.Cache.Equals(newSeq.Cache) {
-			parts = append(parts, &sql.SequenceAlterPartCache{Value: newSeq.Cache})
-		}
-		if oldSeq.Cycle != newSeq.Cycle {
-			parts = append(parts, &sql.SequenceAlterPartCycle{Value: newSeq.Cycle})
-		}
-
-		ofs.WriteSql(&sql.SequenceAlterParts{
-			Sequence: sql.SequenceRef{Schema: newSchema.Name, Sequence: newSeq.Name},
-			Parts:    parts,
-		})
+func getAlterSequenceSql(newSchema string, oldSeq, newSeq *ir.Sequence) *sql.SequenceAlterParts {
+	parts := []sql.SequenceAlterPart{}
+	if !oldSeq.Increment.Equals(newSeq.Increment) {
+		parts = append(parts, &sql.SequenceAlterPartIncrement{Value: newSeq.Increment})
+	}
+	if !oldSeq.Min.Equals(newSeq.Min) {
+		parts = append(parts, &sql.SequenceAlterPartMinValue{Value: newSeq.Min})
+	}
+	if !oldSeq.Max.Equals(newSeq.Max) {
+		parts = append(parts, &sql.SequenceAlterPartMaxValue{Value: newSeq.Max})
+	}
+	if !oldSeq.Cache.Equals(newSeq.Cache) {
+		parts = append(parts, &sql.SequenceAlterPartCache{Value: newSeq.Cache})
+	}
+	if oldSeq.Cycle != newSeq.Cycle {
+		parts = append(parts, &sql.SequenceAlterPartCycle{Value: newSeq.Cycle})
+	}
+	return &sql.SequenceAlterParts{
+		Sequence: sql.SequenceRef{Schema: newSchema, Sequence: newSeq.Name},
+		Parts:    parts,
 	}
 }

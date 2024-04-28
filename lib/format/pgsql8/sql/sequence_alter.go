@@ -23,9 +23,6 @@ func (self *SequenceAlterParts) ToSql(q output.Quoter) string {
 		if partSql == "" {
 			continue
 		}
-		if parts != "" {
-			parts += ","
-		}
 		parts += "\n  " + partSql
 	}
 	if parts == "" {

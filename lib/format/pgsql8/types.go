@@ -56,17 +56,20 @@ type indexEntry struct {
 }
 
 type sequenceRelEntry struct {
-	Schema      string
-	Name        string
-	Description string
-	Owner       string
-	Cache       sql.NullInt64
-	Start       sql.NullInt64
-	Min         sql.NullInt64
-	Max         sql.NullInt64
-	Increment   sql.NullInt64
-	Cycled      bool
-	ACL         []string
+	Schema       string
+	Name         string
+	SerialSchema string
+	SerialTable  string
+	SerialColumn string
+	Description  string
+	Owner        string
+	Cache        sql.NullInt64
+	Start        sql.NullInt64
+	Min          sql.NullInt64
+	Max          sql.NullInt64
+	Increment    sql.NullInt64
+	Cycled       bool
+	ACL          []string
 }
 
 type sequenceEntry struct {

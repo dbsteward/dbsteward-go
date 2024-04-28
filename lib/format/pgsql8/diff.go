@@ -175,12 +175,13 @@ func (d *diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 			diffTypes(stage1, oldSchema, newSchema)
 			diffFunctions(stage1, stage3, oldSchema, newSchema)
-			diffSequences(stage1, oldSchema, newSchema)
+			err := diffSequences(stage1, oldSchema, newSchema)
+			dbsteward.FatalIfError(err, "while diffing sequences")
 			// remove old constraints before table constraints, so the sql statements succeed
 			dropConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypeConstraint)
 			dropConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
 			dropTables(stage1, oldSchema, newSchema)
-			err := createTables(stage1, oldSchema, newSchema)
+			err = createTables(stage1, oldSchema, newSchema)
 			dbsteward.FatalIfError(err, "while creating tables")
 			err = diffTables(stage1, stage3, oldSchema, newSchema)
 			dbsteward.FatalIfError(err, "while diffing tables")
@@ -237,7 +238,8 @@ func (d *diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.
 			// see above for pre table creation stuff
 			// see below for post table creation stuff
 			if !processedSchemas[newSchema.Name] {
-				diffSequences(stage1, oldSchema, newSchema)
+				err := diffSequences(stage1, oldSchema, newSchema)
+				lib.GlobalDBSteward.FatalIfError(err, "while diffing sequences")
 				processedSchemas[newSchema.Name] = true
 			}
 
@@ -315,7 +317,7 @@ func (d *diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 outpu
 			oldSeq := oldSchema.TryGetSequenceNamed(newSeq.Name)
 			for _, newGrant := range newSeq.Grants {
 				if oldSeq == nil || !ir.HasPermissionsOf(oldSeq, newGrant, ir.SqlFormatPgsql8) {
-					stage1.WriteSql(getSequenceGrantSql(newDoc, newSchema, newSeq, newGrant)...)
+					stage1.WriteSql(getSequenceGrantSql(newSchema, newSeq, newGrant)...)
 				}
 			}
 		}

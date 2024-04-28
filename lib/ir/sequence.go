@@ -16,6 +16,8 @@ type Sequence struct {
 	Max           util.Opt[int]
 	Increment     util.Opt[int]
 	Cycle         bool
+	OwnedBySchema string
+	OwnedByTable  string
 	OwnedByColumn string
 	Grants        []*Grant
 }
