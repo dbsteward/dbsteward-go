@@ -37,7 +37,7 @@ func (li *introspector) GetFullStructure(ctx context.Context) (structure, error)
 	if err != nil {
 		return rv, err
 	}
-	rv.Tables, err = li.getTableList()
+	rv.Tables, err = li.getTableList(ctx)
 	if err != nil {
 		return rv, err
 	}
@@ -142,7 +142,7 @@ func (li *introspector) getSchemaList() ([]schemaEntry, error) {
 // TODO(go,3) can we elevate this to an engine-agnostic interface?
 // TODO(go,3) can we defer this to model operations entirely?
 
-func (li *introspector) getTableList() ([]tableEntry, error) {
+func (li *introspector) getTableList(ctx context.Context) ([]tableEntry, error) {
 	// TODO(go,3) move column description to column query
 	// Note that old versions of postgres don't support array_agg(description ORDER BY objsubid)
 	// so we need to use subquery to do ordering
@@ -190,7 +190,7 @@ func (li *introspector) getTableList() ([]tableEntry, error) {
 		if err != nil {
 			return nil, fmt.Errorf("table '%s.%s': %w", table.Schema, table.Table, err)
 		}
-		table.Indexes, err = li.getIndexes(table.Schema, table.Table)
+		table.Indexes, err = li.getIndexes(ctx, table.Schema, table.Table)
 		if err != nil {
 			return nil, fmt.Errorf("table '%s.%s': %w", table.Schema, table.Table, err)
 		}
@@ -283,11 +283,11 @@ func (li *introspector) getColumns(schema, table string) ([]columnEntry, error) 
 	return out, nil
 }
 
-func (li *introspector) getIndexes(schema, table string) ([]indexEntry, error) {
+func (li *introspector) getIndexes(ctx context.Context, schema, table string) ([]indexEntry, error) {
 	// TODO(go,nth) double check the `relname NOT IN` clause, it smells fishy to me
 	res, err := li.conn.query(`
 		SELECT
-			ic.relname, i.indisunique,
+			ic.relname, i.indisunique, pg_catalog.pg_get_expr(i.indpred, i.indrelid, true),
 			(
 				-- get the n'th dimension's definition
 				SELECT array_agg(pg_catalog.pg_get_indexdef(i.indexrelid, n, true))
@@ -309,18 +309,32 @@ func (li *introspector) getIndexes(schema, table string) ([]indexEntry, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "while running query")
 	}
-
+	defer res.Close()
 	out := []indexEntry{}
 	for res.Next() {
 		entry := indexEntry{}
-		err := res.Scan(&entry.Name, &entry.Unique, &entry.Dimensions)
+		err := res.Scan(&entry.Name, &entry.Unique, &maybeStr{&entry.Condition}, &entry.Dimensions)
 		if err != nil {
 			return nil, errors.Wrap(err, "while scanning result")
 		}
 		out = append(out, entry)
 	}
-	if err := res.Err(); err != nil {
-		return nil, errors.Wrap(err, "while iterating results")
+	for idx := range out {
+		ie := out[idx]
+		err = li.conn.conn.QueryRow(
+			ctx,
+			`SELECT am.amname
+			FROM pg_index idx 
+			JOIN pg_class cls ON cls.oid=idx.indexrelid
+			JOIN pg_class tab ON tab.oid=idx.indrelid
+			JOIN pg_am am ON am.oid=cls.relam
+			WHERE cls.relname = $1`,
+			ie.Name,
+		).Scan(&ie.Using)
+		if err != nil {
+			return nil, fmt.Errorf("getting USING for %s: %w", ie.Name, err)
+		}
+		out[idx] = ie
 	}
 	return out, nil
 }

@@ -2,7 +2,10 @@ package pgsql8
 
 import (
 	"database/sql"
+	"fmt"
+	"strings"
 
+	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/jackc/pgtype"
 )
 
@@ -52,7 +55,24 @@ type columnEntry struct {
 type indexEntry struct {
 	Name       string
 	Unique     bool
+	Using      string
+	Condition  string
 	Dimensions []string
+}
+
+func (i indexEntry) UsingToIR() ir.IndexType {
+	switch strings.ToLower(i.Using) {
+	case "btree":
+		return ir.IndexTypeBtree
+	case "hash":
+		return ir.IndexTypeHash
+	case "gin":
+		return ir.IndexTypeGin
+	case "gist":
+		return ir.IndexTypeGist
+	default:
+		panic(fmt.Sprintf("unknown index type '%s'", i.Using))
+	}
 }
 
 type sequenceRelEntry struct {

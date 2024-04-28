@@ -333,14 +333,16 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 			} else {
 				index := &ir.Index{
 					Name:   indexRow.Name,
-					Using:  "btree", // TODO(go,pgsql) this is definitely incorrect, need to fix before release
+					Using:  indexRow.UsingToIR(),
 					Unique: indexRow.Unique,
 				}
-				table.AddIndex(index)
-
 				for _, dim := range indexRow.Dimensions {
 					index.AddDimension(dim)
 				}
+				if indexRow.Condition != "" {
+					index.AddCondition(ir.SqlFormatPgsql8, indexRow.Condition)
+				}
+				table.AddIndex(index)
 			}
 		}
 	}

@@ -55,7 +55,7 @@ func (idx *Index) ToIR() (*ir.Index, error) {
 		Concurrently: idx.Concurrently,
 	}
 	var err error
-	rv.Using, err = ir.NewIndexType(idx.Using)
+	rv.Using, err = newIndexType(idx.Using)
 	if err != nil {
 		return nil, fmt.Errorf("index '%s' invalid: %s", idx.Name, err)
 	}
@@ -74,6 +74,23 @@ func (idx *Index) ToIR() (*ir.Index, error) {
 		rv.Conditions = append(rv.Conditions, nc)
 	}
 	return &rv, nil
+}
+
+func newIndexType(s string) (ir.IndexType, error) {
+	v := ir.IndexType(s)
+	if v.Equals(ir.IndexTypeBtree) {
+		return ir.IndexTypeBtree, nil
+	}
+	if v.Equals(ir.IndexTypeHash) {
+		return ir.IndexTypeHash, nil
+	}
+	if v.Equals(ir.IndexTypeGin) {
+		return ir.IndexTypeGin, nil
+	}
+	if v.Equals(ir.IndexTypeGist) {
+		return ir.IndexTypeGist, nil
+	}
+	return "", fmt.Errorf("invalid index type '%s'", s)
 }
 
 func (self *Index) AddDimensionNamed(name, value string) {

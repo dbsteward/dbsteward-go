@@ -198,6 +198,36 @@ func TestOneEighty(t *testing.T) {
 								Type: "text",
 							},
 						},
+						Indexes: []*ir.Index{
+							{
+								Using: ir.IndexTypeBtree,
+								Name:  "test_standalone_index",
+								Dimensions: []*ir.IndexDim{
+									{
+										Name:  "test_standalone_index_1",
+										Value: "id",
+									},
+									{
+										Name:  "test_standalone_index_2",
+										Value: "name",
+									},
+								},
+								Conditions: []*ir.IndexCond{{
+									SqlFormat: ir.SqlFormatPgsql8,
+									Condition: "name IS NOT NULL",
+								}},
+							},
+							{
+								Using: ir.IndexTypeHash,
+								Name:  "test_hash_index",
+								Dimensions: []*ir.IndexDim{
+									{
+										Name:  "test_hash_index_1",
+										Value: "id",
+									},
+								},
+							},
+						},
 					},
 					{
 						Name:           "t2",

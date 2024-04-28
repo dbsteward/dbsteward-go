@@ -47,7 +47,8 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 			Indexes: []indexEntry{
 				// test that both column and functional expressions work as expected
 				{
-					Name: "testidx",
+					Name:  "testidx",
+					Using: "btree",
 					Dimensions: []string{
 						"lower(col1)",
 						"col2",
@@ -59,10 +60,12 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 				// test that index column order is extracted correctly
 				{
 					Name:       "testidx2",
+					Using:      "btree",
 					Dimensions: []string{"col1", "col2", "col3"},
 				},
 				{
 					Name:       "testidx3",
+					Using:      "btree",
 					Dimensions: []string{"col2", "col1", "col3"},
 				},
 			},

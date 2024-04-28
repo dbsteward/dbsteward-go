@@ -14,23 +14,6 @@ const (
 	IndexTypeGist  IndexType = "gist"
 )
 
-func NewIndexType(s string) (IndexType, error) {
-	v := IndexType(s)
-	if v.Equals(IndexTypeBtree) {
-		return IndexTypeBtree, nil
-	}
-	if v.Equals(IndexTypeHash) {
-		return IndexTypeHash, nil
-	}
-	if v.Equals(IndexTypeGin) {
-		return IndexTypeGin, nil
-	}
-	if v.Equals(IndexTypeGist) {
-		return IndexTypeGist, nil
-	}
-	return "", fmt.Errorf("invalid index type '%s'", s)
-}
-
 func (it IndexType) Equals(other IndexType) bool {
 	return strings.EqualFold(string(it), string(other))
 }
@@ -54,24 +37,34 @@ type IndexCond struct {
 	Condition string
 }
 
-func (self *Index) AddDimensionNamed(name, value string) {
+func (idx *Index) AddCondition(f SqlFormat, c string) {
+	idx.Conditions = append(
+		idx.Conditions,
+		&IndexCond{
+			SqlFormat: f,
+			Condition: c,
+		},
+	)
+}
+
+func (idx *Index) AddDimensionNamed(name, value string) {
 	// TODO(feat) sanity check
-	self.Dimensions = append(self.Dimensions, &IndexDim{
+	idx.Dimensions = append(idx.Dimensions, &IndexDim{
 		Name:  name,
 		Value: value,
 	})
 }
 
-func (self *Index) AddDimension(value string) {
-	self.AddDimensionNamed(
-		fmt.Sprintf("%s_%d", self.Name, len(self.Dimensions)+1),
+func (idx *Index) AddDimension(value string) {
+	idx.AddDimensionNamed(
+		fmt.Sprintf("%s_%d", idx.Name, len(idx.Dimensions)+1),
 		value,
 	)
 }
 
-func (self *Index) TryGetCondition(sqlFormat SqlFormat) *IndexCond {
+func (idx *Index) TryGetCondition(sqlFormat SqlFormat) *IndexCond {
 	// TODO(go,core) fallback to returning empty sqlformat condition if it exists
-	for _, cond := range self.Conditions {
+	for _, cond := range idx.Conditions {
 		if cond.SqlFormat.Equals(sqlFormat) {
 			return cond
 		}
@@ -79,44 +72,44 @@ func (self *Index) TryGetCondition(sqlFormat SqlFormat) *IndexCond {
 	return nil
 }
 
-func (self *Index) IdentityMatches(other *Index) bool {
+func (idx *Index) IdentityMatches(other *Index) bool {
 	if other == nil {
 		return false
 	}
-	return strings.EqualFold(self.Name, other.Name)
+	return strings.EqualFold(idx.Name, other.Name)
 }
 
-func (self *Index) Equals(other *Index, sqlFormat SqlFormat) bool {
-	if self == nil || other == nil {
+func (idx *Index) Equals(other *Index, sqlFormat SqlFormat) bool {
+	if idx == nil || other == nil {
 		// nil != nil in this case
 		return false
 	}
-	if !strings.EqualFold(self.Name, other.Name) {
+	if !strings.EqualFold(idx.Name, other.Name) {
 		return false
 	}
-	if self.Unique != other.Unique {
+	if idx.Unique != other.Unique {
 		return false
 	}
-	if self.Concurrently != other.Concurrently {
+	if idx.Concurrently != other.Concurrently {
 		return false
 	}
-	if !self.Using.Equals(other.Using) {
+	if !idx.Using.Equals(other.Using) {
 		return false
 	}
-	if len(self.Dimensions) != len(other.Dimensions) {
+	if len(idx.Dimensions) != len(other.Dimensions) {
 		return false
 	}
 
 	// dimension order matters
-	for i, dim := range self.Dimensions {
+	for i, dim := range idx.Dimensions {
 		if !dim.Equals(other.Dimensions[i]) {
 			return false
 		}
 	}
 
 	// if any conditions are defined, there must be a condition for the requested sqlFormat, and the two must be textually equal
-	if len(self.Conditions) > 0 || len(other.Conditions) > 0 {
-		if self.TryGetCondition(sqlFormat).Equals(other.TryGetCondition(sqlFormat)) {
+	if len(idx.Conditions) > 0 || len(other.Conditions) > 0 {
+		if idx.TryGetCondition(sqlFormat).Equals(other.TryGetCondition(sqlFormat)) {
 			return false
 		}
 	}
@@ -124,32 +117,32 @@ func (self *Index) Equals(other *Index, sqlFormat SqlFormat) bool {
 	return true
 }
 
-func (self *Index) Merge(overlay *Index) {
+func (idx *Index) Merge(overlay *Index) {
 	if overlay == nil {
 		return
 	}
-	self.Using = overlay.Using
-	self.Unique = overlay.Unique
-	self.Dimensions = overlay.Dimensions
+	idx.Using = overlay.Using
+	idx.Unique = overlay.Unique
+	idx.Dimensions = overlay.Dimensions
 }
 
-func (self *Index) Validate(*Definition, *Schema, *Table) []error {
+func (idx *Index) Validate(*Definition, *Schema, *Table) []error {
 	// TODO(go,3) validate values
 	return nil
 }
 
-func (self *IndexDim) Equals(other *IndexDim) bool {
-	if self == nil || other == nil {
+func (idx *IndexDim) Equals(other *IndexDim) bool {
+	if idx == nil || other == nil {
 		return false
 	}
 
 	// name does _not_ matter for equality - it's a dbsteward concept
-	return self.Value == other.Value
+	return idx.Value == other.Value
 }
 
-func (self *IndexCond) Equals(other *IndexCond) bool {
-	if self == nil || other == nil {
+func (idx *IndexCond) Equals(other *IndexCond) bool {
+	if idx == nil || other == nil {
 		return false
 	}
-	return self.SqlFormat.Equals(other.SqlFormat) && strings.TrimSpace(self.Condition) == strings.TrimSpace(other.Condition)
+	return idx.SqlFormat.Equals(other.SqlFormat) && strings.TrimSpace(idx.Condition) == strings.TrimSpace(other.Condition)
 }
