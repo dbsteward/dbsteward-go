@@ -31,9 +31,120 @@ func (quoter *Quoter) isIllegalIdentifier(_ string) bool {
 	return false
 }
 
-func isReservedIdentifier(_ string) bool {
-	// TODO(go,core) see operations::is_identifier_blacklisted
-	// will need to import a list, probably bake it into the binary or just suck it up and make a giant constant list
+// invalidIdentifiers is the list of words that are invalid to
+// define as an identifier. See also the comment on isReservedIdentifier
+var invalidIdentifiers = map[string]interface{}{
+	"ALL":               nil,
+	"ANALYSE":           nil,
+	"ANALYZE":           nil,
+	"AND":               nil,
+	"ANY":               nil,
+	"ARRAY":             nil,
+	"AS":                nil,
+	"ASC":               nil,
+	"ASYMMETRIC":        nil,
+	"AUTHORIZATION":     nil,
+	"BINARY":            nil,
+	"BOTH":              nil,
+	"CASE":              nil,
+	"CAST":              nil,
+	"CHECK":             nil,
+	"COLLATE":           nil,
+	"COLUMN":            nil,
+	"CONCURRENTLY":      nil,
+	"CONSTRAINT":        nil,
+	"CREATE":            nil,
+	"CROSS":             nil,
+	"CURRENT_CATALOG":   nil,
+	"CURRENT_DATE":      nil,
+	"CURRENT_ROLE":      nil,
+	"CURRENT_TIME":      nil,
+	"CURRENT_TIMESTAMP": nil,
+	"CURRENT_USER":      nil,
+	"DEFAULT":           nil,
+	"DEFERRABLE":        nil,
+	"DESC":              nil,
+	"DISTINCT":          nil,
+	"DO":                nil,
+	"ELSE":              nil,
+	"END":               nil,
+	"EXCEPT":            nil,
+	"FALSE":             nil,
+	"FETCH":             nil,
+	"FOR":               nil,
+	"FOREIGN":           nil,
+	"FREEZE":            nil,
+	"FROM":              nil,
+	"FULL":              nil,
+	"GRANT":             nil,
+	"GROUP":             nil,
+	"HAVING":            nil,
+	"ILIKE":             nil,
+	"IN":                nil,
+	"INITIALLY":         nil,
+	"INNER":             nil,
+	"INTERSECT":         nil,
+	"INTO":              nil,
+	"IS":                nil,
+	"ISNULL":            nil,
+	"JOIN":              nil,
+	"LATERAL":           nil,
+	"LEADING":           nil,
+	"LEFT":              nil,
+	"LIKE":              nil,
+	"LIMIT":             nil,
+	"LOCALTIME":         nil,
+	"LOCALTIMESTAMP":    nil,
+	"NATURAL":           nil,
+	"NOT":               nil,
+	"NOTNULL":           nil,
+	"NULL":              nil,
+	"OFFSET":            nil,
+	"ON":                nil,
+	"ONLY":              nil,
+	"OR	":               nil,
+	"ORDER":             nil,
+	"OUTER":             nil,
+	"OVERLAPS":          nil,
+	"PLACING":           nil,
+	"PRIMARY":           nil,
+	"REFERENCES":        nil,
+	"RETURNING":         nil,
+	"RIGHT":             nil,
+	"SELECT":            nil,
+	"SESSION_USER":      nil,
+	"SIMILAR":           nil,
+	"SOME":              nil,
+	"SYMMETRIC":         nil,
+	"SYSTEM_USER":       nil,
+	"TABLE":             nil,
+	"TABLESAMPLE":       nil,
+	"THEN":              nil,
+	"TO":                nil,
+	"TRAILING":          nil,
+	"TRUE":              nil,
+	"UNION":             nil,
+	"UNIQUE":            nil,
+	"USER":              nil,
+	"USING":             nil,
+	"VARIADIC":          nil,
+	"VERBOSE":           nil,
+	"WHEN":              nil,
+	"WHERE":             nil,
+	"WINDOW":            nil,
+	"WITH":              nil,
+}
+
+// isReservedIdentifier returns true if the identifier is a
+// reserved SQL key word that could be invalid in some
+// situations. The actual rules on this are surprisingly
+// complicated, see:
+// https://www.postgresql.org/docs/current/sql-keywords-appendix.html
+// As a result, this function is best effort.
+func isReservedIdentifier(name string) bool {
+	if _, isReserved := invalidIdentifiers[strings.ToUpper(name)]; isReserved {
+		return true
+	}
 	return false
 }
 

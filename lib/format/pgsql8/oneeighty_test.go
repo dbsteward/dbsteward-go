@@ -147,6 +147,7 @@ func TestOneEighty(t *testing.T) {
 							{Name: "quoted\"c2\"", Type: "integer"},
 							{Name: "multi word", Type: "integer"},
 							{Name: "0startswithnumber", Type: "integer"},
+							{Name: "select", Type: "integer"},
 						},
 					},
 				},
