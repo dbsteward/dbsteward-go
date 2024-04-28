@@ -314,16 +314,33 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 
 		dbsteward.Info("Analyze table indexes %s.%s", schema.Name, table.Name)
 		for _, indexRow := range pgTable.Indexes {
-			// only add a unique index if the column was unique
-			index := &ir.Index{
-				Name:   indexRow.Name,
-				Using:  "btree", // TODO(go,pgsql) this is definitely incorrect, need to fix before release
-				Unique: indexRow.Unique,
-			}
-			table.AddIndex(index)
+			// If the index is unique on a single column, convert it to a unique constraint
+			if len(indexRow.Dimensions) == 1 && indexRow.Unique {
+				success := false
+				for _, col := range table.Columns {
+					if col.Name == indexRow.Dimensions[0] {
+						success = true
+						col.Unique = true
+						break
+					}
+				}
+				if !success {
+					return nil, fmt.Errorf(
+						"unique index %s references nonexistent column %s",
+						indexRow.Name, indexRow.Dimensions[0],
+					)
+				}
+			} else {
+				index := &ir.Index{
+					Name:   indexRow.Name,
+					Using:  "btree", // TODO(go,pgsql) this is definitely incorrect, need to fix before release
+					Unique: indexRow.Unique,
+				}
+				table.AddIndex(index)
 
-			for _, dim := range indexRow.Dimensions {
-				index.AddDimension(dim)
+				for _, dim := range indexRow.Dimensions {
+					index.AddDimension(dim)
+				}
 			}
 		}
 	}

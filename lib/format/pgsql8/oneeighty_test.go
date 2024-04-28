@@ -210,9 +210,11 @@ func TestOneEighty(t *testing.T) {
 								Type: "bigint",
 							},
 							{
-								Name:     "description",
-								Type:     "text",
-								Nullable: true,
+								Name:        "unique_col",
+								Type:        "text",
+								Description: "Ensure unqiue constraint behaves",
+								Nullable:    true,
+								Unique:      true,
 							},
 							{
 								Name:            "nameref",
