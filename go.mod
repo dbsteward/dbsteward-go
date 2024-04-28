@@ -5,7 +5,6 @@ go 1.22
 require (
 	github.com/alexflint/go-arg v1.4.3
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hexops/gotextdiff v1.0.3
 	github.com/jackc/pgconn v1.14.3
 	github.com/jackc/pgtype v1.14.3
 	github.com/jackc/pgx/v4 v4.18.3
