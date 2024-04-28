@@ -25,7 +25,6 @@ import (
 // TODO list: Things that don't work yet but are feature improvements
 // * schema public description is not updated on create
 // * Data types are not normalized nor standardized nor anything like that
-// * column check constraints are lost and converted to table constraints
 
 const aRole = "additional_role"
 
