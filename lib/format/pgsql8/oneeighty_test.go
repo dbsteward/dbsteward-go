@@ -133,6 +133,25 @@ func TestOneEighty(t *testing.T) {
 				},
 			},
 			{
+				Name:        "identifier_schema",
+				Description: "test identifiers are quoted appropriately",
+				Owner:       role,
+				Tables: []*ir.Table{
+					{
+						Name:           "t1",
+						Owner:          role,
+						PrimaryKeyName: "t1_pkey",
+						PrimaryKey:     []string{"id"},
+						Columns: []*ir.Column{
+							{Name: "id", Type: "integer"},
+							{Name: "quoted\"c2\"", Type: "integer"},
+							{Name: "multi word", Type: "integer"},
+							{Name: "0startswithnumber", Type: "integer"},
+						},
+					},
+				},
+			},
+			{
 				Name:        "public",
 				Description: "standard public schema",
 				Owner:       role,

@@ -19,28 +19,28 @@ type DoNotQuote struct {
 	Text string
 }
 
-func (self *DoNotQuote) Quoted(q output.Quoter) string {
-	return self.Text
+func (qo *DoNotQuote) Quoted(q output.Quoter) string {
+	return qo.Text
 }
 
 type QuoteObject struct {
 	Ident string
 }
 
-func (self *QuoteObject) Quoted(q output.Quoter) string {
-	return q.QuoteObject(self.Ident)
+func (qo *QuoteObject) Quoted(q output.Quoter) string {
+	return q.QuoteObject(qo.Ident)
 }
 
 type SchemaRef struct {
 	Schema string
 }
 
-func (self *SchemaRef) Qualified(q output.Quoter) string {
-	return q.QuoteSchema(self.Schema)
+func (sr *SchemaRef) Qualified(q output.Quoter) string {
+	return q.QuoteSchema(sr.Schema)
 }
 
-func (self *SchemaRef) Quoted(q output.Quoter) string {
-	return q.QuoteSchema(self.Schema)
+func (sr *SchemaRef) Quoted(q output.Quoter) string {
+	return q.QuoteSchema(sr.Schema)
 }
 
 type TableRef struct {
@@ -48,16 +48,16 @@ type TableRef struct {
 	Table  string
 }
 
-func (self *TableRef) Qualified(q output.Quoter) string {
-	return q.QualifyTable(self.Schema, self.Table)
+func (tr *TableRef) Qualified(q output.Quoter) string {
+	return q.QualifyTable(tr.Schema, tr.Table)
 }
 
-func (self *TableRef) Quoted(q output.Quoter) string {
-	return q.QuoteTable(self.Table)
+func (tr *TableRef) Quoted(q output.Quoter) string {
+	return q.QuoteTable(tr.Table)
 }
 
-func (self *TableRef) QualifiedLiteralString(q output.Quoter) string {
-	return q.LiteralString(fmt.Sprintf("%s.%s", self.Schema, self.Table))
+func (tr *TableRef) QualifiedLiteralString(q output.Quoter) string {
+	return q.LiteralString(fmt.Sprintf("%s.%s", tr.Schema, tr.Table))
 }
 
 type ColumnRef struct {
@@ -66,16 +66,16 @@ type ColumnRef struct {
 	Column string
 }
 
-func (self *ColumnRef) Qualified(q output.Quoter) string {
-	return q.QualifyColumn(self.Schema, self.Table, self.Column)
+func (cr *ColumnRef) Qualified(q output.Quoter) string {
+	return q.QualifyColumn(cr.Schema, cr.Table, cr.Column)
 }
 
-func (self *ColumnRef) Quoted(q output.Quoter) string {
-	return q.QuoteColumn(self.Column)
+func (cr *ColumnRef) Quoted(q output.Quoter) string {
+	return q.QuoteColumn(cr.Column)
 }
 
-func (self *ColumnRef) TableRef() *TableRef {
-	return &TableRef{self.Schema, self.Table}
+func (cr *ColumnRef) TableRef() *TableRef {
+	return &TableRef{cr.Schema, cr.Table}
 }
 
 type SequenceRef struct {
@@ -83,12 +83,12 @@ type SequenceRef struct {
 	Sequence string
 }
 
-func (self *SequenceRef) Qualified(q output.Quoter) string {
-	return q.QualifyObject(self.Schema, self.Sequence)
+func (sr *SequenceRef) Qualified(q output.Quoter) string {
+	return q.QualifyObject(sr.Schema, sr.Sequence)
 }
 
-func (self *SequenceRef) Quoted(q output.Quoter) string {
-	return q.QuoteObject(self.Sequence)
+func (sr *SequenceRef) Quoted(q output.Quoter) string {
+	return q.QuoteObject(sr.Sequence)
 }
 
 type TypeRef struct {
@@ -108,20 +108,20 @@ func BuiltinTypeRef(spec string) TypeRef {
 	return TypeRef{"", spec}
 }
 
-func (self *TypeRef) Qualified(q output.Quoter) string {
-	if self.Schema == "" {
+func (tr *TypeRef) Qualified(q output.Quoter) string {
+	if tr.Schema == "" {
 		// in the case of builtin names like `text`, there is no schema and we should not quote it
-		return self.Type
+		return tr.Type
 	}
-	return q.QualifyObject(self.Schema, self.Type)
+	return q.QualifyObject(tr.Schema, tr.Type)
 }
 
-func (self *TypeRef) Quoted(q output.Quoter) string {
-	if self.Schema == "" {
+func (tr *TypeRef) Quoted(q output.Quoter) string {
+	if tr.Schema == "" {
 		// in the case of builtin names like `text`, there is no schema and we should not quote it
-		return self.Type
+		return tr.Type
 	}
-	return q.QuoteObject(self.Type)
+	return q.QuoteObject(tr.Type)
 }
 
 type TriggerRef struct {
@@ -129,12 +129,12 @@ type TriggerRef struct {
 	Trigger string
 }
 
-func (self *TriggerRef) Qualified(q output.Quoter) string {
-	return q.QualifyObject(self.Schema, self.Trigger)
+func (tr *TriggerRef) Qualified(q output.Quoter) string {
+	return q.QualifyObject(tr.Schema, tr.Trigger)
 }
 
-func (self *TriggerRef) Quoted(q output.Quoter) string {
-	return q.QuoteObject(self.Trigger)
+func (tr *TriggerRef) Quoted(q output.Quoter) string {
+	return q.QuoteObject(tr.Trigger)
 }
 
 type ViewRef struct {
@@ -142,12 +142,12 @@ type ViewRef struct {
 	View   string
 }
 
-func (self *ViewRef) Qualified(q output.Quoter) string {
-	return q.QualifyObject(self.Schema, self.View)
+func (vr *ViewRef) Qualified(q output.Quoter) string {
+	return q.QualifyObject(vr.Schema, vr.View)
 }
 
-func (self *ViewRef) Quoted(q output.Quoter) string {
-	return q.QuoteObject(self.View)
+func (vr *ViewRef) Quoted(q output.Quoter) string {
+	return q.QuoteObject(vr.View)
 }
 
 type IndexRef struct {
@@ -155,12 +155,12 @@ type IndexRef struct {
 	Index  string
 }
 
-func (self *IndexRef) Qualified(q output.Quoter) string {
-	return q.QualifyObject(self.Schema, self.Index)
+func (ir *IndexRef) Qualified(q output.Quoter) string {
+	return q.QualifyObject(ir.Schema, ir.Index)
 }
 
-func (self *IndexRef) Quoted(q output.Quoter) string {
-	return q.QuoteObject(self.Index)
+func (ir *IndexRef) Quoted(q output.Quoter) string {
+	return q.QuoteObject(ir.Index)
 }
 
 type FunctionRef struct {
@@ -169,10 +169,10 @@ type FunctionRef struct {
 	Params   []string
 }
 
-func (self *FunctionRef) Qualified(q output.Quoter) string {
-	return fmt.Sprintf("%s(%s)", q.QualifyObject(self.Schema, self.Function), strings.Join(self.Params, ", "))
+func (fr *FunctionRef) Qualified(q output.Quoter) string {
+	return fmt.Sprintf("%s(%s)", q.QualifyObject(fr.Schema, fr.Function), strings.Join(fr.Params, ", "))
 }
 
-func (self *FunctionRef) Quoted(q output.Quoter) string {
-	return q.QuoteObject(self.Function)
+func (fr *FunctionRef) Quoted(q output.Quoter) string {
+	return q.QuoteObject(fr.Function)
 }
