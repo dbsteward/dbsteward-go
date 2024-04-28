@@ -214,7 +214,7 @@ func getTableContraintCreationSql(constraint *sql99.TableConstraint) []output.To
 				Table:          table,
 				Constraint:     constraint.Name,
 				ConstraintType: constraint.UnderlyingType,
-				Definition:     constraint.TextDefinition,
+				Definition:     "(" + normalizeColumnCheckCondition(constraint.TextDefinition) + ")",
 			},
 		}
 	}

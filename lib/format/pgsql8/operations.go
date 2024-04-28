@@ -415,13 +415,23 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 				Definition: fmt.Sprintf(`("%s")`, strings.Join(constraintRow.Columns, `", "`)),
 			})
 		case "c": // check
-			// NEW(2) implementing CHECK constraint extraction
-			// TODO(go,4) we have access to the columns affected by the constraint... can we utilize that somehow?
-			table.AddConstraint(&ir.Constraint{
-				Name:       constraintRow.Name,
-				Type:       ir.ConstraintTypeCheck,
-				Definition: *constraintRow.CheckDef,
-			})
+			if len(constraintRow.Columns) == 1 {
+				// Make this a column level check constraint
+				col, err := table.GetColumnNamed(constraintRow.Columns[0])
+				if err != nil {
+					return nil, fmt.Errorf(
+						"failed to get column %s for constraint %s",
+						constraintRow.Columns[0], constraintRow.Name,
+					)
+				}
+				col.Check = normalizeColumnCheckCondition(*constraintRow.CheckDef)
+			} else {
+				table.AddConstraint(&ir.Constraint{
+					Name:       constraintRow.Name,
+					Type:       ir.ConstraintTypeCheck,
+					Definition: *constraintRow.CheckDef,
+				})
+			}
 		default:
 			dbsteward.Fatal("Unknown constraint_type %s", constraintRow.Type)
 		}
@@ -1282,4 +1292,33 @@ func parseSequenceRelAcl(str string) map[string][]string {
 	}
 
 	return out
+}
+
+// normalizeColumnCheckCondition removes the word "CHECK" from the
+// beginning as well as an leading/trailing whitespace and removes
+// any unnecessary () to strip the condition to its most basic
+// form for consistency.
+func normalizeColumnCheckCondition(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimSpace(strings.TrimPrefix(s, "CHECK"))
+	var startParens, endParens int
+	for _, c := range s {
+		if c != '(' {
+			break
+		}
+		startParens++
+	}
+	for idx := len(s) - 1; idx >= 0; idx-- {
+		if s[idx] != ')' {
+			break
+		}
+		endParens++
+	}
+	parens := startParens
+	if endParens < parens {
+		parens = endParens
+	}
+	s = s[parens:]
+	s = s[:len(s)-parens]
+	return strings.TrimSpace(s)
 }

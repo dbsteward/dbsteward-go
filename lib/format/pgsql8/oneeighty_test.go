@@ -23,7 +23,6 @@ import (
 // DB_HOST=localhost DB_USER=postgres DB_SUPERUSER=postgres DB_NAME=test DB_PORT=5432 go test ./...
 
 // TODO list: Things that don't work yet but are feature improvements
-// * column UNIQUE setting is lost and turns into an index
 // * schema public description is not updated on create
 // * Data types are not normalized nor standardized nor anything like that
 // * column check constraints are lost and converted to table constraints
@@ -64,6 +63,11 @@ func TestOneEighty(t *testing.T) {
 						PrimaryKey:     []string{"id"},
 						Columns: []*ir.Column{
 							{Name: "id", Type: "serial"},
+							{
+								Name:  "c2",
+								Type:  "integer",
+								Check: "c2 > 0",
+							},
 						},
 					},
 				},
