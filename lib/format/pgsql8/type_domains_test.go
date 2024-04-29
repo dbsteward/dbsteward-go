@@ -15,13 +15,13 @@ import (
 // Also the testDiff* tests were split to diff_types_domains_test.go
 
 func TestType_Domain_GetCreationSql_NoDomainTypeThrows(t *testing.T) {
-	dt := &ir.DataType{
+	dt := &ir.TypeDef{
 		Name: "my_domain",
 		Kind: ir.DataTypeKindDomain,
 	}
 	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*ir.DataType{dt},
+		Types: []*ir.TypeDef{dt},
 	}
 
 	_, err := getCreateTypeSql(schema, dt)
@@ -31,7 +31,7 @@ func TestType_Domain_GetCreationSql_NoDomainTypeThrows(t *testing.T) {
 }
 
 func TestType_Domain_GetCreationSql(t *testing.T) {
-	dt := &ir.DataType{
+	dt := &ir.TypeDef{
 		Name: "my_domain",
 		Kind: ir.DataTypeKindDomain,
 		DomainType: &ir.DataTypeDomainType{
@@ -40,7 +40,7 @@ func TestType_Domain_GetCreationSql(t *testing.T) {
 	}
 	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*ir.DataType{dt},
+		Types: []*ir.TypeDef{dt},
 	}
 
 	ddl, err := getCreateTypeSql(schema, dt)
@@ -55,7 +55,7 @@ func TestType_Domain_GetCreationSql(t *testing.T) {
 }
 
 func TestType_Domain_GetCreationSql_DefaultNotNull(t *testing.T) {
-	dt := &ir.DataType{
+	dt := &ir.TypeDef{
 		Name: "my_domain",
 		Kind: ir.DataTypeKindDomain,
 		DomainType: &ir.DataTypeDomainType{
@@ -66,7 +66,7 @@ func TestType_Domain_GetCreationSql_DefaultNotNull(t *testing.T) {
 	}
 	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*ir.DataType{dt},
+		Types: []*ir.TypeDef{dt},
 	}
 
 	ddl, err := getCreateTypeSql(schema, dt)
@@ -83,14 +83,14 @@ func TestType_Domain_GetCreationSql_DefaultNotNull(t *testing.T) {
 }
 
 func TestType_Domain_GetCreationSql_Constraint(t *testing.T) {
-	dt := &ir.DataType{
+	dt := &ir.TypeDef{
 		Name: "my_domain",
 		Kind: ir.DataTypeKindDomain,
 		DomainType: &ir.DataTypeDomainType{
 			BaseType: "int",
 		},
-		DomainConstraints: []*ir.DataTypeDomainConstraint{
-			&ir.DataTypeDomainConstraint{
+		DomainConstraints: []ir.DataTypeDomainConstraint{
+			ir.DataTypeDomainConstraint{
 				Name:  "gt_five",
 				Check: "VALUE > 5",
 			},
@@ -98,7 +98,7 @@ func TestType_Domain_GetCreationSql_Constraint(t *testing.T) {
 	}
 	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*ir.DataType{dt},
+		Types: []*ir.TypeDef{dt},
 	}
 
 	ddl, err := getCreateTypeSql(schema, dt)
@@ -118,19 +118,19 @@ func TestType_Domain_GetCreationSql_Constraint(t *testing.T) {
 }
 
 func TestType_Domain_GetCreationSql_MultipleConstraintsAndExplicitCheck(t *testing.T) {
-	dt := &ir.DataType{
+	dt := &ir.TypeDef{
 		Name: "my_domain",
 		Kind: ir.DataTypeKindDomain,
 		DomainType: &ir.DataTypeDomainType{
 			BaseType: "int",
 		},
-		DomainConstraints: []*ir.DataTypeDomainConstraint{
-			&ir.DataTypeDomainConstraint{
+		DomainConstraints: []ir.DataTypeDomainConstraint{
+			ir.DataTypeDomainConstraint{
 				Name: "lt_ten",
 				// should support all kinds of weird but equivalent spacing and casing
 				Check: " CHEck ( VALUE < 10)",
 			},
-			&ir.DataTypeDomainConstraint{
+			ir.DataTypeDomainConstraint{
 				Name:  "gt_five",
 				Check: "VALUE > 5",
 			},
@@ -138,7 +138,7 @@ func TestType_Domain_GetCreationSql_MultipleConstraintsAndExplicitCheck(t *testi
 	}
 	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*ir.DataType{dt},
+		Types: []*ir.TypeDef{dt},
 	}
 
 	ddl, err := getCreateTypeSql(schema, dt)
@@ -166,7 +166,7 @@ func TestType_Domain_GetCreationSql_QuotedDefault(t *testing.T) {
 	// into a quoted value. In v2+, that behavior has been mostly pushed to
 	// the sql layer. So, in effect this test now verifies that we _don't_ do
 	// anything in the diff/build layer.
-	dt := &ir.DataType{
+	dt := &ir.TypeDef{
 		Name: "my_domain",
 		Kind: ir.DataTypeKindDomain,
 		DomainType: &ir.DataTypeDomainType{
@@ -176,7 +176,7 @@ func TestType_Domain_GetCreationSql_QuotedDefault(t *testing.T) {
 	}
 	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*ir.DataType{dt},
+		Types: []*ir.TypeDef{dt},
 	}
 
 	ddl, err := getCreateTypeSql(schema, dt)
@@ -192,7 +192,7 @@ func TestType_Domain_GetCreationSql_QuotedDefault(t *testing.T) {
 }
 
 func TestType_Domain_GetDropSql(t *testing.T) {
-	dt := &ir.DataType{
+	dt := &ir.TypeDef{
 		Name: "my_domain",
 		Kind: ir.DataTypeKindDomain,
 		DomainType: &ir.DataTypeDomainType{
@@ -202,7 +202,7 @@ func TestType_Domain_GetDropSql(t *testing.T) {
 	}
 	schema := &ir.Schema{
 		Name:  "domains",
-		Types: []*ir.DataType{dt},
+		Types: []*ir.TypeDef{dt},
 	}
 
 	ddl := getDropTypeSql(schema, dt)

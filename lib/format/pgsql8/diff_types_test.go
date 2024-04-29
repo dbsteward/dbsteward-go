@@ -40,11 +40,11 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 				},
 			},
 		},
-		Types: []*ir.DataType{
-			&ir.DataType{
+		Types: []*ir.TypeDef{
+			&ir.TypeDef{
 				Name: "arch_type",
 				Kind: ir.DataTypeKindComposite,
-				CompositeFields: []*ir.DataTypeCompositeField{
+				CompositeFields: []ir.DataTypeCompositeField{
 					{Name: "uh_phrasing", Type: "text"},
 					{Name: "boom_phrasing", Type: "text"},
 				},
@@ -81,11 +81,11 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 				},
 			},
 		},
-		Types: []*ir.DataType{
-			&ir.DataType{
+		Types: []*ir.TypeDef{
+			&ir.TypeDef{
 				Name: "arch_type",
 				Kind: ir.DataTypeKindComposite,
-				CompositeFields: []*ir.DataTypeCompositeField{
+				CompositeFields: []ir.DataTypeCompositeField{
 					{Name: "uh_phrasing", Type: "text"},
 					{Name: "boom_phrasing", Type: "text"},
 					{Name: "ummmm_phrasing", Type: "text"},

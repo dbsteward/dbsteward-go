@@ -11,16 +11,16 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-func getCreateTypeSql(schema *ir.Schema, datatype *ir.DataType) ([]output.ToSql, error) {
+func getCreateTypeSql(schema *ir.Schema, datatype *ir.TypeDef) ([]output.ToSql, error) {
 	switch datatype.Kind {
 	case ir.DataTypeKindEnum:
 		// TODO(go,3) put validation elsewhere
 		if len(datatype.EnumValues) == 0 {
-			return nil, fmt.Errorf("Enum type %s.%s contains no enum children", schema.Name, datatype.Name)
+			return nil, fmt.Errorf("enum type %s.%s contains no enum children", schema.Name, datatype.Name)
 		}
 		vals := make([]string, len(datatype.EnumValues))
 		for i, val := range datatype.EnumValues {
-			vals[i] = val.Value
+			vals[i] = string(val)
 		}
 		return []output.ToSql{
 			&sql.TypeEnumCreate{
@@ -31,7 +31,7 @@ func getCreateTypeSql(schema *ir.Schema, datatype *ir.DataType) ([]output.ToSql,
 	case ir.DataTypeKindComposite:
 		// TODO(go,3) put validation elsewhere
 		if len(datatype.CompositeFields) == 0 {
-			return nil, fmt.Errorf("Composite type %s.%s contains no typeCompositeElement children", schema.Name, datatype.Name)
+			return nil, fmt.Errorf("composite type %s.%s contains no typeCompositeElement children", schema.Name, datatype.Name)
 		}
 		fields := make([]sql.TypeCompositeCreateField, len(datatype.CompositeFields))
 		for i, field := range datatype.CompositeFields {
@@ -49,10 +49,10 @@ func getCreateTypeSql(schema *ir.Schema, datatype *ir.DataType) ([]output.ToSql,
 	case ir.DataTypeKindDomain:
 		// TODO(go,3) put validation elsewhere
 		if datatype.DomainType == nil {
-			return nil, fmt.Errorf("Domain type %s.%s contains no domainType child", schema.Name, datatype.Name)
+			return nil, fmt.Errorf("domain type %s.%s contains no domainType child", schema.Name, datatype.Name)
 		}
 		if datatype.DomainType.BaseType == "" {
-			return nil, fmt.Errorf("Domain type %s.%s baseType attribute is not set on domainType", schema.Name, datatype.Name)
+			return nil, fmt.Errorf("domain type %s.%s baseType attribute is not set on domainType", schema.Name, datatype.Name)
 		}
 		constraints := make([]sql.TypeDomainCreateConstraint, len(datatype.DomainConstraints))
 		for i, constraint := range datatype.DomainConstraints {
@@ -60,10 +60,10 @@ func getCreateTypeSql(schema *ir.Schema, datatype *ir.DataType) ([]output.ToSql,
 			name := strings.TrimSpace(constraint.Name)
 			check := strings.TrimSpace(constraint.GetNormalizedCheck())
 			if name == "" {
-				return nil, fmt.Errorf("Domain type %s.%s constraint %d has empty name", schema.Name, datatype.Name, i)
+				return nil, fmt.Errorf("domain type %s.%s constraint %d has empty name", schema.Name, datatype.Name, i)
 			}
 			if check == "" {
-				return nil, fmt.Errorf("Domain type %s.%s constraint %s has no definition", schema.Name, datatype.Name, name)
+				return nil, fmt.Errorf("domain type %s.%s constraint %s has no definition", schema.Name, datatype.Name, name)
 			}
 			constraints[i] = sql.TypeDomainCreateConstraint{
 				Name:  name,
@@ -87,11 +87,11 @@ func getCreateTypeSql(schema *ir.Schema, datatype *ir.DataType) ([]output.ToSql,
 			},
 		}, nil
 	}
-	return nil, fmt.Errorf("Unknown type %s type %s", datatype.Name, datatype.Kind)
+	return nil, fmt.Errorf("unknown type %s type %s", datatype.Name, datatype.Kind.String())
 }
 
-func getDropTypeSql(schema *ir.Schema, datatype *ir.DataType) []output.ToSql {
-	if datatype.Kind.Equals(ir.DataTypeKindDomain) {
+func getDropTypeSql(schema *ir.Schema, datatype *ir.TypeDef) []output.ToSql {
+	if datatype.Kind == ir.DataTypeKindDomain {
 		return []output.ToSql{
 			&sql.TypeDomainDrop{
 				Type: sql.TypeRef{Schema: schema.Name, Type: datatype.Name},
@@ -119,7 +119,7 @@ func isIntType(spec string) bool {
 }
 
 // Change all table columns that are the given datatype to a placeholder type
-func alterColumnTypePlaceholder(schema *ir.Schema, datatype *ir.DataType) ([]*ir.ColumnRef, []output.ToSql) {
+func alterColumnTypePlaceholder(datatype *ir.TypeDef) ([]*ir.ColumnRef, []output.ToSql) {
 	ddl := []output.ToSql{}
 	cols := []*ir.ColumnRef{}
 	for _, newTableRef := range differ.NewTableDependency {
@@ -138,19 +138,19 @@ func alterColumnTypePlaceholder(schema *ir.Schema, datatype *ir.DataType) ([]*ir
 	return cols, ddl
 }
 
-func alterColumnTypePlaceholderType(datatype *ir.DataType) sql.TypeRef {
-	if datatype.Kind.Equals(ir.DataTypeKindEnum) {
+func alterColumnTypePlaceholderType(datatype *ir.TypeDef) sql.TypeRef {
+	if datatype.Kind == ir.DataTypeKindEnum {
 		return sql.BuiltinTypeRef("text")
 	}
-	if datatype.Kind.Equals(ir.DataTypeKindDomain) {
+	if datatype.Kind == ir.DataTypeKindDomain {
 		return sql.ParseTypeRef(datatype.DomainType.BaseType)
 	}
-	util.Assert(false, "Unexpected data type kind %s", string(datatype.Kind))
+	util.Assert(false, "Unexpected data type kind %s", datatype.Kind.String())
 	return sql.TypeRef{} // unreachable
 }
 
 // restores types changed by AlterColumnTypePlaceholder
-func alterColumnTypeRestore(columns []*ir.ColumnRef, schema *ir.Schema, datatype *ir.DataType) []output.ToSql {
+func alterColumnTypeRestore(columns []*ir.ColumnRef, schema *ir.Schema, datatype *ir.TypeDef) []output.ToSql {
 	ddl := []output.ToSql{}
 	// do the columns backwards to maintain dependency ordering
 	for i := len(columns) - 1; i >= 0; i-- {

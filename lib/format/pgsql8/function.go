@@ -119,7 +119,7 @@ func getFunctionGrantSql(schema *ir.Schema, fn *ir.Function, grant *ir.Grant) []
 }
 
 // TODO(go,3) move this to model
-func functionDependsOnType(fn *ir.Function, typeSchema *ir.Schema, datatype *ir.DataType) bool {
+func functionDependsOnType(fn *ir.Function, typeSchema *ir.Schema, datatype *ir.TypeDef) bool {
 	// TODO(feat) what about composite/domain types that are also dependent on the type? further refinement needed
 	qualifiedName := typeSchema.Name + "." + datatype.Name
 	returns := strings.TrimRight(fn.Returns, "[] ") // allow for arrays

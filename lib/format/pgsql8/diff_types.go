@@ -38,10 +38,10 @@ func diffTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *
 			ofs.WriteSql(getFunctionDropSql(oldSchema, oldFunc)...)
 		}
 
-		columns, sql := alterColumnTypePlaceholder(oldSchema, oldType)
+		columns, sql := alterColumnTypePlaceholder(oldType)
 		ofs.WriteSql(sql...)
 
-		if newType.Kind.Equals(ir.DataTypeKindDomain) {
+		if newType.Kind == ir.DataTypeKindDomain {
 			diffDomain(ofs, oldSchema, oldType, newSchema, newType)
 		} else {
 			ofs.WriteSql(getDropTypeSql(oldSchema, oldType)...)
@@ -80,7 +80,7 @@ func createTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema
 	}
 }
 
-func diffDomain(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldType *ir.DataType, newSchema *ir.Schema, newType *ir.DataType) {
+func diffDomain(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldType *ir.TypeDef, newSchema *ir.Schema, newType *ir.TypeDef) {
 	oldInfo := oldType.DomainType
 	newInfo := newType.DomainType
 

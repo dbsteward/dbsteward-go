@@ -86,7 +86,7 @@ func (self *Schema) GetGrantSql(doc *ir.Definition, schema *ir.Schema, grant *ir
 	return ddl
 }
 
-func (self *Schema) GetFunctionsDependingOnType(schema *ir.Schema, datatype *ir.DataType) []*ir.Function {
+func (self *Schema) GetFunctionsDependingOnType(schema *ir.Schema, datatype *ir.TypeDef) []*ir.Function {
 	out := []*ir.Function{}
 	for _, fn := range schema.Functions {
 		if functionDependsOnType(fn, schema, datatype) {

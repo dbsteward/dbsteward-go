@@ -15,7 +15,7 @@ type Schema struct {
 	SlonySetId  util.Opt[int]
 	Tables      []*Table
 	Grants      []*Grant
-	Types       []*DataType
+	Types       []*TypeDef
 	Sequences   []*Sequence
 	Functions   []*Function
 	Triggers    []*Trigger
@@ -58,7 +58,7 @@ func (self *Schema) AddTable(table *Table) {
 	self.Tables = append(self.Tables, table)
 }
 
-func (self *Schema) TryGetTypeNamed(name string) *DataType {
+func (self *Schema) TryGetTypeNamed(name string) *TypeDef {
 	if self == nil {
 		return nil
 	}
@@ -71,7 +71,7 @@ func (self *Schema) TryGetTypeNamed(name string) *DataType {
 	return nil
 }
 
-func (self *Schema) AddType(t *DataType) {
+func (self *Schema) AddType(t *TypeDef) {
 	// TODO(feat) sanity check
 	self.Types = append(self.Types, t)
 }
