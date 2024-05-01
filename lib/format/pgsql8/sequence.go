@@ -40,7 +40,7 @@ func getCreateSequenceSql(schema *ir.Schema, sequence *ir.Sequence) ([]output.To
 		// ALTER SEQUENCE also works in pgsql 8, and that's more correct
 		ddl = append(ddl, &sql.SequenceAlterOwner{
 			Sequence: ref,
-			Role:     lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, sequence.Owner),
+			Role:     roleEnum(lib.GlobalDBSteward.NewDatabase, sequence.Owner),
 		})
 	}
 
@@ -65,7 +65,7 @@ func getDropSequenceSql(schema *ir.Schema, sequence *ir.Sequence) []output.ToSql
 func getSequenceGrantSql(schema *ir.Schema, seq *ir.Sequence, grant *ir.Grant) []output.ToSql {
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
-		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)
+		roles[i] = roleEnum(lib.GlobalDBSteward.NewDatabase, role)
 	}
 
 	perms := util.IIntersectStrs(grant.Permissions, ir.PermissionListAllPgsql8)
@@ -91,7 +91,7 @@ func getSequenceGrantSql(schema *ir.Schema, seq *ir.Sequence, grant *ir.Grant) [
 	// SEQUENCE IMPLICIT GRANTS
 	// READYONLY USER PROVISION: generate a SELECT on the sequence for the readonly user
 	// TODO(go,3) move this out of here, let this create just a single grant
-	roRole := lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
+	roRole := roleEnum(lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
 	if roRole != "" {
 		ddl = append(ddl, &sql.SequenceGrant{
 			Sequence: seqRef,

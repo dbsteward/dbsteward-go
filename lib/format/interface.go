@@ -20,10 +20,6 @@ type Operations interface {
 	SetConfig(*config.Args)
 }
 
-type XmlParser interface {
-	Process(*ir.Definition)
-}
-
 type SlonyOperations interface {
 	SlonyCompare(file string)
 	SlonyDiff(oldFile, newFile string)

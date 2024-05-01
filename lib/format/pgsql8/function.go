@@ -51,7 +51,7 @@ func getFunctionCreationSql(schema *ir.Schema, function *ir.Function) []output.T
 	if function.Owner != "" {
 		out = append(out, &sql.FunctionAlterOwner{
 			Function: ref,
-			Role:     lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, function.Owner),
+			Role:     roleEnum(lib.GlobalDBSteward.NewDatabase, function.Owner),
 		})
 	}
 	if function.Description != "" {
@@ -92,7 +92,7 @@ func normalizeFunctionParameterType(paramType string) string {
 func getFunctionGrantSql(schema *ir.Schema, fn *ir.Function, grant *ir.Grant) []output.ToSql {
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
-		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)
+		roles[i] = roleEnum(lib.GlobalDBSteward.NewDatabase, role)
 	}
 
 	perms := util.IIntersectStrs(grant.Permissions, ir.PermissionListAllPgsql8)

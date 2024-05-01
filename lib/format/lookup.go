@@ -7,5 +7,4 @@ type LookupMap map[ir.SqlFormat]*Lookup
 type Lookup struct {
 	Operations Operations
 	Schema     Schema
-	XmlParser  XmlParser
 }

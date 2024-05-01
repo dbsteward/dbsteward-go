@@ -1,10 +1,9 @@
-package lib_test
+package xml
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/stretchr/testify/assert"
 )
@@ -126,9 +125,9 @@ func TestXmlParser_CompositeDoc_InheritedRows(t *testing.T) {
 	// TODO(go,nth) v1 doesn't actually assert anything... should we? AFAICT we just verify it doesn't blow up
 	// TODO(go,3) really we're testing schema.Merge functionality... I think?
 	// TODO(go,nth) return errors instead of fataling
-	_, err := lib.GlobalXmlParser.CompositeDoc(parent, child, "", -1, nil)
+	_, err := CompositeDoc(parent, child, "", -1, nil)
 	assert.NoError(t, err)
-	_, err = lib.GlobalXmlParser.CompositeDoc(parentAndChild, grandchild, "", -1, nil)
+	_, err = CompositeDoc(parentAndChild, grandchild, "", -1, nil)
 	assert.NoError(t, err)
 }
 
@@ -207,7 +206,7 @@ func TestXmlParser_CompositeDoc_DuplicateFunctionValidation_SeparateDefs(t *test
 		},
 	}
 
-	_, err := lib.GlobalXmlParser.CompositeDoc(nil, doc, "", -1, nil)
+	_, err := CompositeDoc(nil, doc, "", -1, nil)
 	if assert.Error(t, err) {
 		assert.Contains(t, strings.ToLower(err.Error()), "found two functions in schema someschema with signature lpad(text, int, text) for sql format pgsql8")
 		assert.NotContains(t, strings.ToLower(err.Error()), "for sql format mssql10")
@@ -272,7 +271,7 @@ func TestXmlParser_CompositeDoc_DuplicateFunctionValidation_SharedDefs(t *testin
 		},
 	}
 
-	_, err := lib.GlobalXmlParser.CompositeDoc(nil, doc, "", -1, nil)
+	_, err := CompositeDoc(nil, doc, "", -1, nil)
 	if assert.Error(t, err) {
 		assert.Contains(t, strings.ToLower(err.Error()), "found two definitions for someschema.lpad(text, int, text) for sql format pgsql8")
 		assert.NotContains(t, strings.ToLower(err.Error()), "for sql format mssql10")

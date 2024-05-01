@@ -57,7 +57,7 @@ func getCreateTableSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	ddl = append(ddl, colSetup...)
 
 	if table.Owner != "" {
-		role := lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, table.Owner)
+		role := roleEnum(lib.GlobalDBSteward.NewDatabase, table.Owner)
 		ddl = append(ddl, &sql.TableAlterOwner{
 			Table: sql.TableRef{Schema: schema.Name, Table: table.Name},
 			Role:  role,
@@ -115,7 +115,7 @@ func defineTableColumnDefaults(schema *ir.Schema, table *ir.Table) []output.ToSq
 func getTableGrantSql(schema *ir.Schema, table *ir.Table, grant *ir.Grant) []output.ToSql {
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
-		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)
+		roles[i] = roleEnum(lib.GlobalDBSteward.NewDatabase, role)
 	}
 
 	perms := util.IIntersectStrs(grant.Permissions, ir.PermissionListAllPgsql8)
@@ -138,7 +138,7 @@ func getTableGrantSql(schema *ir.Schema, table *ir.Table, grant *ir.Grant) []out
 	// TABLE IMPLICIT GRANTS
 	// READYONLY USER PROVISION: grant select on the table for the readonly user
 	// TODO(go,3) move this out of here, let this create just a single grant
-	roRole := lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
+	roRole := roleEnum(lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
 	if roRole != "" {
 		ddl = append(ddl, &sql.TableGrant{
 			Table:    sql.TableRef{Schema: schema.Name, Table: table.Name},

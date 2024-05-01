@@ -2,11 +2,13 @@ package lib
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/config"
+	"github.com/dbsteward/dbsteward/lib/encoding/xml"
 	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
@@ -238,20 +240,6 @@ func (self *DBSteward) ArgParse() {
 	}
 	self.fileOutputPrefix = args.OutputFilePrefix
 
-	// For the appropriate modes, composite the input xml
-	// and figure out the sql format of it
-	targetSqlFormat := ir.SqlFormatUnknown
-	switch mode {
-	case ModeBuild:
-		targetSqlFormat = GlobalXmlParser.GetSqlFormat(args.XmlFiles)
-	case ModeDiff:
-		// prefer new format over old
-		targetSqlFormat = GlobalXmlParser.GetSqlFormat(args.NewXmlFiles)
-		if targetSqlFormat == ir.SqlFormatUnknown {
-			targetSqlFormat = GlobalXmlParser.GetSqlFormat(args.OldXmlFiles)
-		}
-	}
-
 	if args.XmlCollectDataAddendums > 0 {
 		if mode != ModeDbDataDiff {
 			self.Fatal("--xmlcollectdataaddendums is only supported for fresh builds")
@@ -266,7 +254,7 @@ func (self *DBSteward) ArgParse() {
 	self.Notice("DBSteward Version %s", Version)
 
 	// set the global sql format
-	self.SqlFormat = self.reconcileSqlFormat(targetSqlFormat, args.SqlFormat)
+	self.SqlFormat = self.reconcileSqlFormat(ir.SqlFormatPgsql8, args.SqlFormat)
 	self.Notice("Using sqlformat=%s", self.SqlFormat)
 	self.defineSqlFormatDefaultValues(self.SqlFormat, args)
 
@@ -454,10 +442,10 @@ func (self *DBSteward) calculateFileOutputDirectory(file string) string {
 func (self *DBSteward) doXmlDataInsert(defFile string, dataFile string) {
 	// TODO(go,xmlutil) verify this behavior is correct, add tests. need to change fatals to returns
 	self.Info("Automatic insert data into %s from %s", defFile, dataFile)
-	defDoc, err := GlobalXmlParser.LoadDefintion(defFile)
+	defDoc, err := xml.LoadDefintion(defFile)
 	self.FatalIfError(err, "Failed to load %s", defFile)
 
-	dataDoc, err := GlobalXmlParser.LoadDefintion(dataFile)
+	dataDoc, err := xml.LoadDefintion(dataFile)
 	self.FatalIfError(err, "Failed to load %s", dataFile)
 
 	for _, dataSchema := range dataDoc.Schemas {
@@ -499,14 +487,15 @@ func (self *DBSteward) doXmlDataInsert(defFile string, dataFile string) {
 
 	defFileModified := defFile + ".xmldatainserted"
 	self.Notice("Saving modified dbsteward definition as %s", defFileModified)
-	GlobalXmlParser.SaveDefinition(defFileModified, defDoc)
+	err = xml.SaveDefinition(defFileModified, defDoc)
+	self.FatalIfError(err, "saving file")
 }
 func (self *DBSteward) doXmlSort(files []string) {
 	for _, file := range files {
 		sortedFileName := file + ".xmlsorted"
 		self.Info("Sorting XML definition file: %s", file)
 		self.Info("Sorted XML output file: %s", sortedFileName)
-		GlobalXmlParser.FileSort(file, sortedFileName)
+		xml.FileSort(file, sortedFileName)
 	}
 }
 func (self *DBSteward) doXmlConvert(files []string) {
@@ -515,10 +504,11 @@ func (self *DBSteward) doXmlConvert(files []string) {
 		self.Info("Upconverting XML definition file: %s", file)
 		self.Info("Upconvert XML output file: %s", convertedFileName)
 
-		doc, err := GlobalXmlParser.LoadDefintion(file)
+		doc, err := xml.LoadDefintion(file)
 		self.FatalIfError(err, "Could not load %s", file)
-		GlobalXmlParser.SqlFormatConvert(doc)
-		convertedXml := GlobalXmlParser.FormatXml(doc)
+		xml.SqlFormatConvert(doc)
+		convertedXml, err := xml.FormatXml(doc)
+		self.ErrorIfError(err, "formatting xml")
 		convertedXml = strings.Replace(convertedXml, "pgdbxml>", "dbsteward>", -1)
 		err = util.WriteFile(convertedXml, convertedFileName)
 		self.FatalIfError(err, "Could not write converted xml to %s", convertedFileName)
@@ -526,35 +516,38 @@ func (self *DBSteward) doXmlConvert(files []string) {
 }
 func (self *DBSteward) doXmlSlonyId(files []string, slonyOut string) {
 	self.Info("Compositing XML file for Slony ID processing")
-	dbDoc := GlobalXmlParser.XmlComposite(files)
+	dbDoc, err := xml.XmlComposite(files)
+	self.FatalIfError(err, "compositing files: %v", files)
 	self.Info("Xml files %s composited", strings.Join(files, " "))
 
 	outputPrefix := self.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
 	self.Notice("Saving composite as %s", compositeFile)
-	GlobalXmlParser.SaveDefinition(compositeFile, dbDoc)
+	err = xml.SaveDefinition(compositeFile, dbDoc)
+	self.ErrorIfError(err, "saving file")
 
 	self.Notice("Slony ID numbering any missing attributes")
 	self.Info("slonyidstartvalue = %d", self.slonyIdStartValue)
 	self.Info("slonyidsetvalue = %d", self.slonyIdSetValue)
-	slonyIdDoc := GlobalXmlParser.SlonyIdNumber(dbDoc)
+	slonyIdDoc := xml.SlonyIdNumber(dbDoc)
 	slonyIdNumberedFile := outputPrefix + "_slonyid_numbered.xml"
 	if len(slonyOut) > 0 {
 		slonyIdNumberedFile = slonyOut
 	}
 	self.Notice("Saving Slony ID numbered XML as %s", slonyIdNumberedFile)
-	GlobalXmlParser.SaveDefinition(slonyIdNumberedFile, slonyIdDoc)
+	err = xml.SaveDefinition(slonyIdNumberedFile, slonyIdDoc)
+	self.ErrorIfError(err, "saving file")
 }
 func (self *DBSteward) doBuild(files []string, dataFiles []string, addendums uint) {
 	self.Info("Compositing XML files...")
 	if addendums > 0 {
 		self.Info("Collecting %d data addendums", addendums)
 	}
-	dbDoc, addendumsDoc := GlobalXmlParser.XmlCompositeAddendums(files, addendums)
+	dbDoc, addendumsDoc, err := xml.XmlCompositeAddendums(slog.Default(), files, addendums)
 
 	if len(dataFiles) > 0 {
 		self.Info("Compositing pgdata XML files on top of XML composite...")
-		GlobalXmlParser.XmlCompositePgData(dbDoc, dataFiles)
+		xml.XmlCompositePgData(dbDoc, dataFiles)
 		self.Info("postgres data XML files [%s] composited", strings.Join(dataFiles, " "))
 	}
 
@@ -563,26 +556,30 @@ func (self *DBSteward) doBuild(files []string, dataFiles []string, addendums uin
 	outputPrefix := self.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
 	self.Notice("Saving composite as %s", compositeFile)
-	GlobalXmlParser.SaveDefinition(compositeFile, dbDoc)
+	err = xml.SaveDefinition(compositeFile, dbDoc)
+	self.ErrorIfError(err, "saving file")
 
 	if addendumsDoc != nil {
 		addendumsFile := outputPrefix + "_addendums.xml"
 		self.Notice("Saving addendums as %s", addendumsFile)
-		GlobalXmlParser.SaveDefinition(compositeFile, addendumsDoc)
+		err = xml.SaveDefinition(compositeFile, addendumsDoc)
+		self.ErrorIfError(err, "saving file")
 	}
 
 	self.Lookup().Operations.Build(outputPrefix, dbDoc)
 }
 func (self *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []string) {
 	self.Info("Compositing old XML files...")
-	oldDbDoc := GlobalXmlParser.XmlComposite(oldFiles)
+	oldDbDoc, err := xml.XmlComposite(oldFiles)
+	self.ErrorIfError(err, "compositing")
 	self.Info("Old XML files %s composited", strings.Join(oldFiles, " "))
 
 	self.Info("Compositing new XML files...")
-	newDbDoc := GlobalXmlParser.XmlComposite(newFiles)
+	newDbDoc, err := xml.XmlComposite(newFiles)
+	self.ErrorIfError(err, "compositing")
 	if len(dataFiles) > 0 {
 		self.Info("Compositing pgdata XML files on top of new XML composite...")
-		GlobalXmlParser.XmlCompositePgData(newDbDoc, dataFiles)
+		xml.XmlCompositePgData(newDbDoc, dataFiles)
 		self.Info("postgres data XML files [%s] composited", strings.Join(dataFiles, " "))
 	}
 	self.Info("New XML files %s composited", strings.Join(newFiles, " "))
@@ -590,12 +587,14 @@ func (self *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []
 	oldOutputPrefix := self.calculateFileOutputPrefix(oldFiles)
 	oldCompositeFile := oldOutputPrefix + "_composite.xml"
 	self.Notice("Saving composite as %s", oldCompositeFile)
-	GlobalXmlParser.SaveDefinition(oldCompositeFile, oldDbDoc)
+	err = xml.SaveDefinition(oldCompositeFile, oldDbDoc)
+	self.ErrorIfError(err, "saving file")
 
 	newOutputPrefix := self.calculateFileOutputPrefix(newFiles)
 	newCompositeFile := newOutputPrefix + "_composite.xml"
 	self.Notice("Saving composite as %s", newCompositeFile)
-	GlobalXmlParser.SaveDefinition(newCompositeFile, newDbDoc)
+	err = xml.SaveDefinition(newCompositeFile, newDbDoc)
+	self.ErrorIfError(err, "saving file")
 
 	self.Lookup().Operations.BuildUpgrade(
 		oldOutputPrefix, oldCompositeFile, oldDbDoc, oldFiles,
@@ -605,7 +604,8 @@ func (self *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []
 func (self *DBSteward) doExtract(dbHost string, dbPort uint, dbName, dbUser, dbPass string, outputFile string) {
 	output := self.Lookup().Operations.ExtractSchema(dbHost, dbPort, dbName, dbUser, dbPass)
 	self.Notice("Saving extracted database schema to %s", outputFile)
-	GlobalXmlParser.SaveDefinition(outputFile, output)
+	err := xml.SaveDefinition(outputFile, output)
+	self.ErrorIfError(err, "saving file")
 }
 func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendums uint, dbHost string, dbPort uint, dbName, dbUser, dbPass string) {
 	self.Info("Compositing XML files...")
@@ -613,11 +613,12 @@ func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendum
 		self.Info("Collecting %d data addendums", addendums)
 	}
 	// TODO(feat) can this just be XmlComposite(files)? why do we need addendums?
-	dbDoc, _ := GlobalXmlParser.XmlCompositeAddendums(files, addendums)
+	dbDoc, _, err := xml.XmlCompositeAddendums(slog.Default(), files, addendums)
+	self.ErrorIfError(err, "compositing addendums")
 
 	if len(dataFiles) > 0 {
 		self.Info("Compositing pgdata XML files on top of XML composite...")
-		GlobalXmlParser.XmlCompositePgData(dbDoc, dataFiles)
+		xml.XmlCompositePgData(dbDoc, dataFiles)
 		self.Info("postgres data XML files [%s] composited", strings.Join(dataFiles, " "))
 	}
 
@@ -626,10 +627,12 @@ func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendum
 	outputPrefix := self.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
 	self.Notice("Saving composite as %s", compositeFile)
-	GlobalXmlParser.SaveDefinition(compositeFile, dbDoc)
+	err = xml.SaveDefinition(compositeFile, dbDoc)
+	self.ErrorIfError(err, "saving file")
 
 	output := self.Lookup().Operations.CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
-	GlobalXmlParser.SaveDefinition(compositeFile, output)
+	err = xml.SaveDefinition(compositeFile, output)
+	self.ErrorIfError(err, "saving file")
 }
 func (self *DBSteward) doSqlDiff(oldSql, newSql []string, outputFile string) {
 	self.Lookup().Operations.SqlDiff(oldSql, newSql, outputFile)

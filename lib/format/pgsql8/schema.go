@@ -29,7 +29,7 @@ func (self *Schema) GetCreationSql(schema *ir.Schema) []output.ToSql {
 	}
 
 	if schema.Owner != "" {
-		owner := lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, schema.Owner)
+		owner := roleEnum(lib.GlobalDBSteward.NewDatabase, schema.Owner)
 		ddl = append(ddl, &sql.SchemaAlterOwner{schema.Name, owner})
 	}
 
@@ -52,7 +52,7 @@ func (self *Schema) GetDropSql(schema *ir.Schema) []output.ToSql {
 func (self *Schema) GetGrantSql(doc *ir.Definition, schema *ir.Schema, grant *ir.Grant) []output.ToSql {
 	roles := make([]string, len(grant.Roles))
 	for i, role := range grant.Roles {
-		roles[i] = lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, role)
+		roles[i] = roleEnum(lib.GlobalDBSteward.NewDatabase, role)
 	}
 
 	perms := util.IIntersectStrs(grant.Permissions, ir.PermissionListAllPgsql8)
@@ -73,7 +73,7 @@ func (self *Schema) GetGrantSql(doc *ir.Definition, schema *ir.Schema, grant *ir
 	// SCHEMA IMPLICIT GRANTS
 	// READYONLY USER PROVISION: grant usage on the schema for the readonly user
 	// TODO(go,3) move this out of here, let this create just a single grant
-	roRole := lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
+	roRole := roleEnum(lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
 	if roRole != "" {
 		ddl = append(ddl, &sql.SchemaGrant{
 			Schema:   schema.Name,

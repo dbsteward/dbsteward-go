@@ -3,6 +3,7 @@ package pgsql8
 import (
 	"strings"
 
+	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -108,4 +109,45 @@ func (ri *roleIndex) get(r string) string {
 		return resolve(ri)
 	}
 	return r
+}
+
+func roleEnum(doc *ir.Definition, role string) string {
+	if doc.Database == nil {
+		// TODO(go,nth) somehow was incompletely constructed
+		doc.Database = &ir.Database{
+			Roles: &ir.RoleAssignment{},
+		}
+	}
+	roles := doc.Database.Roles
+
+	switch role {
+	case ir.RolePublic, ir.RolePgsql:
+		// RolePublic, RolePgsql are their own constants
+		return role
+	case ir.RoleApplication:
+		return roles.Application
+	case ir.RoleOwner:
+		return roles.Owner
+	case ir.RoleReadOnly:
+		return roles.ReadOnly
+	case ir.RoleReplication:
+		return roles.Replication
+	}
+
+	// NEW: if role matches any of the specific role assignments, don't consider it to be an error
+	// this is basically the case where the user has manually resolved the role
+	if strings.EqualFold(roles.Application, role) ||
+		strings.EqualFold(roles.Owner, role) ||
+		strings.EqualFold(roles.ReadOnly, role) ||
+		strings.EqualFold(roles.Replication, role) ||
+		util.IStrsContains(roles.CustomRoles, role) {
+		return role
+	}
+
+	if !lib.GlobalDBSteward.IgnoreCustomRoles {
+		lib.GlobalDBSteward.Fatal("Failed to confirm custom role: %s", role)
+	}
+
+	lib.GlobalDBSteward.Warning("Ignoring custom roles, Role '%s' is being overridden by ROLE_OWNER (%s)", role, roles.Owner)
+	return roles.Owner
 }

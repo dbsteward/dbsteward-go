@@ -22,7 +22,7 @@ func getCreateLanguageSql(lang *ir.Language) []output.ToSql {
 		out = append(out, &sql.LanguageAlterOwner{
 			Language:   lang.Name,
 			Procedural: lang.Procedural,
-			Role:       lib.GlobalXmlParser.RoleEnum(lib.GlobalDBSteward.NewDatabase, lang.Owner),
+			Role:       roleEnum(lib.GlobalDBSteward.NewDatabase, lang.Owner),
 		})
 	}
 
