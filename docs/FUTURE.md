@@ -140,6 +140,10 @@ So, there's a few things to think about here:
 
 ## New Schema Sources & Formats
 
+* [DBML](https://dbml.dbdiagram.io/home/)
+* [CUE](https://cuelang.org/)
+* [HCL](https://github.com/hashicorp/hcl)
+
 At the moment, DBSteward only recognizes DBXML files as a valid source of a database schema.
 
 For many reasons, I don't think this is sufficient. The most obvious being, that lots of people have an intense dislike of XML. It can be verbose and hard to read, hard to validate, and can sometimes have poor editor support.
