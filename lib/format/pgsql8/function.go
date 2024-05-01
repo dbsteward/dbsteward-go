@@ -30,7 +30,7 @@ func functionDefinitionReferencesTable(definition *ir.FunctionDefinition) *lib.Q
 	if table == "" {
 		return nil
 	}
-	parsed := lib.GlobalSqlParser.ParseQualifiedTableName(table)
+	parsed := lib.ParseQualifiedTableName(table)
 	return &parsed
 }
 

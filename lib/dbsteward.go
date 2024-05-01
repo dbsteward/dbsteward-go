@@ -144,7 +144,7 @@ func (self *DBSteward) ArgParse() {
 	self.OnlySchemaSql = args.OnlySchemaSql
 	self.OnlyDataSql = args.OnlyDataSql
 	for _, onlyTable := range args.OnlyTables {
-		table := GlobalSqlParser.ParseQualifiedTableName(onlyTable)
+		table := ParseQualifiedTableName(onlyTable)
 		self.LimitToTables[table.Schema] = append(self.LimitToTables[table.Schema], table.Table)
 	}
 
