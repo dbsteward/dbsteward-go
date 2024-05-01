@@ -1,6 +1,8 @@
 package pgsql8
 
 import (
+	"log/slog"
+
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
@@ -62,7 +64,6 @@ func (d *diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *ir.Definition, u
 
 func (d *diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegmenter) {
 	dbsteward := lib.GlobalDBSteward
-	dbx := lib.GlobalDBX
 
 	// this shouldn't be called if we're not generating slonik, it looks for
 	// a slony element in <database> which most likely won't be there if
@@ -95,8 +96,8 @@ func (d *diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegme
 	}
 
 	// start with pre-upgrade sql statements that prepare the database to take on its changes
-	dbx.BuildStagedSql(dbsteward.NewDatabase, stage1, "STAGE1BEFORE")
-	dbx.BuildStagedSql(dbsteward.NewDatabase, stage2, "STAGE2BEFORE")
+	buildStagedSql(dbsteward.NewDatabase, stage1, "STAGE1BEFORE")
+	buildStagedSql(dbsteward.NewDatabase, stage2, "STAGE2BEFORE")
 
 	dbsteward.Info("Drop Old Schemas")
 	d.DropOldSchemas(stage3)
@@ -150,10 +151,10 @@ func (d *diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegme
 		// TODO(go,slony) format::set_context_replica_set_to_natural_first(dbsteward::$new_database);
 	}
 
-	dbx.BuildStagedSql(dbsteward.NewDatabase, stage1, "STAGE1")
-	dbx.BuildStagedSql(dbsteward.NewDatabase, stage2, "STAGE2")
-	dbx.BuildStagedSql(dbsteward.NewDatabase, stage3, "STAGE3")
-	dbx.BuildStagedSql(dbsteward.NewDatabase, stage4, "STAGE4")
+	buildStagedSql(dbsteward.NewDatabase, stage1, "STAGE1")
+	buildStagedSql(dbsteward.NewDatabase, stage2, "STAGE2")
+	buildStagedSql(dbsteward.NewDatabase, stage3, "STAGE3")
+	buildStagedSql(dbsteward.NewDatabase, stage4, "STAGE4")
 }
 
 func (d *diff) DiffSql(old, new []string, upgradePrefix string) {
@@ -253,8 +254,10 @@ func (d *diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.
 			// oldSchema and oldTable are already established pointers
 			// when a table has an oldTableName oldSchemaName specified,
 			// GlobalDBX.RenamedTableCheckPointer() will modify these pointers to be the old table
-			oldSchema, oldTable = lib.GlobalDBX.RenamedTableCheckPointer(oldSchema, oldTable, newSchema, newTable)
-			err := createTable(stage1, oldSchema, newSchema, newTable)
+			var err error
+			oldSchema, oldTable, err = lib.GlobalDBSteward.OldDatabase.NewTableName(oldSchema, oldTable, newSchema, newTable)
+			lib.GlobalDBSteward.FatalIfError(err, "getting new table name")
+			err = createTable(stage1, oldSchema, newSchema, newTable)
 			lib.GlobalDBSteward.FatalIfError(err, "while creating table %s.%s", newSchema.Name, newTable.Name)
 			err = diffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
 			lib.GlobalDBSteward.FatalIfError(err, "while diffing table %s.%s", newSchema.Name, newTable.Name)
@@ -299,7 +302,7 @@ func (d *diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 outpu
 
 		for _, newTable := range newSchema.Tables {
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
-			isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
+			isRenamed, err := lib.GlobalDBSteward.OldDatabase.IsRenamedTable(slog.Default(), newSchema, newTable)
 			lib.GlobalDBSteward.FatalIfError(err, "while updating permissions")
 			if isRenamed {
 				// skip permission diffing on it, it is the same
@@ -355,12 +358,12 @@ func (d *diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 			oldSchema := lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
 
-			isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
+			isRenamed, err := lib.GlobalDBSteward.OldDatabase.IsRenamedTable(slog.Default(), newSchema, newTable)
 			lib.GlobalDBSteward.FatalIfError(err, "while updating data")
 			if isRenamed {
 				lib.GlobalDBSteward.Info("%s.%s used to be called %s - will diff data against that definition", newSchema.Name, newTable.Name, newTable.OldTableName)
-				oldSchema = lib.GlobalDBX.GetOldTableSchema(newSchema, newTable)
-				oldTable = lib.GlobalDBX.GetOldTable(newSchema, newTable)
+				oldSchema = lib.GlobalDBSteward.OldDatabase.GetOldTableSchema(newSchema, newTable)
+				oldTable = lib.GlobalDBSteward.OldDatabase.GetOldTable(newSchema, newTable)
 			}
 
 			if deleteMode {

@@ -1,46 +1,43 @@
-package lib_test
+package ir
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/dbsteward/dbsteward/lib"
-	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 func TestDBX_ResolveForeignKey_InheritedColumn(t *testing.T) {
 	// NOTE: In v1 this was tests/pgsql8/FKeyToInheritedTableTest.php
-	doc := &ir.Definition{
-		Schemas: []*ir.Schema{
-			&ir.Schema{
+	doc := &Definition{
+		Schemas: []*Schema{
+			{
 				Name: "test",
-				Tables: []*ir.Table{
-					&ir.Table{
+				Tables: []*Table{
+					{
 						Name:       "parent",
 						PrimaryKey: []string{"foo"},
-						Columns: []*ir.Column{
+						Columns: []*Column{
 							{Name: "foo", Type: "varchar(255)"},
 						},
 					},
-					&ir.Table{
+					{
 						Name:           "child",
 						PrimaryKey:     []string{"foo"},
 						InheritsSchema: "test",
 						InheritsTable:  "parent",
-						Columns: []*ir.Column{
+						Columns: []*Column{
 							{Name: "bar", Type: "varchar(255)"},
 						},
 					},
 				},
 			},
-			&ir.Schema{
+			{
 				Name: "other",
-				Tables: []*ir.Table{
-					&ir.Table{
+				Tables: []*Table{
+					{
 						Name:       "baz",
 						PrimaryKey: []string{"footoo"},
-						Columns: []*ir.Column{
+						Columns: []*Column{
 							{Name: "footoo", ForeignSchema: "test", ForeignTable: "child", ForeignColumn: "foo"},
 						},
 					},
@@ -52,7 +49,10 @@ func TestDBX_ResolveForeignKey_InheritedColumn(t *testing.T) {
 	table := schema.Tables[0]
 	column := table.Columns[0]
 
-	fkey := lib.NewDBX().ResolveForeignKeyColumn(doc, schema, table, column)
+	fkey, err := doc.ResolveForeignKeyColumn(schema, table, column)
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.Equal(t, doc.Schemas[0], fkey.Schema)
 	assert.Equal(t, doc.Schemas[0].Tables[1], fkey.Table)
 	assert.Equal(t, doc.Schemas[0].Tables[0].Columns[0], fkey.Columns[0])

@@ -17,11 +17,18 @@ func TestMain(m *testing.M) {
 func setOldNewDocs(old, new *ir.Definition) {
 	lib.GlobalDBSteward.OldDatabase = old
 	lib.GlobalDBSteward.NewDatabase = new
+	var err error
 	if old != nil {
-		differ.OldTableDependency = lib.GlobalDBX.TableDependencyOrder(old)
+		differ.OldTableDependency, err = old.TableDependencyOrder()
+		if err != nil {
+			panic(err)
+		}
 	}
 	if new != nil {
-		differ.NewTableDependency = lib.GlobalDBX.TableDependencyOrder(new)
+		differ.NewTableDependency, err = new.TableDependencyOrder()
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 

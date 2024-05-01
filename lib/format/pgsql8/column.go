@@ -1,6 +1,7 @@
 package pgsql8
 
 import (
+	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -125,7 +126,8 @@ func getColumnType(doc *ir.Definition, schema *ir.Schema, table *ir.Table, colum
 	// if it is a foreign keyed column, solve for the foreign key type
 	if column.ForeignTable != "" {
 		// TODO(feat) what about compound FKs?
-		foreign := lib.GlobalDBX.GetTerminalForeignColumn(doc, schema, table, column)
+		foreign, err := doc.GetTerminalForeignColumn(slog.Default(), schema, table, column)
+		lib.GlobalDBSteward.FatalIfError(err, "")
 		return getReferenceType(foreign.Type)
 	}
 

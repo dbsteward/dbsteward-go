@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"slices"
 	"strings"
@@ -81,7 +82,6 @@ func (ops *Operations) build(buildFileOfs output.OutputFileSegmenter, dbDoc *ir.
 	// TODO(go,4) can we just consider a build(def) to be diff(null, def)?
 	// some shortcuts, since we're going to be typing a lot here
 	dbsteward := lib.GlobalDBSteward
-	dbx := lib.GlobalDBX
 
 	if len(dbsteward.LimitToTables) == 0 {
 		buildFileOfs.Write("-- full database definition file generated %s\n", time.Now().Format(time.RFC1123Z))
@@ -91,11 +91,11 @@ func (ops *Operations) build(buildFileOfs output.OutputFileSegmenter, dbDoc *ir.
 	}
 
 	dbsteward.Info("Calculating table foreign dependency order...")
-	tableDependency := dbx.TableDependencyOrder(dbDoc)
+	tableDependency, err := dbDoc.TableDependencyOrder()
+	dbsteward.FatalIfError(err, "calculating table dependency order")
 
 	// database-specific implementation code refers to dbsteward::$new_database when looking up roles/values/conflicts etc
 	dbsteward.NewDatabase = dbDoc
-	dbx.SetDefaultSchema(dbDoc, "public")
 
 	// language definitions
 	if dbsteward.CreateLanguages {
@@ -178,10 +178,13 @@ func (ops *Operations) BuildUpgrade(
 	upgradePrefix := newOutputPrefix + "_upgrade"
 
 	lib.GlobalDBSteward.Info("Calculating old table foreign key dependency order...")
-	differ.OldTableDependency = lib.GlobalDBX.TableDependencyOrder(oldDoc)
+	var err error
+	differ.OldTableDependency, err = oldDoc.TableDependencyOrder()
+	lib.GlobalDBSteward.FatalIfError(err, "calculating dependency order")
 
 	lib.GlobalDBSteward.Info("Calculating new table foreign key dependency order...")
-	differ.NewTableDependency = lib.GlobalDBX.TableDependencyOrder(newDoc)
+	differ.NewTableDependency, err = newDoc.TableDependencyOrder()
+	lib.GlobalDBSteward.FatalIfError(err, "calculating dependency order")
 
 	differ.DiffDoc(oldCompositeFile, newCompositeFile, oldDoc, newDoc, upgradePrefix)
 
@@ -695,7 +698,10 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 
 			// NEW(2) if the table inherits from the parent, remove any inherited objects
 			if table.InheritsTable != "" || table.InheritsSchema != "" {
-				parentRef := lib.GlobalDBX.ResolveSchemaTable(doc, schema, table.InheritsSchema, table.InheritsTable, "inheritance")
+				parentRef, err := doc.ResolveSchemaTable(schema, table.InheritsSchema, table.InheritsTable, "inheritance")
+				if err != nil {
+					return nil, err
+				}
 				for _, parentColumn := range parentRef.Table.Columns {
 					column := table.TryGetColumnNamed(parentColumn.Name)
 					if column != nil && column.EqualsInherited(parentColumn) {
@@ -783,7 +789,8 @@ func (ops *Operations) CompareDbData(doc *ir.Definition, host string, port uint,
 						if len(colType) > 0 {
 							dbsteward.Fatal("type of %s was found for column %s but it is foreign keyed", colType, column.Name)
 						}
-						foreign := lib.GlobalDBX.GetTerminalForeignColumn(doc, schema, table, column)
+						foreign, err := doc.GetTerminalForeignColumn(slog.Default(), schema, table, column)
+						dbsteward.FatalIfError(err, "")
 						colType = foreign.Type
 					}
 
@@ -1050,7 +1057,8 @@ func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*i
 			if util.Contains(dataCols, pkCol) {
 				// TODO(go,3) seems like this could be refactored better by putting much of the lookup
 				// into the model structs
-				pk := lib.GlobalDBX.TryInheritanceGetColumn(doc, schema, table, pkCol)
+				pk, err := doc.TryInheritanceGetColumn(schema, table, pkCol)
+				lib.GlobalDBSteward.FatalIfError(err, "TryInheritanceGetColumn")
 				if pk == nil {
 					lib.GlobalDBSteward.Fatal("Failed to find primary key column '%s' for %s.%s",
 						pkCol, schema.Name, table.Name)
@@ -1071,7 +1079,8 @@ func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*i
 		// check if primary key columns are columns of this table
 		// TODO(go,3) does this check belong here? should there be some kind of post-parse validation?
 		for _, columnName := range table.PrimaryKey {
-			col := lib.GlobalDBX.TryInheritanceGetColumn(doc, schema, table, columnName)
+			col, err := doc.TryInheritanceGetColumn(schema, table, columnName)
+			lib.GlobalDBSteward.FatalIfError(err, "TryInheritanceGetColumn")
 			if col == nil {
 				lib.GlobalDBSteward.Fatal("Declared primary key column (%s) does not exist as column in table %s.%s",
 					columnName, schema.Name, table.Name)
@@ -1080,7 +1089,7 @@ func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*i
 	}
 
 	// include all of the unstaged sql elements
-	lib.GlobalDBX.BuildStagedSql(doc, ofs, "")
+	buildStagedSql(doc, ofs, "")
 }
 
 func columnValueDefault(schema *ir.Schema, table *ir.Table, columnName string, dataCol *ir.DataCol) sql.ToSqlValue {
@@ -1101,7 +1110,8 @@ func columnValueDefault(schema *ir.Schema, table *ir.Table, columnName string, d
 		}
 	}
 
-	col := lib.GlobalDBX.TryInheritanceGetColumn(lib.GlobalDBSteward.NewDatabase, schema, table, columnName)
+	col, err := lib.GlobalDBSteward.NewDatabase.TryInheritanceGetColumn(schema, table, columnName)
+	lib.GlobalDBSteward.FatalIfError(err, "TryInheritanceGetColumn")
 	if col == nil {
 		lib.GlobalDBSteward.Fatal("Failed to find table %s.%s column %s for default value check", schema.Name, table.Name, columnName)
 	}
@@ -1321,4 +1331,21 @@ func normalizeColumnCheckCondition(s string) string {
 	s = s[parens:]
 	s = s[:len(s)-parens]
 	return strings.TrimSpace(s)
+}
+
+func buildStagedSql(doc *ir.Definition, ofs output.OutputFileSegmenter, stage ir.SqlStage) {
+	if stage == "" {
+		ofs.Write("\n-- NON-STAGED SQL COMMANDS\n")
+	} else {
+		ofs.Write("\n-- SQL STAGE %s COMMANDS\n", stage)
+	}
+	for _, sql := range doc.Sql {
+		if sql.Stage.Equals(stage) {
+			if sql.Comment != "" {
+				ofs.Write("%s\n", util.PrefixLines(sql.Comment, "-- "))
+			}
+			ofs.Write("%s\n", strings.TrimSpace(sql.Text))
+		}
+	}
+	ofs.Write("\n")
 }

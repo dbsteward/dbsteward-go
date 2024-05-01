@@ -1,6 +1,8 @@
 package pgsql8
 
 import (
+	"log/slog"
+
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/ir"
@@ -19,7 +21,7 @@ func createConstraints(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.
 }
 
 func createConstraintsTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) {
-	isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
+	isRenamed, err := lib.GlobalDBSteward.OldDatabase.IsRenamedTable(slog.Default(), newSchema, newTable)
 	lib.GlobalDBSteward.FatalIfError(err, "while checking if table was renamed")
 	if isRenamed {
 		// remove all constraints and recreate with new table name conventions

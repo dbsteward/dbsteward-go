@@ -2,6 +2,7 @@ package pgsql8
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -24,8 +25,12 @@ func diffTables(stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema 
 	}
 	for _, newTable := range newSchema.Tables {
 		oldTable := oldSchema.TryGetTableNamed(newTable.Name)
-		oldSchema, oldTable = lib.GlobalDBX.RenamedTableCheckPointer(oldSchema, oldTable, newSchema, newTable)
-		err := diffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
+		var err error
+		oldSchema, oldTable, err = lib.GlobalDBSteward.OldDatabase.NewTableName(oldSchema, oldTable, newSchema, newTable)
+		if err != nil {
+			return err
+		}
+		err = diffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
 		if err != nil {
 			return errors.Wrapf(err, "while diffing table %s.%s", newSchema.Name, newTable.Name)
 		}
@@ -540,14 +545,14 @@ func createTable(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema
 		return nil
 	}
 
-	isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
+	isRenamed, err := lib.GlobalDBSteward.OldDatabase.IsRenamedTable(slog.Default(), newSchema, newTable)
 	if err != nil {
 		return err
 	}
 	if isRenamed {
 		// this is a renamed table, so rename it instead of creating a new one
-		oldTableSchema := lib.GlobalDBX.GetOldTableSchema(newSchema, newTable)
-		oldTable := lib.GlobalDBX.GetOldTable(newSchema, newTable)
+		oldTableSchema := lib.GlobalDBSteward.OldDatabase.GetOldTableSchema(newSchema, newTable)
+		oldTable := lib.GlobalDBSteward.OldDatabase.GetOldTable(newSchema, newTable)
 
 		// ALTER TABLE ... RENAME TO does not accept schema qualifiers ...
 		oldRef := sql.TableRef{Schema: oldTableSchema.Name, Table: oldTable.Name}
@@ -591,7 +596,7 @@ func dropTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *i
 		return
 	}
 	if !lib.GlobalDBSteward.IgnoreOldNames {
-		renamedRef := lib.GlobalDBX.TryGetTableFormerlyKnownAs(lib.GlobalDBSteward.NewDatabase, oldSchema, oldTable)
+		renamedRef := lib.GlobalDBSteward.NewDatabase.TryGetTableFormerlyKnownAs(oldSchema, oldTable)
 		if renamedRef != nil {
 			ofs.Write("-- DROP TABLE %s.%s omitted: new table %s indicates it is her replacement", oldSchema.Name, oldTable.Name, renamedRef)
 			return
@@ -619,12 +624,12 @@ func diffClustersTable(ofs output.OutputFileSegmenter, oldTable *ir.Table, newSc
 
 func diffData(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) {
 	for _, newTable := range newSchema.Tables {
-		isRenamed, err := lib.GlobalDBX.IsRenamedTable(newSchema, newTable)
+		isRenamed, err := lib.GlobalDBSteward.OldDatabase.IsRenamedTable(slog.Default(), newSchema, newTable)
 		lib.GlobalDBSteward.FatalIfError(err, "while diffing data")
 		if isRenamed {
 			// if the table was renamed, get old definition pointers, diff that
-			oldSchema := lib.GlobalDBX.GetOldTableSchema(newSchema, newTable)
-			oldTable := lib.GlobalDBX.GetOldTable(newSchema, newTable)
+			oldSchema := lib.GlobalDBSteward.OldDatabase.GetOldTableSchema(newSchema, newTable)
+			oldTable := lib.GlobalDBSteward.OldDatabase.GetOldTable(newSchema, newTable)
 			ofs.WriteSql(getCreateDataSql(oldSchema, oldTable, newSchema, newTable)...)
 		} else {
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)

@@ -1,6 +1,7 @@
 package pgsql8
 
 import (
+	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -29,10 +30,8 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 			lib.GlobalDBSteward.Fatal("Table %s.%s does not have a primaryKey", schema.Name, table.Name)
 		}
 
-		cols, ok := lib.GlobalDBX.TryInheritanceGetColumns(doc, schema, table, table.PrimaryKey)
-		if !ok {
-			lib.GlobalDBSteward.Fatal("Table %s.%s does not have all named primary keys %v", schema.Name, table.Name, table.PrimaryKey)
-		}
+		cols, err := doc.TryInheritanceGetColumns(schema, table, table.PrimaryKey)
+		lib.GlobalDBSteward.FatalIfError(err, "Table %s.%s does not have all named primary keys %v", schema.Name, table.Name, table.PrimaryKey)
 		constraints = append(constraints, &sql99.TableConstraint{
 			Name:    util.CoalesceStr(table.PrimaryKeyName, buildPrimaryKeyName(table.Name)),
 			Type:    sql99.ConstraintTypePrimaryKey,
@@ -111,16 +110,15 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 				lib.GlobalDBSteward.Fatal("foreignKey on %s.%s requires a constraintName", schema.Name, table.Name)
 			}
 
-			localCols, ok := lib.GlobalDBX.TryInheritanceGetColumns(doc, schema, table, fk.Columns)
-			if !ok {
-				lib.GlobalDBSteward.Fatal(
-					"foreignKey %s on %s.%s references local columns %v that don't exist",
-					fk.ConstraintName,
-					schema.Name,
-					table.Name,
-					fk.Columns,
-				)
-			}
+			localCols, err := doc.TryInheritanceGetColumns(schema, table, fk.Columns)
+			lib.GlobalDBSteward.FatalIfError(
+				err,
+				"foreignKey %s on %s.%s references local columns %v that don't exist",
+				fk.ConstraintName,
+				schema.Name,
+				table.Name,
+				fk.Columns,
+			)
 
 			localKey := ir.Key{
 				Schema:  schema,
@@ -128,7 +126,8 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 				Columns: localCols,
 			}
 
-			ref := lib.GlobalDBX.ResolveForeignKey(doc, localKey, fk.GetReferencedKey())
+			ref, err := doc.ResolveForeignKey(localKey, fk.GetReferencedKey())
+			lib.GlobalDBSteward.FatalIfError(err, "")
 			constraints = append(constraints, &sql99.TableConstraint{
 				Name:             fk.ConstraintName,
 				Type:             sql99.ConstraintTypeForeign,
@@ -149,7 +148,8 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 	if ct.Includes(sql99.ConstraintTypeConstraint) {
 		for _, column := range table.Columns {
 			if ct.Includes(sql99.ConstraintTypeForeign) && column.HasForeignKey() {
-				ref := lib.GlobalDBX.ResolveForeignKeyColumn(doc, schema, table, column)
+				ref, err := doc.ResolveForeignKeyColumn(schema, table, column)
+				lib.GlobalDBSteward.FatalIfError(err, "")
 				constraints = append(constraints, &sql99.TableConstraint{
 					Name:             util.CoalesceStr(column.ForeignKeyName, buildForeignKeyName(table.Name, column.Name)),
 					Type:             sql99.ConstraintTypeForeign,
@@ -285,9 +285,12 @@ func constraintDependsOnRenamedTable(doc *ir.Definition, constraint *sql99.Table
 	if refTable == nil {
 		return false
 	}
-
-	isRenamed, err := lib.GlobalDBX.IsRenamedTable(refSchema, refTable)
-	lib.GlobalDBSteward.FatalIfError(err, "while checking if constraint depends on renamed table")
+	isRenamed := lib.GlobalDBSteward.IgnoreOldNames
+	if !isRenamed {
+		var err error
+		isRenamed, err = lib.GlobalDBSteward.OldDatabase.IsRenamedTable(slog.Default(), refSchema, refTable)
+		lib.GlobalDBSteward.FatalIfError(err, "while checking if constraint depends on renamed table")
+	}
 	if isRenamed {
 		lib.GlobalDBSteward.Notice("Constraint %s.%s.%s references renamed table %s.%s", constraint.Schema.Name, constraint.Table.Name, constraint.Name, refSchema.Name, refTable.Name)
 		return true
