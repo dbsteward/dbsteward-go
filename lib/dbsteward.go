@@ -639,7 +639,7 @@ func (self *DBSteward) doSqlDiff(oldSql, newSql []string, outputFile string) {
 }
 func (self *DBSteward) doSlonikConvert(file string, outputFile string) {
 	// TODO(go,nth) is there a nicer way to handle this output idiom?
-	output := GlobalSlonik.Convert(file)
+	output := NewSlonik().Convert(file)
 	if len(outputFile) > 0 {
 		err := util.WriteFile(output, outputFile)
 		self.FatalIfError(err, "Failed to save slonikconvert output to %s", outputFile)
