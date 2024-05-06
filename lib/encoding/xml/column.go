@@ -3,6 +3,7 @@ package xml
 import (
 	"encoding/xml"
 	"fmt"
+	"log/slog"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
 )
@@ -42,18 +43,72 @@ type Column struct {
 	AfterAddPostStage3 string `xml:"afterAddPostStage3,attr,omitempty"`
 }
 
+func ColumnsFromIR(l *slog.Logger, cols []*ir.Column) ([]*Column, error) {
+	if len(cols) == 0 {
+		return nil, nil
+	}
+	var rv []*Column
+	for _, c := range cols {
+		if c != nil {
+			nc, err := ColumnFromIR(l, c)
+			if err != nil {
+				return nil, err
+			}
+			rv = append(rv, nc)
+		}
+	}
+	return rv, nil
+}
+
+func ColumnFromIR(l *slog.Logger, col *ir.Column) (*Column, error) {
+	if col == nil {
+		return nil, nil
+	}
+	l = l.With(slog.String("column", col.Name))
+	l.Debug("converting column")
+	defer l.Debug("done converting column")
+	rv := Column{
+		Name:             col.Name,
+		Type:             col.Type,
+		Nullable:         col.Nullable,
+		Default:          col.Default,
+		Description:      col.Description,
+		Unique:           col.Unique,
+		Check:            col.Check,
+		SerialStart:      col.SerialStart,
+		OldColumnName:    col.OldColumnName,
+		ConvertUsing:     col.ConvertUsing,
+		ForeignSchema:    col.ForeignSchema,
+		ForeignTable:     col.ForeignTable,
+		ForeignColumn:    col.ForeignColumn,
+		ForeignKeyName:   col.ForeignKeyName,
+		ForeignIndexName: col.ForeignIndexName,
+		ForeignOnUpdate:  string(col.ForeignOnUpdate),
+		ForeignOnDelete:  string(col.ForeignOnDelete),
+		Statistics:       col.Statistics,
+		BeforeAddStage1:  col.BeforeAddStage1,
+		AfterAddStage1:   col.AfterAddStage1,
+		BeforeAddStage2:  col.BeforeAddStage2,
+		AfterAddStage2:   col.AfterAddStage2,
+		BeforeAddStage3:  col.BeforeAddStage3,
+		AfterAddStage3:   col.AfterAddStage3,
+		// Ignoring depricated fields for now
+	}
+	return &rv, nil
+}
+
 // Implement some custom unmarshalling behavior
-func (self *Column) UnmarshalXML(decoder *xml.Decoder, start xml.StartElement) error {
+func (col *Column) UnmarshalXML(decoder *xml.Decoder, start xml.StartElement) error {
 	type colAlias Column // prevents recursion while decoding, as type aliases have no methods
 	// set defaults
-	col := &colAlias{
+	ca := colAlias{
 		Nullable: true, // as in SQL NULL
 	}
-	err := decoder.DecodeElement(col, &start)
+	err := decoder.DecodeElement(&ca, &start)
 	if err != nil {
 		return err
 	}
-	*self = Column(*col)
+	*col = Column(ca)
 	return nil
 }
 

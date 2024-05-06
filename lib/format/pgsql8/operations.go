@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -23,14 +24,33 @@ import (
 
 type Operations struct {
 	*sql99.Operations
-	EscapeStringValues bool
-	quoter             output.Quoter
+	logger *slog.Logger
+	differ *diff
 }
 
-func NewOperations() *Operations {
+var quoter output.Quoter
+
+func defaultQuoter(logger *slog.Logger) output.Quoter {
+	dbsteward := lib.GlobalDBSteward
+	return &sql.Quoter{
+		Logger:                         logger,
+		ShouldQuoteSchemaNames:         dbsteward.QuoteAllNames || dbsteward.QuoteSchemaNames,
+		ShouldQuoteTableNames:          dbsteward.QuoteAllNames || dbsteward.QuoteTableNames,
+		ShouldQuoteColumnNames:         dbsteward.QuoteAllNames || dbsteward.QuoteColumnNames,
+		ShouldQuoteObjectNames:         dbsteward.QuoteAllNames || dbsteward.QuoteObjectNames,
+		ShouldQuoteIllegalIdentifiers:  dbsteward.QuoteIllegalIdentifiers,
+		ShouldQuoteReservedIdentifiers: dbsteward.QuoteReservedIdentifiers,
+		ShouldEEscape:                  false,
+		RequireVerboseIntervalNotation: dbsteward.RequireVerboseIntervalNotation,
+	}
+}
+
+func NewOperations() format.Operations {
+	quoter = defaultQuoter(lib.GlobalDBSteward.Logger())
 	pgsql := &Operations{
-		Operations:         sql99.NewOperations(),
-		EscapeStringValues: false,
+		Operations: sql99.NewOperations(),
+		logger:     lib.GlobalDBSteward.Logger(),
+		differ:     newDiff(quoter),
 	}
 	pgsql.Operations.Operations = pgsql
 	return pgsql
@@ -38,21 +58,7 @@ func NewOperations() *Operations {
 
 func (ops *Operations) GetQuoter() output.Quoter {
 	// TODO(go,core) can we push this out to the GlobalLookup instance?
-	if ops.quoter == nil {
-		dbsteward := lib.GlobalDBSteward
-		return &sql.Quoter{
-			Logger:                         dbsteward,
-			ShouldQuoteSchemaNames:         dbsteward.QuoteAllNames || dbsteward.QuoteSchemaNames,
-			ShouldQuoteTableNames:          dbsteward.QuoteAllNames || dbsteward.QuoteTableNames,
-			ShouldQuoteColumnNames:         dbsteward.QuoteAllNames || dbsteward.QuoteColumnNames,
-			ShouldQuoteObjectNames:         dbsteward.QuoteAllNames || dbsteward.QuoteObjectNames,
-			ShouldQuoteIllegalIdentifiers:  dbsteward.QuoteIllegalIdentifiers,
-			ShouldQuoteReservedIdentifiers: dbsteward.QuoteReservedIdentifiers,
-			ShouldEEscape:                  ops.EscapeStringValues,
-			RequireVerboseIntervalNotation: dbsteward.RequireVerboseIntervalNotation,
-		}
-	}
-	return ops.quoter
+	return quoter
 }
 
 func (ops *Operations) CreateStatements(def ir.Definition) ([]output.DDLStatement, error) {
@@ -64,18 +70,23 @@ func (ops *Operations) CreateStatements(def ir.Definition) ([]output.DDLStatemen
 	return ofs.AllStatements(), nil
 }
 
-func (ops *Operations) Build(outputPrefix string, dbDoc *ir.Definition) {
+func (ops *Operations) Build(outputPrefix string, dbDoc *ir.Definition) error {
 	dbsteward := lib.GlobalDBSteward
 
 	buildFileName := outputPrefix + "_build.sql"
-	dbsteward.Info("Building complete file %s", buildFileName)
+	ops.logger.Info(fmt.Sprintf("Building complete file %s", buildFileName))
 
 	buildFile, err := os.Create(buildFileName)
-	dbsteward.FatalIfError(err, "Failed to open file %s for output", buildFileName)
+	if err != nil {
+		return fmt.Errorf("failed to open file %s for output: %w", buildFileName, err)
+	}
 
-	buildFileOfs := output.NewOutputFileSegmenterToFile(dbsteward, ops.GetQuoter(), buildFileName, 1, buildFile, buildFileName, dbsteward.OutputFileStatementLimit)
+	buildFileOfs := output.NewOutputFileSegmenterToFile(ops.logger, ops.GetQuoter(), buildFileName, 1, buildFile, buildFileName, dbsteward.OutputFileStatementLimit)
 	err = ops.build(buildFileOfs, dbDoc)
-	dbsteward.FatalIfError(err, "build error")
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (ops *Operations) build(buildFileOfs output.OutputFileSegmenter, dbDoc *ir.Definition) error {
@@ -84,15 +95,17 @@ func (ops *Operations) build(buildFileOfs output.OutputFileSegmenter, dbDoc *ir.
 	dbsteward := lib.GlobalDBSteward
 
 	if len(dbsteward.LimitToTables) == 0 {
-		buildFileOfs.Write("-- full database definition file generated %s\n", time.Now().Format(time.RFC1123Z))
+		buildFileOfs.WriteSql(sql.NewComment("full database definition file generated %s\n", time.Now().Format(time.RFC1123Z)))
 	}
 	if !dbsteward.GenerateSlonik {
-		buildFileOfs.Write("BEGIN;\n\n")
+		buildFileOfs.WriteSql(output.NewRawSQL("BEGIN;\n\n"))
 	}
 
-	dbsteward.Info("Calculating table foreign dependency order...")
+	ops.logger.Info("Calculating table foreign dependency order...")
 	tableDependency, err := dbDoc.TableDependencyOrder()
-	dbsteward.FatalIfError(err, "calculating table dependency order")
+	if err != nil {
+		return fmt.Errorf("calculating table dependency order: %w", err)
+	}
 
 	// database-specific implementation code refers to dbsteward::$new_database when looking up roles/values/conflicts etc
 	dbsteward.NewDatabase = dbDoc
@@ -100,7 +113,11 @@ func (ops *Operations) build(buildFileOfs output.OutputFileSegmenter, dbDoc *ir.
 	// language definitions
 	if dbsteward.CreateLanguages {
 		for _, language := range dbDoc.Languages {
-			buildFileOfs.WriteSql(getCreateLanguageSql(language)...)
+			s, err := getCreateLanguageSql(ops.logger, language)
+			if err != nil {
+				return err
+			}
+			buildFileOfs.WriteSql(s...)
 		}
 	}
 
@@ -141,29 +158,32 @@ outer:
 		}
 	}
 	if !setCheckFunctionBodies {
-		buildFileOfs.Write("\n")
+		buildFileOfs.WriteSql(output.NewRawSQL("\n"))
 		buildFileOfs.WriteSql(&sql.Annotated{
 			Wrapped:    &sql.SetCheckFunctionBodies{Value: false},
 			Annotation: setCheckFunctionBodiesInfo,
 		})
-		dbsteward.Info(setCheckFunctionBodiesInfo)
+		ops.logger.Info(setCheckFunctionBodiesInfo)
 	}
 
 	if dbsteward.OnlySchemaSql || !dbsteward.OnlyDataSql {
-		dbsteward.Info("Defining structure")
-		err := buildSchema(dbDoc, buildFileOfs, tableDependency)
+		ops.logger.Info("Defining structure")
+		err := ops.buildSchema(dbDoc, buildFileOfs, tableDependency)
 		if err != nil {
 			return err
 		}
 	}
 	if !dbsteward.OnlySchemaSql || dbsteward.OnlyDataSql {
-		dbsteward.Info("Defining data inserts")
-		buildData(dbDoc, buildFileOfs, tableDependency)
+		ops.logger.Info("Defining data inserts")
+		err = buildData(ops.logger, dbDoc, buildFileOfs, tableDependency)
+		if err != nil {
+			return err
+		}
 	}
 	dbsteward.NewDatabase = nil
 
 	if !dbsteward.GenerateSlonik {
-		buildFileOfs.Write("COMMIT;\n\n")
+		buildFileOfs.WriteSql(output.NewRawSQL("COMMIT;\n\n"))
 	}
 
 	// TODO(go,slony)
@@ -174,22 +194,30 @@ outer:
 func (ops *Operations) BuildUpgrade(
 	oldOutputPrefix string, oldCompositeFile string, oldDoc *ir.Definition, oldFiles []string,
 	newOutputPrefix string, newCompositeFile string, newDoc *ir.Definition, newFiles []string,
-) {
+) error {
 	upgradePrefix := newOutputPrefix + "_upgrade"
 
-	lib.GlobalDBSteward.Info("Calculating old table foreign key dependency order...")
+	ops.logger.Info("Calculating old table foreign key dependency order...")
 	var err error
-	differ.OldTableDependency, err = oldDoc.TableDependencyOrder()
-	lib.GlobalDBSteward.FatalIfError(err, "calculating dependency order")
+	ops.differ.OldTableDependency, err = oldDoc.TableDependencyOrder()
+	if err != nil {
+		return fmt.Errorf("calculating dependency order: %w", err)
+	}
 
-	lib.GlobalDBSteward.Info("Calculating new table foreign key dependency order...")
-	differ.NewTableDependency, err = newDoc.TableDependencyOrder()
-	lib.GlobalDBSteward.FatalIfError(err, "calculating dependency order")
+	ops.logger.Info("Calculating new table foreign key dependency order...")
+	ops.differ.NewTableDependency, err = newDoc.TableDependencyOrder()
+	if err != nil {
+		return fmt.Errorf("calculating dependency order: %w", err)
+	}
 
-	differ.DiffDoc(oldCompositeFile, newCompositeFile, oldDoc, newDoc, upgradePrefix)
+	err = ops.differ.DiffDoc(oldCompositeFile, newCompositeFile, oldDoc, newDoc, upgradePrefix)
+	if err != nil {
+		return err
+	}
 
 	// TODO(go,slony)
 	// if lib.GlobalDBSteward.GenerateSlonik {}
+	return nil
 }
 
 func (ops *Operations) ExtractSchemaConn(ctx context.Context, c *pgx.Conn) (*ir.Definition, error) {
@@ -197,37 +225,32 @@ func (ops *Operations) ExtractSchemaConn(ctx context.Context, c *pgx.Conn) (*ir.
 	return ops.extractSchema(ctx, conn)
 }
 
-func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass string) *ir.Definition {
-	dbsteward := lib.GlobalDBSteward
-	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as %s", host, port, name, user)
+func (ops *Operations) ExtractSchema(host string, port uint, name, user, pass string) (*ir.Definition, error) {
+	ops.logger.Info(fmt.Sprintf("Connecting to pgsql8 host %s:%d database %s as %s", host, port, name, user))
 	conn, err := newConnection(host, port, name, user, pass)
-	dbsteward.FatalIfError(err, "connecting to database")
+	if err != nil {
+		return nil, fmt.Errorf("connecting to database: %w", err)
+	}
 	// TODO(go,pgsql) this is deadlocking during a panic
 	defer conn.disconnect()
 	def, err := ops.extractSchema(context.TODO(), conn)
-	dbsteward.FatalIfError(err, "extracting schema")
-	def.Database.Roles = &ir.RoleAssignment{
-		Application: user,
-		Owner:       user,
-		Replication: user,
-		ReadOnly:    user,
+	if err != nil {
+		return nil, fmt.Errorf("extracting schema: %w", err)
 	}
-	return def
+	return def, nil
 }
 
 func (ops *Operations) extractSchema(ctx context.Context, conn *liveConnection) (*ir.Definition, error) {
-	dbsteward := lib.GlobalDBSteward
 	introspector := introspector{conn: conn}
 	pgDoc, err := introspector.GetFullStructure(ctx)
 	if err != nil {
 		return nil, err
 	}
-	dbsteward.Info("Connected to database, server version %s", pgDoc.Version)
+	ops.logger.Info(fmt.Sprintf("Connected to database, server version %s", pgDoc.Version))
 	return ops.pgToIR(pgDoc)
 }
 
 func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
-	dbsteward := lib.GlobalDBSteward
 	doc := &ir.Definition{
 		Database: &ir.Database{
 			SqlFormat: ir.SqlFormatPgsql8,
@@ -243,7 +266,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 		schemaName := pgTable.Schema
 		tableName := pgTable.Table
 
-		dbsteward.Info("Analyze table options %s.%s", pgTable.Schema, pgTable.Table)
+		ops.logger.Info(fmt.Sprintf("Analyze table options %s.%s", pgTable.Schema, pgTable.Table))
 		schema := doc.TryGetSchemaNamed(schemaName)
 		if schema == nil {
 			return nil, fmt.Errorf("table '%s' references missing schema '%s'", tableName, schemaName)
@@ -272,7 +295,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 		// NEW(2): extract table inheritance. need this to complete example diffing validation
 		if len(pgTable.ParentTables) > 1 {
 			// TODO(go,4) remove this restriction
-			dbsteward.Fatal("Unsupported: Table %s.%s inherits from more than one table: %v", schema.Name, table.Name, pgTable.ParentTables)
+			return nil, fmt.Errorf("unsupported: Table %s.%s inherits from more than one table: %v", schema.Name, table.Name, pgTable.ParentTables)
 		}
 		if len(pgTable.ParentTables) == 1 {
 			parts := strings.Split(pgTable.ParentTables[0], ".")
@@ -280,7 +303,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 			table.InheritsTable = parts[1]
 		}
 
-		dbsteward.Info("Analyze table columns %s.%s", schema.Name, table.Name)
+		ops.logger.Info(fmt.Sprintf("Analyze table columns %s.%s", schema.Name, table.Name))
 		// hasindexes | hasrules | hastriggers handled later
 		for _, colRow := range pgTable.Columns {
 			column := &ir.Column{
@@ -315,7 +338,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 			}
 		}
 
-		dbsteward.Info("Analyze table indexes %s.%s", schema.Name, table.Name)
+		ops.logger.Info(fmt.Sprintf("Analyze table indexes %s.%s", schema.Name, table.Name))
 		for _, indexRow := range pgTable.Indexes {
 			// If the index is unique on a single column, convert it to a unique constraint
 			if len(indexRow.Dimensions) == 1 && indexRow.Unique {
@@ -374,7 +397,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 	}
 
 	for _, viewRow := range pgDoc.Views {
-		dbsteward.Info("Analyze view %s.%s", viewRow.Schema, viewRow.Name)
+		ops.logger.Info(fmt.Sprintf("Analyze view %s.%s", viewRow.Schema, viewRow.Name))
 		schema := doc.TryGetSchemaNamed(viewRow.Schema)
 		if schema == nil {
 			return nil, fmt.Errorf("view '%s' references missing schema '%s'", viewRow.Name, viewRow.Schema)
@@ -399,7 +422,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 	// for all schemas, all tables - get table constraints that are not type 'FOREIGN KEY'
 	// TODO(go,4) support constraint deferredness
 	for _, constraintRow := range pgDoc.Constraints {
-		dbsteward.Info("Analyze table constraints %s.%s", constraintRow.Schema, constraintRow.Table)
+		ops.logger.Info(fmt.Sprintf("Analyze table constraints %s.%s", constraintRow.Schema, constraintRow.Table))
 
 		schema := doc.TryGetSchemaNamed(constraintRow.Schema)
 		util.Assert(schema != nil, "failed to find schema %s for constraint in table %s", constraintRow.Schema, constraintRow.Table)
@@ -436,7 +459,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 				})
 			}
 		default:
-			dbsteward.Fatal("Unknown constraint_type %s", constraintRow.Type)
+			return nil, fmt.Errorf("unknown constraint_type %s", constraintRow.Type)
 		}
 	}
 
@@ -449,8 +472,8 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 	}
 	for _, fkRow := range pgDoc.ForeignKeys {
 		if len(fkRow.LocalColumns) != len(fkRow.ForeignColumns) {
-			dbsteward.Fatal(
-				"Unexpected: Foreign key columns (%v) on %s.%s are mismatched with columns (%v) on %s.%s",
+			return nil, fmt.Errorf(
+				"unexpected: Foreign key columns (%v) on %s.%s are mismatched with columns (%v) on %s.%s",
 				fkRow.LocalColumns, fkRow.LocalSchema, fkRow.LocalTable,
 				fkRow.ForeignColumns, fkRow.ForeignSchema, fkRow.ForeignTable,
 			)
@@ -494,14 +517,14 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 	// TODO(go,4) support aggregate/window, c functions
 	for _, fnRow := range pgDoc.Functions {
 		if fnRow.Type == "window" || fnRow.Type == "aggregate" {
-			dbsteward.Warning("Ignoring %s function %s.%s, this is not currently supported by DBSteward", fnRow.Type, fnRow.Schema, fnRow.Name)
+			ops.logger.Warn(fmt.Sprintf("Ignoring %s function %s.%s, this is not currently supported by DBSteward", fnRow.Type, fnRow.Schema, fnRow.Name))
 			continue
 		}
 		if fnRow.Language == "c" {
-			dbsteward.Warning("Ignoring native (c) function %s.%s, this is not currently supported by DBSteward", fnRow.Schema, fnRow.Name)
+			ops.logger.Warn(fmt.Sprintf("Ignoring native (c) function %s.%s, this is not currently supported by DBSteward", fnRow.Schema, fnRow.Name))
 			continue
 		}
-		dbsteward.Info("Analyze function %s.%s", fnRow.Schema, fnRow.Name)
+		ops.logger.Info(fmt.Sprintf("Analyze function %s.%s", fnRow.Schema, fnRow.Name))
 		schema := doc.TryGetSchemaNamed(fnRow.Schema)
 		if schema == nil {
 			return nil, fmt.Errorf("function '%s' references missing schema '%s'", fnRow.Name, fnRow.Schema)
@@ -534,7 +557,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 
 	// TODO(go,nth) don't use *, name columns explicitly
 	for _, triggerRow := range pgDoc.Triggers {
-		dbsteward.Info("Analyze trigger %s.%s", triggerRow.Schema, triggerRow.Name)
+		ops.logger.Info(fmt.Sprintf("Analyze trigger %s.%s", triggerRow.Schema, triggerRow.Name))
 
 		schema := doc.TryGetSchemaNamed(triggerRow.Schema)
 		util.Assert(schema != nil, "failed to find schema %s for trigger on table %s", triggerRow.Schema, triggerRow.Table)
@@ -564,7 +587,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 
 	// Find table/view grants and save them in the roleIndex
 	// TODO(go,3) can simplify this by array_agg(privilege_type)
-	dbsteward.Info("Analyze table permissions")
+	ops.logger.Info("Analyze table permissions")
 	for _, grantRow := range pgDoc.TablePerms {
 		schema := doc.TryGetSchemaNamed(grantRow.Schema)
 		util.Assert(schema != nil, "failed to find schema %s for trigger on table %s", grantRow.Schema, grantRow.Table)
@@ -580,7 +603,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 	}
 
 	// analyze sequence grants and assign those to the roleIndex
-	dbsteward.Info("Analyze isolated sequence permissions")
+	ops.logger.Info("Analyze isolated sequence permissions")
 	for _, sequence := range pgDoc.Sequences {
 		for _, grantRow := range sequence.ACL {
 			// privileges for unassociated sequences are not listed in
@@ -599,7 +622,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 	// Get any roles/grants on schemas and add to the roleIndex
 	for _, permEntry := range pgDoc.SchemaPerms {
 		if permEntry.Grantee == "public" {
-			dbsteward.Warning("Ignoring grant on psuedo user \"public\"")
+			ops.logger.Warn("Ignoring grant on psuedo user \"public\"")
 		} else {
 			roles.registerRole(roleContextGrant, permEntry.Grantee)
 		}
@@ -688,7 +711,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 			if len(table.PrimaryKey) == 0 {
 				table.PrimaryKey = []string{"dbsteward_primary_key_not_found"}
 				tableNoticeDesc := fmt.Sprintf("DBSTEWARD_EXTRACTION_WARNING: primary key definition not found for %s.%s - placeholder has been specified for DTD validity", schema.Name, table.Name)
-				dbsteward.Warning(tableNoticeDesc)
+				ops.logger.Warn(tableNoticeDesc)
 				if len(table.Description) == 0 {
 					table.Description = tableNoticeDesc
 				} else {
@@ -705,7 +728,7 @@ func (ops *Operations) pgToIR(pgDoc structure) (*ir.Definition, error) {
 				for _, parentColumn := range parentRef.Table.Columns {
 					column := table.TryGetColumnNamed(parentColumn.Name)
 					if column != nil && column.EqualsInherited(parentColumn) {
-						dbsteward.Debug("Dropping column %s.%s.%s inherited from parent %s.%s", schema.Name, table.Name, column.Name, parentRef.Schema.Name, parentRef.Table.Name)
+						ops.logger.Debug(fmt.Sprintf("Dropping column %s.%s.%s inherited from parent %s.%s", schema.Name, table.Name, column.Name, parentRef.Schema.Name, parentRef.Table.Name))
 						table.RemoveColumn(column)
 					}
 				}
@@ -760,15 +783,15 @@ func storeSchema(doc *ir.Definition, roles *roleIndex, schema schemaEntry) {
 	roles.registerRole(roleContextOwner, schema.Owner)
 }
 
-func (ops *Operations) CompareDbData(doc *ir.Definition, host string, port uint, name, user, pass string) *ir.Definition {
-	dbsteward := lib.GlobalDBSteward
-
-	dbsteward.Notice("Connecting to pgsql8 host %s:%d database %s as user %s", host, port, name, user)
+func (ops *Operations) CompareDbData(doc *ir.Definition, host string, port uint, name, user, pass string) (*ir.Definition, error) {
+	ops.logger.Info(fmt.Sprintf("Connecting to pgsql8 host %s:%d database %s as user %s", host, port, name, user))
 	conn, err := newConnection(host, port, name, user, pass)
-	dbsteward.FatalIfError(err, "Could not compare db data")
+	if err != nil {
+		return nil, fmt.Errorf("comparing DB data: %w", err)
+	}
 	defer conn.disconnect()
 
-	dbsteward.Info("Comparing composited dbsteward definition data rows to postgresql database connection table contents")
+	ops.logger.Info("Comparing composited dbsteward definition data rows to postgresql database connection table contents")
 	// compare the composited dbsteward document to the established database connection
 	// effectively looking to see if rows are found that match primary keys, and if their contents are the same
 	for _, schema := range doc.Schemas {
@@ -787,15 +810,17 @@ func (ops *Operations) CompareDbData(doc *ir.Definition, host string, port uint,
 					// TODO(go,3) this seems like something nice to have on the model
 					if len(column.ForeignTable) > 0 && len(column.ForeignColumn) > 0 {
 						if len(colType) > 0 {
-							dbsteward.Fatal("type of %s was found for column %s but it is foreign keyed", colType, column.Name)
+							return nil, fmt.Errorf("type of %s was found for column %s but it is foreign keyed", colType, column.Name)
 						}
-						foreign, err := doc.GetTerminalForeignColumn(slog.Default(), schema, table, column)
-						dbsteward.FatalIfError(err, "")
+						foreign, err := doc.GetTerminalForeignColumn(ops.logger, schema, table, column)
+						if err != nil {
+							return nil, err
+						}
 						colType = foreign.Type
 					}
 
 					if len(colType) == 0 {
-						dbsteward.Fatal("%s column %s type was not found", table.Name, column.Name)
+						return nil, fmt.Errorf("%s column %s type was not found", table.Name, column.Name)
 					}
 
 					colTypes[column.Name] = colType
@@ -809,7 +834,7 @@ func (ops *Operations) CompareDbData(doc *ir.Definition, host string, port uint,
 						// TODO(go,nth) can we put this column lookup in the model? `row.GetValueForColumn(pkCol)`
 						pkIndex := util.IndexOf(cols, pkCol)
 						if pkIndex < 0 {
-							dbsteward.Fatal("failed to find %s.%s primary key column %s in cols list %v",
+							return nil, fmt.Errorf("failed to find %s.%s primary key column %s in cols list %v",
 								schema.Name, table.Name, pkCol, cols)
 						}
 
@@ -825,27 +850,32 @@ func (ops *Operations) CompareDbData(doc *ir.Definition, host string, port uint,
 					// TODO(go,nth) use parameterized queries
 					sql := fmt.Sprintf(`SELECT * FROM %s WHERE %s`, tableName, pkExpr)
 					rows, err := conn.queryMap(sql)
-					dbsteward.FatalIfError(err, "Error with data query")
+					if err != nil {
+						return nil, fmt.Errorf("with data query: %w", err)
+					}
 
 					if row.Delete {
 						if len(rows) > 0 {
-							dbsteward.Notice("%s row marked for DELETE found WHERE %s", tableName, pkExpr)
+							ops.logger.Info(fmt.Sprintf("%s row marked for DELETE found WHERE %s", tableName, pkExpr))
 						}
 					} else if len(rows) == 0 {
-						dbsteward.Notice("%s does not contain row WHERE %s", tableName, pkExpr)
+						ops.logger.Info(fmt.Sprintf("%s does not contain row WHERE %s", tableName, pkExpr))
 					} else if len(rows) > 1 {
-						dbsteward.Notice("%s contains more than one row WHERE %s", tableName, pkExpr)
+						ops.logger.Info(fmt.Sprintf("%s contains more than one row WHERE %s", tableName, pkExpr))
 						for _, dbRow := range rows {
-							dbsteward.Notice("\t%v", dbRow)
+							ops.logger.Info(fmt.Sprintf("\t%v", dbRow))
 						}
 					} else {
 						dbRow := rows[0]
 						for i, col := range cols {
 							// TODO(feat) what about row.Columns[i].Null?
-							valuesMatch, xmlValue, dbValue := compareDbDataRow(conn, colTypes[col], row.Columns[i].Text, dbRow[col])
+							valuesMatch, xmlValue, dbValue, err := compareDbDataRow(conn, colTypes[col], row.Columns[i].Text, dbRow[col])
+							if err != nil {
+								return nil, err
+							}
 							if !valuesMatch {
-								dbsteward.Warning("%s row column WHERE (%s) %s data does not match database row column: '%s' vs '%s'",
-									tableName, pkExpr, col, xmlValue, dbValue)
+								ops.logger.Warn(fmt.Sprintf("%s row column WHERE (%s) %s data does not match database row column: '%s' vs '%s'",
+									tableName, pkExpr, col, xmlValue, dbValue))
 							}
 						}
 					}
@@ -853,14 +883,14 @@ func (ops *Operations) CompareDbData(doc *ir.Definition, host string, port uint,
 			}
 		}
 	}
-	return doc
+	return doc, nil
 }
-func compareDbDataRow(conn *liveConnection, colType, xmlValue, dbValue string) (bool, string, string) {
+func compareDbDataRow(conn *liveConnection, colType, xmlValue, dbValue string) (bool, string, string, error) {
 	colType = strings.ToLower(colType)
 	xmlValue = pgdataHomogenize(colType, xmlValue)
 	dbValue = pgdataHomogenize(colType, dbValue)
 	if xmlValue == dbValue {
-		return true, xmlValue, dbValue
+		return true, xmlValue, dbValue, nil
 	}
 
 	// if they are not equal, and are alternately expressable, ask the database
@@ -869,13 +899,16 @@ func compareDbDataRow(conn *liveConnection, colType, xmlValue, dbValue string) (
 			sql := fmt.Sprintf(`SELECT $1::%s = $2::%[1]s`, colType)
 			var eq bool
 			err := conn.queryVal(&eq, sql, xmlValue, dbValue)
-			lib.GlobalDBSteward.FatalIfError(err, "Could not query database")
-			return eq, xmlValue, dbValue
+			if err != nil {
+				return false, "", "", fmt.Errorf("could not query database: %w", err)
+			}
+			return eq, xmlValue, dbValue, nil
 		}
 	}
 
-	return false, xmlValue, dbValue
+	return false, xmlValue, dbValue, nil
 }
+
 func pgdataHomogenize(colType string, value string) string {
 	switch {
 	case strings.HasPrefix(colType, "bool"):
@@ -892,22 +925,30 @@ func pgdataHomogenize(colType string, value string) string {
 }
 
 func (ops *Operations) SqlDiff(old, new []string, upgradePrefix string) {
-	lib.GlobalDBSteward.Notice("Calculating sql differences:")
-	lib.GlobalDBSteward.Notice("Old set: %v", old)
-	lib.GlobalDBSteward.Notice("New set: %v", new)
-	lib.GlobalDBSteward.Notice("Upgrade: %s", upgradePrefix)
-	differ.DiffSql(old, new, upgradePrefix)
+	ops.logger.Info("Calculating sql differences:")
+	ops.logger.Info(fmt.Sprintf("Old set: %v", old))
+	ops.logger.Info(fmt.Sprintf("New set: %v", new))
+	ops.logger.Info(fmt.Sprintf("Upgrade: %s", upgradePrefix))
+	ops.differ.DiffSql(old, new, upgradePrefix)
 }
 
-func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) error {
+func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) error {
 	// TODO(go,3) roll this into diffing nil -> doc
 	// schema creation
 	for _, schema := range doc.Schemas {
-		ofs.WriteSql(GlobalSchema.GetCreationSql(schema)...)
+		s, err := GlobalSchema.GetCreationSql(schema)
+		if err != nil {
+			return err
+		}
+		ofs.WriteSql(s...)
 
 		// schema grants
 		for _, grant := range schema.Grants {
-			ofs.WriteSql(GlobalSchema.GetGrantSql(doc, schema, grant)...)
+			s, err := GlobalSchema.GetGrantSql(doc, schema, grant)
+			if err != nil {
+				return err
+			}
+			ofs.WriteSql(s...)
 		}
 	}
 
@@ -915,7 +956,9 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	for _, schema := range doc.Schemas {
 		for _, datatype := range schema.Types {
 			sql, err := getCreateTypeSql(schema, datatype)
-			lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for build")
+			if err != nil {
+				return fmt.Errorf("could not get data type creation sql for build: %w", err)
+			}
 			ofs.WriteSql(sql...)
 		}
 	}
@@ -926,14 +969,25 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 		includeColumnDefaultNextvalInCreateSql = false
 		for _, table := range schema.Tables {
 			// table definition
-			ofs.WriteSql(getCreateTableSql(schema, table)...)
+			s, err := getCreateTableSql(ops.logger, schema, table)
+			if err != nil {
+				return err
+			}
+			ofs.WriteSql(s...)
 
 			// table indexes
-			diffIndexesTable(ofs, nil, nil, schema, table)
+			err = diffIndexesTable(ofs, nil, nil, schema, table)
+			if err != nil {
+				return err
+			}
 
 			// table grants
 			for _, grant := range table.Grants {
-				ofs.WriteSql(getTableGrantSql(schema, table, grant)...)
+				s, err := getTableGrantSql(ops.logger, schema, table, grant)
+				if err != nil {
+					return err
+				}
+				ofs.WriteSql(s...)
 			}
 		}
 		includeColumnDefaultNextvalInCreateSql = true
@@ -941,7 +995,7 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 		// sequences contained in the schema
 		for _, sequence := range schema.Sequences {
 			if sequence.OwnedByColumn == "" {
-				sql, err := getCreateSequenceSql(schema, sequence)
+				sql, err := getCreateSequenceSql(ops.logger, schema, sequence)
 				if err != nil {
 					return err
 				}
@@ -954,14 +1008,18 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 
 			// sequence permission grants
 			for _, grant := range sequence.Grants {
-				ofs.WriteSql(getSequenceGrantSql(schema, sequence, grant)...)
+				s, err := getSequenceGrantSql(ops.logger, schema, sequence, grant)
+				if err != nil {
+					return err
+				}
+				ofs.WriteSql(s...)
 			}
 		}
 
 		// add table nextvals that were omitted
 		for _, table := range schema.Tables {
 			if table.HasDefaultNextVal() {
-				ofs.WriteSql(getDefaultNextvalSql(schema, table)...)
+				ofs.WriteSql(getDefaultNextvalSql(ops.logger, schema, table)...)
 			}
 		}
 	}
@@ -970,12 +1028,20 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	for _, schema := range doc.Schemas {
 		for _, function := range schema.Functions {
 			if function.HasDefinition(ir.SqlFormatPgsql8) {
-				ofs.WriteSql(getFunctionCreationSql(schema, function)...)
+				s, err := getFunctionCreationSql(ops.logger, schema, function)
+				if err != nil {
+					return err
+				}
+				ofs.WriteSql(s...)
 				// when pg:build_schema() is doing its thing for straight builds, include function permissions
 				// they are not included in pg_function::get_creation_sql()
 
 				for _, grant := range function.Grants {
-					ofs.WriteSql(getFunctionGrantSql(schema, function, grant)...)
+					grant, err := getFunctionGrantSql(ops.logger, schema, function, grant)
+					if err != nil {
+						return err
+					}
+					ofs.WriteSql(grant...)
 				}
 			}
 		}
@@ -985,14 +1051,17 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
 			// TODO(go,nth) method name consistency - should be GetColumnDefaultsSql?
-			ofs.WriteSql(defineTableColumnDefaults(schema, table)...)
+			ofs.WriteSql(defineTableColumnDefaults(ops.logger, schema, table)...)
 		}
 	}
 
 	// define table primary keys before foreign keys so unique requirements are always met for FOREIGN KEY constraints
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
-			createConstraintsTable(ofs, nil, nil, schema, table, sql99.ConstraintTypePrimaryKey)
+			err := createConstraintsTable(ops.logger, ofs, nil, nil, schema, table, sql99.ConstraintTypePrimaryKey)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1000,34 +1069,48 @@ func buildSchema(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []
 	// use the dependency order to specify foreign keys in an order that will satisfy nested foreign keys and etc
 	// TODO(feat) shouldn't this consider GlobalDBSteward.LimitToTables like BuildData does?
 	for _, entry := range tableDep {
-		createConstraintsTable(ofs, nil, nil, entry.Schema, entry.Table, sql99.ConstraintTypeConstraint)
+		err := createConstraintsTable(ops.logger, ofs, nil, nil, entry.Schema, entry.Table, sql99.ConstraintTypeConstraint)
+		if err != nil {
+			return err
+		}
 	}
 
 	// trigger definitions
 	for _, schema := range doc.Schemas {
 		for _, trigger := range schema.Triggers {
 			if trigger.SqlFormat.Equals(ir.SqlFormatPgsql8) {
-				ofs.WriteSql(getCreateTriggerSql(schema, trigger)...)
+				s, err := getCreateTriggerSql(schema, trigger)
+				if err != nil {
+					return err
+				}
+				ofs.WriteSql(s...)
 			}
 		}
 	}
 
-	createViewsOrdered(ofs, nil, doc)
+	err := createViewsOrdered(ops.logger, ofs, nil, doc)
+	if err != nil {
+		return err
+	}
 
 	// view permission grants
 	for _, schema := range doc.Schemas {
 		for _, view := range schema.Views {
 			for _, grant := range view.Grants {
-				ofs.WriteSql(getViewGrantSql(doc, schema, view, grant)...)
+				s, err := getViewGrantSql(ops.logger, doc, schema, view, grant)
+				if err != nil {
+					return err
+				}
+				ofs.WriteSql(s...)
 			}
 		}
 	}
 
-	differ.UpdateDatabaseConfigParameters(ofs, nil, doc)
+	ops.differ.UpdateDatabaseConfigParameters(ofs, nil, doc)
 	return nil
 }
 
-func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) {
+func buildData(l *slog.Logger, doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) error {
 	limitToTables := lib.GlobalDBSteward.LimitToTables
 
 	// use the dependency order to then write out the actual data inserts into the data sql file
@@ -1046,8 +1129,11 @@ func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*i
 				continue
 			}
 		}
-
-		ofs.WriteSql(getCreateDataSql(nil, nil, schema, table)...)
+		s, err := getCreateDataSql(l, nil, nil, schema, table)
+		if err != nil {
+			return err
+		}
+		ofs.WriteSql(s...)
 
 		// set serial primary keys to the max value after inserts have been performed
 		// only if the PRIMARY KEY is not a multi column
@@ -1058,9 +1144,11 @@ func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*i
 				// TODO(go,3) seems like this could be refactored better by putting much of the lookup
 				// into the model structs
 				pk, err := doc.TryInheritanceGetColumn(schema, table, pkCol)
-				lib.GlobalDBSteward.FatalIfError(err, "TryInheritanceGetColumn")
+				if err != nil {
+					return fmt.Errorf("TryInheritanceGetColumn: %w", err)
+				}
 				if pk == nil {
-					lib.GlobalDBSteward.Fatal("Failed to find primary key column '%s' for %s.%s",
+					return fmt.Errorf("failed to find primary key column '%s' for %s.%s",
 						pkCol, schema.Name, table.Name)
 				}
 				// TODO(go,nth) unify DataType.IsLinkedType and Column.IsSerialType
@@ -1080,9 +1168,11 @@ func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*i
 		// TODO(go,3) does this check belong here? should there be some kind of post-parse validation?
 		for _, columnName := range table.PrimaryKey {
 			col, err := doc.TryInheritanceGetColumn(schema, table, columnName)
-			lib.GlobalDBSteward.FatalIfError(err, "TryInheritanceGetColumn")
+			if err != nil {
+				return fmt.Errorf("TryInheritanceGetColumn: %w", err)
+			}
 			if col == nil {
-				lib.GlobalDBSteward.Fatal("Declared primary key column (%s) does not exist as column in table %s.%s",
+				return fmt.Errorf("declared primary key column (%s) does not exist as column in table %s.%s",
 					columnName, schema.Name, table.Name)
 			}
 		}
@@ -1090,50 +1180,57 @@ func buildData(doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*i
 
 	// include all of the unstaged sql elements
 	buildStagedSql(doc, ofs, "")
+	return nil
 }
 
-func columnValueDefault(schema *ir.Schema, table *ir.Table, columnName string, dataCol *ir.DataCol) sql.ToSqlValue {
+func columnValueDefault(l *slog.Logger, schema *ir.Schema, table *ir.Table, columnName string, dataCol *ir.DataCol) (sql.ToSqlValue, error) {
 	// if the column represents NULL, return a NULL value
 	if dataCol.Null {
-		return sql.ValueNull
+		return sql.ValueNull, nil
 	}
 	// if the column represents an empty string, return an empty string
 	if dataCol.Empty {
-		return sql.StringValue("")
+		return sql.StringValue(""), nil
 	}
 	// if the column represents a sql expression, return an expression or DEFAULT
 	if dataCol.Sql {
 		if strings.EqualFold(strings.TrimSpace(dataCol.Text), "default") {
-			return sql.ValueDefault
+			return sql.ValueDefault, nil
 		} else {
-			return sql.ExpressionValue(dataCol.Text)
+			return sql.ExpressionValue(dataCol.Text), nil
 		}
 	}
 
 	col, err := lib.GlobalDBSteward.NewDatabase.TryInheritanceGetColumn(schema, table, columnName)
-	lib.GlobalDBSteward.FatalIfError(err, "TryInheritanceGetColumn")
+	if err != nil {
+		return nil, fmt.Errorf("TryInheritanceGetColumn %w", err)
+	}
 	if col == nil {
-		lib.GlobalDBSteward.Fatal("Failed to find table %s.%s column %s for default value check", schema.Name, table.Name, columnName)
+		return nil, fmt.Errorf("failed to find table %s.%s column %s for default value check", schema.Name, table.Name, columnName)
 	}
 
 	// if col is zero length, make it default or db null
 	if dataCol.Text == "" {
 		// note: inlined and simplified from xml_parser::column_default_value
 		if col.Default == "" || strings.EqualFold(strings.TrimSpace(col.Default), "null") {
-			return sql.ValueNull
+			return sql.ValueNull, nil
 		}
 		// TODO(go,pgsql) xml_parser::column_default_value strips quoting, but I'm not sure why, that doesn't seem right
 		// if we have <column ... default="'foo'"/> then this would result in INSERT ... VALUES (..., foo, ...) instead of 'foo'
 		// we need to test this very thoroughly to establish intended behavior
 		// until then, we'll treat the default as literal sql, as in other locations in the code
 		// return ops.StripStringQuoting(col.Default)
-		return sql.RawSql(col.Default)
+		return sql.RawSql(col.Default), nil
 	}
 
-	return &sql.TypedValue{
-		Type:  getColumnType(lib.GlobalDBSteward.NewDatabase, schema, table, col),
-		Value: dataCol.Text,
+	colType, err := getColumnType(l, lib.GlobalDBSteward.NewDatabase, schema, table, col)
+	if err != nil {
+		return nil, err
 	}
+	return &sql.TypedValue{
+		Type:  colType,
+		Value: dataCol.Text,
+	}, nil
 }
 
 // TODO(go,nth) should this live somewhere else?
@@ -1335,17 +1432,17 @@ func normalizeColumnCheckCondition(s string) string {
 
 func buildStagedSql(doc *ir.Definition, ofs output.OutputFileSegmenter, stage ir.SqlStage) {
 	if stage == "" {
-		ofs.Write("\n-- NON-STAGED SQL COMMANDS\n")
+		ofs.WriteSql(sql.NewComment("NON-STAGED SQL COMMANDS"))
 	} else {
-		ofs.Write("\n-- SQL STAGE %s COMMANDS\n", stage)
+		ofs.WriteSql(sql.NewComment("SQL STAGE %s COMMANDS", stage))
 	}
-	for _, sql := range doc.Sql {
-		if sql.Stage.Equals(stage) {
-			if sql.Comment != "" {
-				ofs.Write("%s\n", util.PrefixLines(sql.Comment, "-- "))
+	for _, s := range doc.Sql {
+		if s.Stage.Equals(stage) {
+			if s.Comment != "" {
+				ofs.WriteSql(sql.NewComment(s.Comment))
 			}
-			ofs.Write("%s\n", strings.TrimSpace(sql.Text))
+			ofs.WriteSql(output.NewRawSQL("%s\n", strings.TrimSpace(s.Text)))
 		}
 	}
-	ofs.Write("\n")
+	ofs.WriteSql(output.NewRawSQL("\n"))
 }

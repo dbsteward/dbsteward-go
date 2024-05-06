@@ -2,6 +2,7 @@ package xml
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
 )
@@ -11,6 +12,39 @@ type TablePartition struct {
 	SqlFormat string                   `xml:"sqlFormat,attr,omitempty"`
 	Options   []*TablePartitionOption  `xml:"tablePartitionOption"`
 	Segments  []*TablePartitionSegment `xml:"tablePartitionSegment"`
+}
+
+func TablePartitionFromIR(l *slog.Logger, p *ir.TablePartition) (*TablePartition, error) {
+	if p == nil {
+		return nil, nil
+	}
+	rv := TablePartition{
+		Type:      string(p.Type),
+		SqlFormat: string(p.SqlFormat),
+	}
+	for _, opt := range p.Options {
+		if opt != nil {
+			rv.Options = append(
+				rv.Options,
+				&TablePartitionOption{
+					Name:  opt.Name,
+					Value: opt.Value,
+				},
+			)
+		}
+	}
+	for _, seg := range p.Segments {
+		if seg != nil {
+			rv.Segments = append(
+				rv.Segments,
+				&TablePartitionSegment{
+					Name:  seg.Name,
+					Value: seg.Value,
+				},
+			)
+		}
+	}
+	return &rv, nil
 }
 
 func (tp *TablePartition) ToIR() (*ir.TablePartition, error) {

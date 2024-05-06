@@ -6,7 +6,5 @@ type Logger interface {
 	ErrorIfError(error, string, ...interface{})
 	Error(string, ...interface{})
 	Warning(string, ...interface{})
-	Notice(string, ...interface{})
 	Info(string, ...interface{})
-	Trace(string, ...interface{})
 }

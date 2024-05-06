@@ -1,9 +1,9 @@
 package pgsql8
 
 import (
+	"log/slog"
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -14,25 +14,25 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 	oldSchema := &ir.Schema{
 		Name: "test",
 		Functions: []*ir.Function{
-			&ir.Function{
+			{
 				Name:    "test_arch_type_in_return",
 				Returns: "test.arch_type",
 				Definitions: []*ir.FunctionDefinition{
-					&ir.FunctionDefinition{
+					{
 						Language:  "plpgsql",
 						SqlFormat: ir.SqlFormatPgsql8,
 						Text:      "BEGIN\nRETURN 1;\nEND",
 					},
 				},
 			},
-			&ir.Function{
+			{
 				Name:    "test_arch_type_in_param",
 				Returns: "bigint",
 				Parameters: []*ir.FunctionParameter{
 					{Name: "testparam", Type: "test.arch_type"},
 				},
 				Definitions: []*ir.FunctionDefinition{
-					&ir.FunctionDefinition{
+					{
 						Language:  "plpgsql",
 						SqlFormat: ir.SqlFormatPgsql8,
 						Text:      "BEGIN\nRETURN 1;\nEND",
@@ -41,7 +41,7 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 			},
 		},
 		Types: []*ir.TypeDef{
-			&ir.TypeDef{
+			{
 				Name: "arch_type",
 				Kind: ir.DataTypeKindComposite,
 				CompositeFields: []ir.DataTypeCompositeField{
@@ -55,25 +55,25 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 	newSchema := &ir.Schema{
 		Name: "test",
 		Functions: []*ir.Function{
-			&ir.Function{
+			{
 				Name:    "test_arch_type_in_return",
 				Returns: "test.arch_type",
 				Definitions: []*ir.FunctionDefinition{
-					&ir.FunctionDefinition{
+					{
 						Language:  "plpgsql",
 						SqlFormat: ir.SqlFormatPgsql8,
 						Text:      "BEGIN\nRETURN 1;\nEND",
 					},
 				},
 			},
-			&ir.Function{
+			{
 				Name:    "test_arch_type_in_param",
 				Returns: "bigint",
 				Parameters: []*ir.FunctionParameter{
 					{Name: "testparam", Type: "test.arch_type"},
 				},
 				Definitions: []*ir.FunctionDefinition{
-					&ir.FunctionDefinition{
+					{
 						Language:  "plpgsql",
 						SqlFormat: ir.SqlFormatPgsql8,
 						Text:      "BEGIN\nRETURN 1;\nEND",
@@ -82,7 +82,7 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 			},
 		},
 		Types: []*ir.TypeDef{
-			&ir.TypeDef{
+			{
 				Name: "arch_type",
 				Kind: ir.DataTypeKindComposite,
 				CompositeFields: []ir.DataTypeCompositeField{
@@ -94,23 +94,32 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 		},
 	}
 
-	ofs := &pgtestutil.RecordingOfs{
-		StripComments: true,
-	}
+	ofs := output.NewAnnotationStrippingSegmenter(defaultQuoter(slog.Default()))
 
-	diffTypes(ofs, oldSchema, newSchema)
+	err := diffTypes(slog.Default(), newDiff(defaultQuoter(slog.Default())), ofs, oldSchema, newSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.Equal(t, []output.ToSql{
 		&sql.FunctionDrop{
-			Function: sql.FunctionRef{"test", "test_arch_type_in_return", []string{}},
+			Function: sql.FunctionRef{
+				Schema:   "test",
+				Function: "test_arch_type_in_return",
+				Params:   []string{},
+			},
 		},
 		&sql.FunctionDrop{
-			Function: sql.FunctionRef{"test", "test_arch_type_in_param", []string{"test.arch_type"}},
+			Function: sql.FunctionRef{
+				Schema:   "test",
+				Function: "test_arch_type_in_param",
+				Params:   []string{"test.arch_type"},
+			},
 		},
 		&sql.TypeDrop{
-			Type: sql.TypeRef{"test", "arch_type"},
+			Type: sql.TypeRef{Schema: "test", Type: "arch_type"},
 		},
 		&sql.TypeCompositeCreate{
-			Type: sql.TypeRef{"test", "arch_type"},
+			Type: sql.TypeRef{Schema: "test", Type: "arch_type"},
 			Fields: []sql.TypeCompositeCreateField{
 				{Name: "uh_phrasing", Type: "text"},
 				{Name: "boom_phrasing", Type: "text"},
@@ -118,16 +127,24 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 			},
 		},
 		&sql.FunctionCreate{
-			Function:   sql.FunctionRef{"test", "test_arch_type_in_return", []string{}},
+			Function: sql.FunctionRef{
+				Schema:   "test",
+				Function: "test_arch_type_in_return",
+				Params:   []string{},
+			},
 			Returns:    "test.arch_type",
 			Language:   "plpgsql",
 			Definition: "BEGIN\nRETURN 1;\nEND",
 		},
 		&sql.FunctionCreate{
-			Function:   sql.FunctionRef{"test", "test_arch_type_in_param", []string{"testparam test.arch_type"}},
+			Function: sql.FunctionRef{
+				Schema:   "test",
+				Function: "test_arch_type_in_param",
+				Params:   []string{"testparam test.arch_type"},
+			},
 			Returns:    "bigint",
 			Language:   "plpgsql",
 			Definition: "BEGIN\nRETURN 1;\nEND",
 		},
-	}, ofs.Sql)
+	}, ofs.Body)
 }

@@ -17,7 +17,7 @@ const (
 
 func NewForeignKeyAction(s string) (ForeignKeyAction, error) {
 	if s == "" {
-		return ForeignKeyActionNoAction, nil
+		return "", nil
 	}
 	fka := ForeignKeyAction(s)
 	if fka.Equals(ForeignKeyActionNoAction) {
@@ -53,31 +53,31 @@ type ForeignKey struct {
 	OnDelete       ForeignKeyAction
 }
 
-func (self *ForeignKey) GetReferencedKey() KeyNames {
-	cols := self.ForeignColumns
+func (fk *ForeignKey) GetReferencedKey() KeyNames {
+	cols := fk.ForeignColumns
 	if len(cols) == 0 {
-		cols = self.Columns
+		cols = fk.Columns
 	}
 	return KeyNames{
-		Schema:  self.ForeignSchema,
-		Table:   self.ForeignTable,
+		Schema:  fk.ForeignSchema,
+		Table:   fk.ForeignTable,
 		Columns: cols,
-		KeyName: self.ConstraintName,
+		KeyName: fk.ConstraintName,
 	}
 }
 
-func (self *ForeignKey) IdentityMatches(other *ForeignKey) bool {
-	if self == nil || other == nil {
+func (fk *ForeignKey) IdentityMatches(other *ForeignKey) bool {
+	if fk == nil || other == nil {
 		return false
 	}
 	// TODO(go,core) validate this constraint/index name matching behavior
 	// TODO(feat) case sensitivity
-	return strings.EqualFold(self.ConstraintName, other.ConstraintName)
+	return strings.EqualFold(fk.ConstraintName, other.ConstraintName)
 }
 
-func (self *ForeignKey) Validate(doc *Definition, schema *Schema, table *Table) []error {
+func (fk *ForeignKey) Validate(doc *Definition, schema *Schema, table *Table) []error {
 	out := []error{}
-	if self.ConstraintName == "" {
+	if fk.ConstraintName == "" {
 		out = append(out, fmt.Errorf("foreign key in table %s.%s must have a constraint name", schema.Name, table.Name))
 	}
 	// TODO(go,3) validate reference, remove other codepaths

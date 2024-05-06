@@ -13,5 +13,5 @@ func main() {
 		ir.SqlFormatPgsql8: pgsql8.GlobalLookup,
 	})
 	lib.GlobalDBSteward.ArgParse()
-	lib.GlobalDBSteward.Notice("Done")
+	lib.GlobalDBSteward.Info("Done")
 }

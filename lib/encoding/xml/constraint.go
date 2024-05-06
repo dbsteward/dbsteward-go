@@ -2,6 +2,7 @@ package xml
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
@@ -14,6 +15,29 @@ type Constraint struct {
 	ForeignIndexName string `xml:"foreignIndexName,attr,omitempty"`
 	ForeignSchema    string `xml:"foreignSchema,attr,omitempty"`
 	ForeignTable     string `xml:"foreignTable,attr,omitempty"`
+}
+
+func ConstraintsFromIR(l *slog.Logger, cs []*ir.Constraint) ([]*Constraint, error) {
+	if len(cs) == 0 {
+		return nil, nil
+	}
+	var rv []*Constraint
+	for _, c := range cs {
+		if c != nil {
+			rv = append(
+				rv,
+				&Constraint{
+					Name:             c.Name,
+					Type:             string(c.Type),
+					Definition:       c.Definition,
+					ForeignIndexName: c.ForeignIndexName,
+					ForeignSchema:    c.ForeignSchema,
+					ForeignTable:     c.ForeignTable,
+				},
+			)
+		}
+	}
+	return rv, nil
 }
 
 func (c *Constraint) ToIR() (*ir.Constraint, error) {
@@ -32,17 +56,17 @@ func (c *Constraint) ToIR() (*ir.Constraint, error) {
 	return &rv, nil
 }
 
-func (self *Constraint) IdentityMatches(other *Constraint) bool {
+func (c *Constraint) IdentityMatches(other *Constraint) bool {
 	if other == nil {
 		return false
 	}
-	return strings.EqualFold(self.Name, other.Name)
+	return strings.EqualFold(c.Name, other.Name)
 }
 
-func (self *Constraint) Merge(overlay *Constraint) {
+func (c *Constraint) Merge(overlay *Constraint) {
 	if overlay == nil {
 		return
 	}
-	self.Type = overlay.Type
-	self.Definition = overlay.Definition
+	c.Type = overlay.Type
+	c.Definition = overlay.Definition
 }

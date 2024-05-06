@@ -13,6 +13,7 @@ package xml
 import (
 	"encoding/xml"
 	"io"
+	"log/slog"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/pkg/errors"
@@ -31,7 +32,7 @@ func ReadDoc(r io.Reader) (*Document, error) {
 
 // WriteDoc writes the given `Document` to the given `io.Writer`
 // in XML that conforms to the DTD at the project root
-func WriteDoc(w io.Writer, doc *Document) error {
+func WriteDoc(l *slog.Logger, w io.Writer, doc *Document) error {
 	// TODO(go,nth) get rid of empty closing tags like <grant ...></grant> => <grant .../>
 	// Go doesn't natively support this (yet?), and google is being google about it
 	// https://github.com/golang/go/issues/21399
@@ -50,11 +51,10 @@ func ReadDef(r io.Reader) (*ir.Definition, error) {
 	return doc.ToIR()
 }
 
-func WriteDef(w io.Writer, def *ir.Definition) error {
-	doc := &Document{}
-	err := doc.FromModel(def)
+func WriteDef(l *slog.Logger, w io.Writer, def *ir.Definition) error {
+	doc, err := FromIR(l, def)
 	if err != nil {
 		return err
 	}
-	return WriteDoc(w, doc)
+	return WriteDoc(l, w, doc)
 }

@@ -5,7 +5,6 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/pkg/errors"
@@ -17,51 +16,60 @@ type moduloPartition struct {
 	slonyRange *slonyRange
 }
 
-func newModuloPartition(schema *ir.Schema, table *ir.Table) *moduloPartition {
+func newModuloPartition(schema *ir.Schema, table *ir.Table) (*moduloPartition, error) {
 	partNumberStr := table.Partitioning.TryGetOptionValueNamed("number")
 	if partNumberStr == "" {
-		lib.GlobalDBSteward.Fatal("tablePartitionOption 'number' must be specificed for table %s.%s", schema.Name, table.Name)
+		return nil, fmt.Errorf("tablePartitionOption 'number' must be specificed for table %s.%s", schema.Name, table.Name)
 	}
 	partNumber, err := strconv.Atoi(partNumberStr)
-	lib.GlobalDBSteward.FatalIfError(err, "tablePartitionOption 'number' for table %s.%s could not be parsed as an int", schema.Name, table.Name)
+	if err != nil {
+		return nil, fmt.Errorf("tablePartitionOption 'number' for table %s.%s could not be parsed as an int", schema.Name, table.Name)
+	}
 
 	partColumn := table.Partitioning.TryGetOptionValueNamed("column")
 	if partColumn == "" {
-		lib.GlobalDBSteward.Fatal("tablePartitionOption 'column' must be specificed for table %s.%s", schema.Name, table.Name)
+		return nil, fmt.Errorf("tablePartitionOption 'column' must be specificed for table %s.%s", schema.Name, table.Name)
 	}
 
 	firstSlonyIdStr := table.Partitioning.TryGetOptionValueNamed("firstSlonyId")
 	lastSlonyIdStr := table.Partitioning.TryGetOptionValueNamed("lastSlonyId")
-	slonyIds := tryNewSlonyRange(firstSlonyIdStr, lastSlonyIdStr, partNumber)
+	slonyIds, err := tryNewSlonyRange(firstSlonyIdStr, lastSlonyIdStr, partNumber)
+	if err != nil {
+		return nil, err
+	}
 
 	return &moduloPartition{
 		parts:      partNumber,
 		column:     partColumn,
 		slonyRange: slonyIds,
-	}
+	}, nil
 }
 
-func (self *moduloPartition) tableName(i int) string {
-	return fmt.Sprintf("partition_%0*d", util.NumDigits(self.parts), i)
+func (mp *moduloPartition) tableName(i int) string {
+	return fmt.Sprintf("partition_%0*d", util.NumDigits(mp.parts), i)
 }
 
-func (self *XmlParser) expandModuloParitionedTable(doc *ir.Definition, schema *ir.Schema, table *ir.Table) {
+func (p *XmlParser) expandModuloParitionedTable(doc *ir.Definition, schema *ir.Schema, table *ir.Table) error {
 	util.Assert(table.Partitioning != nil, "Table.Partitioning must not be nil")
 	util.Assert(table.Partitioning.Type.Equals(ir.TablePartitionTypeModulo), "must be modulo type")
 
-	opts := newModuloPartition(schema, table)
+	opts, err := newModuloPartition(schema, table)
+	if err != nil {
+		return err
+	}
 
 	// create the schema node for parititions
 	partSchema := &ir.Schema{}
 	doc.AddSchema(partSchema)
-	self.createModuloPartitionSchema(schema, table, partSchema, opts)
-	self.createModuloPartitionTables(schema, table, partSchema, opts)
+	p.createModuloPartitionSchema(schema, table, partSchema, opts)
+	p.createModuloPartitionTables(schema, table, partSchema, opts)
 
 	// add trigger and function to the main table
-	self.createModuloPartitionTrigger(schema, table, partSchema, opts)
+	p.createModuloPartitionTrigger(schema, table, partSchema, opts)
+	return nil
 }
 
-func (self *XmlParser) createModuloPartitionSchema(schema *ir.Schema, table *ir.Table, partSchema *ir.Schema, opts *moduloPartition) {
+func (p *XmlParser) createModuloPartitionSchema(schema *ir.Schema, table *ir.Table, partSchema *ir.Schema, opts *moduloPartition) {
 	partSchema.Name = fmt.Sprintf("_p_%s_%s", schema.Name, table.Name)
 	for _, grant := range schema.Grants {
 		grantCopy := *grant
@@ -69,7 +77,7 @@ func (self *XmlParser) createModuloPartitionSchema(schema *ir.Schema, table *ir.
 	}
 }
 
-func (self *XmlParser) createModuloPartitionTables(schema *ir.Schema, table *ir.Table, partSchema *ir.Schema, opts *moduloPartition) {
+func (p *XmlParser) createModuloPartitionTables(schema *ir.Schema, table *ir.Table, partSchema *ir.Schema, opts *moduloPartition) {
 	for i := 0; i < opts.parts; i++ {
 		partDigits := util.NumDigits(opts.parts)
 		partNum := fmt.Sprintf("%0*d", partDigits, i)
@@ -87,7 +95,7 @@ func (self *XmlParser) createModuloPartitionTables(schema *ir.Schema, table *ir.
 			Name: fmt.Sprintf("%s_p_%s_chk", table.Name, partNum),
 			Type: ir.ConstraintTypeCheck,
 			// TODO(go,3) use higher level rep instead of xml rep here to resolve need for string-level quoting at this point
-			Definition: fmt.Sprintf("((%s %% %d) = %d)", GlobalOperations.GetQuoter().QuoteColumn(opts.column), opts.parts, i),
+			Definition: fmt.Sprintf("((%s %% %d) = %d)", NewOperations().GetQuoter().QuoteColumn(opts.column), opts.parts, i),
 		})
 
 		for _, index := range table.Indexes {
@@ -137,16 +145,16 @@ func (self *XmlParser) createModuloPartitionTables(schema *ir.Schema, table *ir.
 	table.Indexes = nil
 }
 
-func (self *XmlParser) createModuloPartitionTrigger(schema *ir.Schema, table *ir.Table, partSchema *ir.Schema, opts *moduloPartition) {
+func (p *XmlParser) createModuloPartitionTrigger(schema *ir.Schema, table *ir.Table, partSchema *ir.Schema, opts *moduloPartition) {
 	funcDef := fmt.Sprintf("DECLARE\n\tmod_result INT;\nBEGIN\n\tmod_result := NEW.%s %% %d;\n",
-		GlobalOperations.GetQuoter().QuoteColumn(opts.column), opts.parts)
+		NewOperations().GetQuoter().QuoteColumn(opts.column), opts.parts)
 	for i := 0; i < opts.parts; i++ {
 		funcDef += "\t"
 		if i != 0 {
 			funcDef += "ELSE"
 		}
 		funcDef += fmt.Sprintf("IF (mod_result = %d) THEN\n\t\tINSERT INTO %s VALUES (NEW.*);\n",
-			i, GlobalOperations.GetQuoter().QualifyTable(partSchema.Name, opts.tableName(i)))
+			i, NewOperations().GetQuoter().QualifyTable(partSchema.Name, opts.tableName(i)))
 	}
 	funcDef += "\tEND IF;\n\tRETURN NULL;\nEND;"
 
@@ -178,9 +186,15 @@ func (self *XmlParser) createModuloPartitionTrigger(schema *ir.Schema, table *ir
 	})
 }
 
-func (self *XmlParser) checkModuloPartitionChange(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
-	oldOpts := newModuloPartition(oldSchema, oldTable)
-	newOpts := newModuloPartition(newSchema, newTable)
+func (p *XmlParser) checkModuloPartitionChange(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
+	oldOpts, err := newModuloPartition(oldSchema, oldTable)
+	if err != nil {
+		return err
+	}
+	newOpts, err := newModuloPartition(newSchema, newTable)
+	if err != nil {
+		return err
+	}
 	if oldOpts.parts != newOpts.parts {
 		return errors.Errorf("Changing the number of partitions in a table will lead to data loss: %s.%s", newSchema.Name, newTable.Name)
 	}

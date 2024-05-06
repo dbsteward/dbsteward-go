@@ -2,6 +2,7 @@ package xml
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
 )
@@ -33,6 +34,99 @@ type TableOption struct {
 	SqlFormat string `xml:"sqlFormat,attr"`
 	Name      string `xml:"name"`
 	Value     string `xml:"value"`
+}
+
+func TablesFromIR(l *slog.Logger, irts []*ir.Table) ([]*Table, error) {
+	if len(irts) == 0 {
+		return nil, nil
+	}
+	l.Debug("start converting tables")
+	defer l.Debug("done converting tables")
+	if len(irts) == 0 {
+		return nil, nil
+	}
+	var rv []*Table
+	for _, irt := range irts {
+		if irt != nil {
+			t, err := TableFromIR(l, irt)
+			if err != nil {
+				return nil, err
+			}
+			rv = append(rv, t)
+		}
+	}
+	return rv, nil
+}
+
+func TableFromIR(l *slog.Logger, irt *ir.Table) (*Table, error) {
+	l = l.With(slog.String("table", irt.Name))
+	l.Debug("start converting table")
+	defer l.Debug("done converting table")
+	t := Table{
+		Name:           irt.Name,
+		Description:    irt.Description,
+		Owner:          irt.Owner,
+		PrimaryKey:     irt.PrimaryKey,
+		PrimaryKeyName: irt.PrimaryKeyName,
+		ClusterIndex:   irt.ClusterIndex,
+		InheritsTable:  irt.InheritsTable,
+		InheritsSchema: irt.InheritsSchema,
+		OldTableName:   irt.OldTableName,
+		OldSchemaName:  irt.OldSchemaName,
+		// SlonySetId: Does not appear in the IR
+		// SlonyID: Does not appear in the IR
+		TableOptions: TableOptionsFromIR(l, irt.TableOptions),
+	}
+	var err error
+	t.Partitioning, err = TablePartitionFromIR(l, irt.Partitioning)
+	if err != nil {
+		return nil, err
+	}
+	t.Columns, err = ColumnsFromIR(l, irt.Columns)
+	if err != nil {
+		return nil, err
+	}
+	t.ForeignKeys, err = ForeignKeysFromIR(l, irt.ForeignKeys)
+	if err != nil {
+		return nil, err
+	}
+	t.Indexes, err = IndexesFromIR(l, irt.Indexes)
+	if err != nil {
+		return nil, err
+	}
+	t.Constraints, err = ConstraintsFromIR(l, irt.Constraints)
+	if err != nil {
+		return nil, err
+	}
+	t.Grants, err = GrantsFromIR(l, irt.Grants)
+	if err != nil {
+		return nil, err
+	}
+	t.Rows, err = DataRowsFromIR(l, irt.Rows)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func TableOptionsFromIR(l *slog.Logger, irops []*ir.TableOption) []*TableOption {
+	if len(irops) == 0 {
+		return nil
+	}
+	var rv []*TableOption
+	for _, irop := range irops {
+		if irop != nil {
+			rv = append(
+				rv,
+				&TableOption{
+					SqlFormat: string(irop.SqlFormat),
+					Name:      irop.Name,
+					Value:     irop.Value,
+				},
+			)
+		}
+	}
+	return rv
 }
 
 func (topt TableOption) ToIR() (*ir.TableOption, error) {

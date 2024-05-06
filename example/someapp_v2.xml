@@ -8,7 +8,7 @@
   <database>
     <role>
       <application>someapp</application>
-      <owner>pgsql</owner>
+      <owner>postgres</owner>
       <replication>someapp_slony</replication>
       <readonly>someapp_readonly</readonly>
     </role>
@@ -33,12 +33,14 @@
   </database>
   <schema name="public" owner="ROLE_OWNER">
     <table name="sql_user" owner="ROLE_OWNER" primaryKey="user_id" slonyId="10">
+      <!--
       <tablePartition type="MODULO">
         <tablePartitionOption name="number" value="4" />
         <tablePartitionOption name="column" value="user_id" />
         <tablePartitionOption name="firstSlonyId" value="347" />
         <tablePartitionOption name="lastSlonyId" value="350" />
       </tablePartition>
+      -->
       <column name="user_id" type="bigserial" slonyId="10" />
       <column name="user_name" type="character varying(40)" />
       <column name="password" type="text" />

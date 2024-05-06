@@ -42,93 +42,97 @@ type Column struct {
 	AfterAddPostStage3 string
 }
 
-func (self *Column) ConvertStageDirectives() {
-	self.BeforeAddStage1 = util.CoalesceStr(self.BeforeAddStage1, self.AfterAddPreStage1)
-	self.AfterAddStage1 = util.CoalesceStr(self.AfterAddStage1, self.AfterAddPostStage1)
-	self.BeforeAddStage2 = util.CoalesceStr(self.BeforeAddStage2, self.AfterAddPreStage2)
-	self.AfterAddStage2 = util.CoalesceStr(self.AfterAddStage2, self.AfterAddPostStage2)
-	self.BeforeAddStage3 = util.CoalesceStr(self.BeforeAddStage3, self.AfterAddPreStage3)
-	self.AfterAddStage3 = util.CoalesceStr(self.AfterAddStage3, self.AfterAddPostStage3)
+func (col *Column) ConvertStageDirectives() {
+	col.BeforeAddStage1 = util.CoalesceStr(col.BeforeAddStage1, col.AfterAddPreStage1)
+	col.AfterAddStage1 = util.CoalesceStr(col.AfterAddStage1, col.AfterAddPostStage1)
+	col.BeforeAddStage2 = util.CoalesceStr(col.BeforeAddStage2, col.AfterAddPreStage2)
+	col.AfterAddStage2 = util.CoalesceStr(col.AfterAddStage2, col.AfterAddPostStage2)
+	col.BeforeAddStage3 = util.CoalesceStr(col.BeforeAddStage3, col.AfterAddPreStage3)
+	col.AfterAddStage3 = util.CoalesceStr(col.AfterAddStage3, col.AfterAddPostStage3)
 
-	self.AfterAddPreStage1 = ""
-	self.AfterAddPostStage1 = ""
-	self.AfterAddPreStage2 = ""
-	self.AfterAddPostStage2 = ""
-	self.AfterAddPreStage3 = ""
-	self.AfterAddPostStage3 = ""
+	col.AfterAddPreStage1 = ""
+	col.AfterAddPostStage1 = ""
+	col.AfterAddPreStage2 = ""
+	col.AfterAddPostStage2 = ""
+	col.AfterAddPreStage3 = ""
+	col.AfterAddPostStage3 = ""
 }
 
-func (self *Column) HasForeignKey() bool {
-	return self.ForeignTable != ""
+func (col *Column) HasForeignKey() bool {
+	return col.ForeignTable != ""
 }
 
-func (self *Column) TryGetReferencedKey() *KeyNames {
-	if !self.HasForeignKey() {
+func (col *Column) TryGetReferencedKey() *KeyNames {
+	if !col.HasForeignKey() {
 		return nil
 	}
 
-	key := self.GetReferencedKey()
+	key := col.GetReferencedKey()
 	return &key
 }
 
-func (self *Column) GetReferencedKey() KeyNames {
-	util.Assert(self.HasForeignKey(), "GetReferencedKey without checking HasForeignKey")
+func (col *Column) GetReferencedKey() KeyNames {
+	util.Assert(col.HasForeignKey(), "GetReferencedKey without checking HasForeignKey")
 	return KeyNames{
-		Schema:  self.ForeignSchema,
-		Table:   self.ForeignTable,
-		Columns: []string{self.ForeignColumn},
-		KeyName: self.ForeignKeyName,
+		Schema:  col.ForeignSchema,
+		Table:   col.ForeignTable,
+		Columns: []string{col.ForeignColumn},
+		KeyName: col.ForeignKeyName,
 	}
 }
 
-func (self *Column) Merge(overlay *Column) {
+func (col *Column) Merge(overlay *Column) {
 	// TODO(go,core) slony, migration sql
-	self.Type = overlay.Type
-	self.Nullable = overlay.Nullable
-	self.Default = overlay.Default
-	self.Description = overlay.Description
-	self.SerialStart = overlay.SerialStart
-	self.ForeignSchema = overlay.ForeignSchema
-	self.ForeignTable = overlay.ForeignTable
-	self.ForeignKeyName = overlay.ForeignKeyName
-	self.ForeignOnUpdate = overlay.ForeignOnUpdate
-	self.ForeignOnDelete = overlay.ForeignOnDelete
-	self.Statistics = overlay.Statistics
+	col.Type = overlay.Type
+	col.Nullable = overlay.Nullable
+	col.Default = overlay.Default
+	col.Description = overlay.Description
+	col.SerialStart = overlay.SerialStart
+	col.ForeignSchema = overlay.ForeignSchema
+	col.ForeignTable = overlay.ForeignTable
+	col.ForeignKeyName = overlay.ForeignKeyName
+	col.ForeignOnUpdate = overlay.ForeignOnUpdate
+	col.ForeignOnDelete = overlay.ForeignOnDelete
+	col.Statistics = overlay.Statistics
 }
 
-func (self *Column) Validate(*Definition, *Schema, *Table) []error {
+func (col *Column) Validate(_ *Definition, s *Schema, t *Table) []error {
+	var errs []error
+	if col.Name == "" {
+		errs = append(errs, fmt.Errorf("column in %s.%s has empty name", s.Name, t.Name))
+	}
 	// TODO(go,3) validate values
 	// TODO(go,3) validate foreign references, remove other codepaths
 	// TODO(go,3) validate oldname references, remove other codepaths
-	return nil
+	return errs
 }
 
-func (self *Column) IdentityMatches(other *Column) bool {
-	if self == nil || other == nil {
+func (col *Column) IdentityMatches(other *Column) bool {
+	if col == nil || other == nil {
 		return false
 	}
 	// TODO(feat) case sensitivity
-	return strings.EqualFold(self.Name, other.Name)
+	return strings.EqualFold(col.Name, other.Name)
 }
 
 // Returns true if this column appears to match the other for inheritance
 // Very similar to normal Equals, but with a few exceptions:
 // - Foreign key names may be different
 // - Descriptions may be different
-func (self *Column) EqualsInherited(other *Column) bool {
-	if self == nil || other == nil {
+func (col *Column) EqualsInherited(other *Column) bool {
+	if col == nil || other == nil {
 		return false
 	}
-	return strings.EqualFold(self.Name, other.Name) &&
-		strings.EqualFold(self.Type, other.Type) &&
-		self.Nullable == other.Nullable &&
-		self.Default == other.Default &&
-		self.SerialStart == other.SerialStart &&
-		strings.EqualFold(self.ForeignSchema, other.ForeignSchema) &&
-		strings.EqualFold(self.ForeignTable, other.ForeignTable) &&
-		self.ForeignOnUpdate.Equals(other.ForeignOnUpdate) &&
-		self.ForeignOnDelete.Equals(other.ForeignOnDelete) &&
-		util.PtrEq(self.Statistics, other.Statistics)
+	return strings.EqualFold(col.Name, other.Name) &&
+		strings.EqualFold(col.Type, other.Type) &&
+		col.Nullable == other.Nullable &&
+		col.Default == other.Default &&
+		col.SerialStart == other.SerialStart &&
+		strings.EqualFold(col.ForeignSchema, other.ForeignSchema) &&
+		strings.EqualFold(col.ForeignTable, other.ForeignTable) &&
+		col.ForeignOnUpdate.Equals(other.ForeignOnUpdate) &&
+		col.ForeignOnDelete.Equals(other.ForeignOnDelete) &&
+		util.PtrEq(col.Statistics, other.Statistics)
 }
 
 type ColumnRef struct {
@@ -137,18 +141,18 @@ type ColumnRef struct {
 	Column *Column
 }
 
-func (self ColumnRef) String() string {
+func (colref ColumnRef) String() string {
 	schema := "<nil>"
-	if self.Schema != nil {
-		schema = self.Schema.Name
+	if colref.Schema != nil {
+		schema = colref.Schema.Name
 	}
 	table := "<nil>"
-	if self.Table != nil {
-		table = self.Table.Name
+	if colref.Table != nil {
+		table = colref.Table.Name
 	}
 	column := "<nil>"
-	if self.Column != nil {
-		column = self.Column.Name
+	if colref.Column != nil {
+		column = colref.Column.Name
 	}
 	return fmt.Sprintf("%s.%s.%s", schema, table, column)
 }

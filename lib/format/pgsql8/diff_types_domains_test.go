@@ -1,11 +1,11 @@
 package pgsql8
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8/pgtestutil"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -15,7 +15,7 @@ func TestDiffTypes_Domain_BaseType(t *testing.T) {
 	oldSchema := &ir.Schema{
 		Name: "domains",
 		Types: []*ir.TypeDef{
-			&ir.TypeDef{
+			{
 				Name: "my_domain",
 				Kind: ir.DataTypeKindDomain,
 				DomainType: &ir.DataTypeDomainType{
@@ -28,7 +28,7 @@ func TestDiffTypes_Domain_BaseType(t *testing.T) {
 	newSchema := &ir.Schema{
 		Name: "domains",
 		Types: []*ir.TypeDef{
-			&ir.TypeDef{
+			{
 				Name: "my_domain",
 				Kind: ir.DataTypeKindDomain,
 				DomainType: &ir.DataTypeDomainType{
@@ -38,7 +38,7 @@ func TestDiffTypes_Domain_BaseType(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypesForTest(oldSchema, newSchema)
+	ddl := diffTypesForTest(t, oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainDrop{sql.TypeRef{"domains", "my_domain"}},
 		&sql.TypeDomainCreate{
@@ -53,7 +53,7 @@ func TestDiffTypes_Domain_ChangeDefault(t *testing.T) {
 	oldSchema := &ir.Schema{
 		Name: "domains",
 		Types: []*ir.TypeDef{
-			&ir.TypeDef{
+			{
 				Name: "my_domain",
 				Kind: ir.DataTypeKindDomain,
 				DomainType: &ir.DataTypeDomainType{
@@ -78,7 +78,7 @@ func TestDiffTypes_Domain_ChangeDefault(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypesForTest(oldSchema, newSchema)
+	ddl := diffTypesForTest(t, oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainAlterSetDefault{
 			Type:  sql.TypeRef{"domains", "my_domain"},
@@ -115,7 +115,7 @@ func TestDiffTypes_Domain_DropDefault(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypesForTest(oldSchema, newSchema)
+	ddl := diffTypesForTest(t, oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainAlterDropDefault{sql.TypeRef{"domains", "my_domain"}},
 	}, ddl)
@@ -150,7 +150,7 @@ func TestDiffTypes_Domain_MakeNull(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypesForTest(oldSchema, newSchema)
+	ddl := diffTypesForTest(t, oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainAlterSetNullable{sql.TypeRef{"domains", "my_domain"}, true},
 	}, ddl)
@@ -185,7 +185,7 @@ func TestDiffTypes_Domain_MakeNotNull(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypesForTest(oldSchema, newSchema)
+	ddl := diffTypesForTest(t, oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainAlterSetNullable{sql.TypeRef{"domains", "my_domain"}, false},
 	}, ddl)
@@ -228,7 +228,8 @@ func TestDiffTypes_Domain_AddDropChangeConstraints(t *testing.T) {
 		},
 	}
 
-	ddl := diffTypesForTest(oldSchema, newSchema)
+	ddl := diffTypesForTest(t, oldSchema, newSchema)
+
 	ref := sql.TypeRef{"domains", "my_domain"}
 	assert.Equal(t, []output.ToSql{
 		&sql.TypeDomainAlterAddConstraint{ref, "gt4", sql.RawSql("VALUE > 4")},
@@ -242,7 +243,7 @@ func TestDiffTypes_Domain_DependentColumn(t *testing.T) {
 	oldSchema := &ir.Schema{
 		Name: "domains",
 		Tables: []*ir.Table{
-			&ir.Table{
+			{
 				Name:       "some_table",
 				PrimaryKey: []string{"col1"},
 				Columns: []*ir.Column{
@@ -252,14 +253,14 @@ func TestDiffTypes_Domain_DependentColumn(t *testing.T) {
 			},
 		},
 		Types: []*ir.TypeDef{
-			&ir.TypeDef{
+			{
 				Name: "my_domain",
 				Kind: ir.DataTypeKindDomain,
 				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 				},
 				DomainConstraints: []ir.DataTypeDomainConstraint{
-					{"gt5", "VALUE > 5"},
+					{Name: "gt5", Check: "VALUE > 5"},
 				},
 			},
 		},
@@ -268,7 +269,7 @@ func TestDiffTypes_Domain_DependentColumn(t *testing.T) {
 	newSchema := &ir.Schema{
 		Name: "domains",
 		Tables: []*ir.Table{
-			&ir.Table{
+			{
 				Name:       "some_table",
 				PrimaryKey: []string{"col1"},
 				Columns: []*ir.Column{
@@ -278,46 +279,56 @@ func TestDiffTypes_Domain_DependentColumn(t *testing.T) {
 			},
 		},
 		Types: []*ir.TypeDef{
-			&ir.TypeDef{
+			{
 				Name: "my_domain",
 				Kind: ir.DataTypeKindDomain,
 				DomainType: &ir.DataTypeDomainType{
 					BaseType: "int",
 				},
 				DomainConstraints: []ir.DataTypeDomainConstraint{
-					{"gt5", "VALUE > 3"},
+					{Name: "gt5", Check: "VALUE > 3"},
 				},
 			},
 		},
 	}
 
-	ddl := diffTypesForTest(oldSchema, newSchema)
-	ref := sql.TypeRef{"domains", "my_domain"}
+	ddl := diffTypesForTest(t, oldSchema, newSchema)
+	ref := sql.TypeRef{Schema: "domains", Type: "my_domain"}
 	assert.Equal(t, []output.ToSql{
 		sql.NewTableAlter(
-			sql.TableRef{"domains", "some_table"},
-			&sql.TableAlterPartColumnChangeType{"mycol", sql.ParseTypeRef("int"), nil},
+			sql.TableRef{Schema: "domains", Table: "some_table"},
+			&sql.TableAlterPartColumnChangeType{
+				Column: "mycol",
+				Type:   sql.ParseTypeRef("int"),
+				Using:  nil,
+			},
 		),
-		&sql.TypeDomainAlterDropConstraint{ref, "gt5"},
-		&sql.TypeDomainAlterAddConstraint{ref, "gt5", sql.RawSql("VALUE > 3")},
+		&sql.TypeDomainAlterDropConstraint{Type: ref, Constraint: "gt5"},
+		&sql.TypeDomainAlterAddConstraint{
+			Type:       ref,
+			Constraint: "gt5",
+			Check:      sql.RawSql("VALUE > 3"),
+		},
 		sql.NewTableAlter(
-			sql.TableRef{"domains", "some_table"},
-			&sql.TableAlterPartColumnChangeTypeUsingCast{"mycol", ref},
+			sql.TableRef{Schema: "domains", Table: "some_table"},
+			&sql.TableAlterPartColumnChangeTypeUsingCast{Column: "mycol", Type: ref},
 		),
 	}, ddl)
 }
 
-func diffTypesForTest(oldSchema, newSchema *ir.Schema) []output.ToSql {
+func diffTypesForTest(t *testing.T, oldSchema, newSchema *ir.Schema) []output.ToSql {
 	oldDoc := &ir.Definition{
 		Schemas: []*ir.Schema{oldSchema},
 	}
 	newDoc := &ir.Definition{
 		Schemas: []*ir.Schema{newSchema},
 	}
-	setOldNewDocs(oldDoc, newDoc)
-	ofs := &pgtestutil.RecordingOfs{
-		StripComments: true,
+	differ := newDiff(defaultQuoter(slog.Default()))
+	setOldNewDocs(differ, oldDoc, newDoc)
+	ofs := output.NewAnnotationStrippingSegmenter(defaultQuoter(slog.Default()))
+	err := diffTypes(slog.Default(), differ, ofs, oldSchema, newSchema)
+	if err != nil {
+		t.Fatal(err)
 	}
-	diffTypes(ofs, oldSchema, newSchema)
-	return ofs.Sql
+	return ofs.Body
 }

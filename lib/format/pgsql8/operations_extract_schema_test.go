@@ -106,7 +106,7 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 			},
 		},
 	}
-	ops := NewOperations()
+	ops := NewOperations().(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -162,7 +162,7 @@ func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
 			},
 		},
 	}
-	ops := NewOperations()
+	ops := NewOperations().(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -216,7 +216,7 @@ func TestOperations_ExtractSchema_TableComments(t *testing.T) {
 			},
 		},
 	}
-	ops := NewOperations()
+	ops := NewOperations().(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -258,7 +258,7 @@ END;
 			},
 		},
 	}
-	ops := NewOperations()
+	ops := NewOperations().(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -342,7 +342,7 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 			},
 		},
 	}
-	ops := NewOperations()
+	ops := NewOperations().(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -385,7 +385,7 @@ func TestOperations_ExtractSchema_TableArrayType(t *testing.T) {
 			},
 		},
 	}
-	ops := NewOperations()
+	ops := NewOperations().(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -445,7 +445,7 @@ func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 			},
 		},
 	}
-	ops := NewOperations()
+	ops := NewOperations().(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -504,7 +504,7 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 			{Schema: "public", Table: "user", Name: "user_pkey", Type: "p", Columns: []string{"user_id"}},
 		},
 	}
-	ops := NewOperations()
+	ops := NewOperations().(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)

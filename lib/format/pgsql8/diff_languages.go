@@ -1,17 +1,19 @@
 package pgsql8
 
 import (
+	"log/slog"
+
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-func diffLanguages(ofs output.OutputFileSegmenter) {
+func diffLanguages(l *slog.Logger, ofs output.OutputFileSegmenter) error {
 	// TODO(go,pgsql) this is a different flow than old dbsteward:
 	// we do equality comparison inside these two methods, instead of a separate loop
 	// need to validate that this behavior is still correct
 
 	dropLanguages(ofs)
-	createLanguages(ofs)
+	return createLanguages(l, ofs)
 }
 
 func dropLanguages(ofs output.OutputFileSegmenter) {
@@ -29,7 +31,7 @@ func dropLanguages(ofs output.OutputFileSegmenter) {
 	}
 }
 
-func createLanguages(ofs output.OutputFileSegmenter) {
+func createLanguages(l *slog.Logger, ofs output.OutputFileSegmenter) error {
 	newDoc := lib.GlobalDBSteward.NewDatabase
 	oldDoc := lib.GlobalDBSteward.OldDatabase
 
@@ -37,7 +39,12 @@ func createLanguages(ofs output.OutputFileSegmenter) {
 	for _, newLang := range newDoc.Languages {
 		oldLang := oldDoc.TryGetLanguageNamed(newLang.Name)
 		if oldLang == nil || !oldLang.Equals(newLang) {
-			ofs.WriteSql(getCreateLanguageSql(newLang)...)
+			s, err := getCreateLanguageSql(l, newLang)
+			if err != nil {
+				return err
+			}
+			ofs.WriteSql(s...)
 		}
 	}
+	return nil
 }

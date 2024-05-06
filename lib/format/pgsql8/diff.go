@@ -1,7 +1,10 @@
 package pgsql8
 
 import (
+	"fmt"
 	"log/slog"
+	"os"
+	"time"
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
@@ -11,17 +14,17 @@ import (
 )
 
 type diff struct {
-	*sql99.Diff
+	quoter             output.Quoter
 	OldTableDependency []*ir.TableRef
 	NewTableDependency []*ir.TableRef
 }
 
-func newDiff() *diff {
-	diff := &diff{
-		Diff: sql99.NewDiff(GlobalLookup),
-	}
-	diff.Diff.Diff = diff
-	return diff
+func newDiff(q output.Quoter) *diff {
+	return &diff{quoter: q}
+}
+
+func (d *diff) Quoter() output.Quoter {
+	return d.quoter
 }
 
 func (d *diff) UpdateDatabaseConfigParameters(ofs output.OutputFileSegmenter, oldDoc *ir.Definition, newDoc *ir.Definition) {
@@ -52,17 +55,7 @@ func (d *diff) UpdateDatabaseConfigParameters(ofs output.OutputFileSegmenter, ol
 	}
 }
 
-func (d *diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *ir.Definition, upgradePrefix string) {
-	if !lib.GlobalDBSteward.GenerateSlonik {
-		// if we are not generating slonik, defer to parent
-		d.Diff.DiffDoc(oldFile, newFile, oldDoc, newDoc, upgradePrefix)
-		return
-	}
-
-	// TODO(go,slony)
-}
-
-func (d *diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegmenter) {
+func (d *diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegmenter) error {
 	dbsteward := lib.GlobalDBSteward
 
 	// this shouldn't be called if we're not generating slonik, it looks for
@@ -74,24 +67,24 @@ func (d *diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegme
 
 	// stage 1 and 3 should not be in a transaction as they will be submitted via slonik EXECUTE SCRIPT
 	if !dbsteward.GenerateSlonik {
-		stage1.AppendHeader("\nBEGIN;\n\n")
-		stage1.AppendFooter("\nCOMMIT;\n")
+		stage1.AppendHeader(output.NewRawSQL("\nBEGIN;\n\n"))
+		stage1.AppendFooter(output.NewRawSQL("\nCOMMIT;\n"))
 	} else {
-		stage1.AppendHeader("\n-- generateslonik specified: pgsql8 STAGE1 upgrade omitting BEGIN. slonik EXECUTE SCRIPT will wrap stage 1 DDL and DCL in a transaction\n")
+		stage1.AppendHeader(sql.NewComment("generateslonik specified: pgsql8 STAGE1 upgrade omitting BEGIN. slonik EXECUTE SCRIPT will wrap stage 1 DDL and DCL in a transaction"))
 	}
 
 	if !dbsteward.SingleStageUpgrade {
-		stage2.AppendHeader("\nBEGIN;\n\n")
-		stage2.AppendFooter("\nCOMMIT;\n")
-		stage4.AppendHeader("\nBEGIN;\n\n")
-		stage4.AppendFooter("\nCOMMIT;\n")
+		stage2.AppendHeader(output.NewRawSQL("\nBEGIN;\n\n"))
+		stage2.AppendFooter(output.NewRawSQL("\nCOMMIT;\n"))
+		stage4.AppendHeader(output.NewRawSQL("\nBEGIN;\n\n"))
+		stage4.AppendFooter(output.NewRawSQL("\nCOMMIT;\n"))
 
 		// stage 1 and 3 should not be in a transaction as they will be submitted via slonik EXECUTE SCRIPT
 		if !dbsteward.GenerateSlonik {
-			stage3.AppendHeader("\nBEGIN;\n\n")
-			stage3.AppendFooter("\nCOMMIT;\n")
+			stage3.AppendHeader(output.NewRawSQL("\nBEGIN;\n\n"))
+			stage3.AppendFooter(output.NewRawSQL("\nCOMMIT;\n"))
 		} else {
-			stage3.AppendHeader("\n-- generateslonik specified: pgsql8 STAGE3 upgrade omitting BEGIN. slonik EXECUTE SCRIPT will wrap stage 3 DDL and DCL in a transaction\n")
+			stage3.AppendHeader(sql.NewComment("generateslonik specified: pgsql8 STAGE3 upgrade omitting BEGIN. slonik EXECUTE SCRIPT will wrap stage 3 DDL and DCL in a transaction"))
 		}
 	}
 
@@ -99,26 +92,40 @@ func (d *diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegme
 	buildStagedSql(dbsteward.NewDatabase, stage1, "STAGE1BEFORE")
 	buildStagedSql(dbsteward.NewDatabase, stage2, "STAGE2BEFORE")
 
-	dbsteward.Info("Drop Old Schemas")
+	d.Logger().Info("Drop Old Schemas")
 	d.DropOldSchemas(stage3)
 
-	dbsteward.Info("Create New Schemas")
-	d.CreateNewSchemas(stage1)
+	d.Logger().Info("Create New Schemas")
+	err := d.CreateNewSchemas(stage1)
+	if err != nil {
+		return err
+	}
 
-	dbsteward.Info("Update Structure")
-	d.updateStructure(stage1, stage3)
+	err = d.updateStructure(stage1, stage3)
+	if err != nil {
+		return err
+	}
 
-	dbsteward.Info("Update Permissions")
-	d.updatePermissions(stage1, stage3)
+	d.Logger().Info("Update Permissions")
+	err = d.updatePermissions(stage1, stage3)
+	if err != nil {
+		return err
+	}
 
 	d.UpdateDatabaseConfigParameters(stage1, dbsteward.NewDatabase, dbsteward.OldDatabase)
 
-	dbsteward.Info("Update data")
+	d.Logger().Info("Update data")
 	if dbsteward.GenerateSlonik {
 		// TODO(go,slony) format::set_context_replica_set_to_natural_first(dbsteward::$new_database);
 	}
-	d.updateData(stage2, true)
-	d.updateData(stage4, false)
+	err = d.updateData(d.Logger(), stage2, true)
+	if err != nil {
+		return err
+	}
+	err = d.updateData(d.Logger(), stage4, false)
+	if err != nil {
+		return err
+	}
 
 	// append any literal sql in new not in old at the end of data stage 1
 	// TODO(feat) this relies on exact string match - is there a better way?
@@ -142,7 +149,7 @@ func (d *diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegme
 
 		if !found {
 			// TODO(feat) need to ensure newSql ends with semicolon
-			stage2.Write(newSql.Text + "\n")
+			stage2.WriteSql(output.NewRawSQL(newSql.Text + "\n"))
 		}
 	}
 
@@ -155,16 +162,21 @@ func (d *diff) DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegme
 	buildStagedSql(dbsteward.NewDatabase, stage2, "STAGE2")
 	buildStagedSql(dbsteward.NewDatabase, stage3, "STAGE3")
 	buildStagedSql(dbsteward.NewDatabase, stage4, "STAGE4")
+	return nil
 }
 
 func (d *diff) DiffSql(old, new []string, upgradePrefix string) {
 	// TODO(go,sqldiff)
 }
 
-func (d *diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {
+func (d *diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) error {
+	d.Logger().Info("Update Structure")
 	dbsteward := lib.GlobalDBSteward
 
-	diffLanguages(stage1)
+	err := diffLanguages(d.Logger(), stage1)
+	if err != nil {
+		return err
+	}
 
 	// drop all views in all schemas, regardless whether dependency order is known or not
 	// TODO(go,4) would be so cool if we could parse the view def and only recreate what's required
@@ -172,32 +184,58 @@ func (d *diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.
 
 	// TODO(go,3) should we just always use table deps?
 	if len(d.NewTableDependency) == 0 {
+		d.Logger().Debug("not using table dependencies")
 		for _, newSchema := range dbsteward.NewDatabase.Schemas {
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
-			diffTypes(stage1, oldSchema, newSchema)
-			diffFunctions(stage1, stage3, oldSchema, newSchema)
-			err := diffSequences(stage1, oldSchema, newSchema)
-			dbsteward.FatalIfError(err, "while diffing sequences")
+			err := diffTypes(d.Logger(), d, stage1, oldSchema, newSchema)
+			if err != nil {
+				return err
+			}
+			err = diffFunctions(d.Logger(), stage1, stage3, oldSchema, newSchema)
+			if err != nil {
+				return err
+			}
+			err = diffSequences(d.Logger(), stage1, oldSchema, newSchema)
+			if err != nil {
+				return fmt.Errorf("while diffing sequences: %w", err)
+			}
 			// remove old constraints before table constraints, so the sql statements succeed
-			dropConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypeConstraint)
-			dropConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
+			err = dropConstraints(d.Logger(), stage1, oldSchema, newSchema, sql99.ConstraintTypeConstraint)
+			if err != nil {
+				return err
+			}
+			err = dropConstraints(d.Logger(), stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
+			if err != nil {
+				return err
+			}
 			dropTables(stage1, oldSchema, newSchema)
-			err = createTables(stage1, oldSchema, newSchema)
-			dbsteward.FatalIfError(err, "while creating tables")
-			err = diffTables(stage1, stage3, oldSchema, newSchema)
-			dbsteward.FatalIfError(err, "while diffing tables")
-			diffIndexes(stage1, oldSchema, newSchema)
+			err = createTables(d.Logger(), stage1, oldSchema, newSchema)
+			if err != nil {
+				return fmt.Errorf("while creating tables: %w", err)
+			}
+			err = diffTables(d.Logger(), stage1, stage3, oldSchema, newSchema)
+			if err != nil {
+				return fmt.Errorf("while diffing tables: %w", err)
+			}
+			err = diffIndexes(stage1, oldSchema, newSchema)
+			if err != nil {
+				return err
+			}
 			diffClusters(stage1, oldSchema, newSchema)
-			createConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
-			diffTriggers(stage1, oldSchema, newSchema)
+			createConstraints(d.Logger(), stage1, oldSchema, newSchema, sql99.ConstraintTypePrimaryKey)
+			err = diffTriggers(stage1, oldSchema, newSchema)
+			if err != nil {
+				return err
+			}
 		}
 		// non-primary key constraints may be inter-schema dependant, and dependant on other's primary keys
 		// and therefore should be done after object creation sections
 		for _, newSchema := range dbsteward.NewDatabase.Schemas {
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
-			createConstraints(stage1, oldSchema, newSchema, sql99.ConstraintTypeConstraint)
+			createConstraints(d.Logger(), stage1, oldSchema, newSchema, sql99.ConstraintTypeConstraint)
 		}
 	} else {
+		d.Logger().Debug("using table dependencies")
 		// use table dependency order to do structural changes in an intelligent order
 		// make sure we only process each schema once
 		processedSchemas := map[string]bool{}
@@ -206,8 +244,14 @@ func (d *diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.
 			oldSchema := dbsteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
 
 			if !processedSchemas[newSchema.Name] {
-				diffTypes(stage1, oldSchema, newSchema)
-				diffFunctions(stage1, stage3, oldSchema, newSchema)
+				err := diffTypes(d.Logger(), d, stage1, oldSchema, newSchema)
+				if err != nil {
+					return err
+				}
+				err = diffFunctions(d.Logger(), stage1, stage3, oldSchema, newSchema)
+				if err != nil {
+					return err
+				}
 				processedSchemas[newSchema.Name] = true
 			}
 		}
@@ -226,8 +270,14 @@ func (d *diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.
 
 			// NOTE: when dropping constraints, GlobalDBX.RenamedTableCheckPointer() is not called for oldTable
 			// as GlobalDiffConstraints.DiffConstraintsTable() will do rename checking when recreating constraints for renamed tables
-			dropConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypeConstraint)
-			dropConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypePrimaryKey)
+			err := dropConstraintsTable(d.Logger(), stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypeConstraint)
+			if err != nil {
+				return err
+			}
+			err = dropConstraintsTable(d.Logger(), stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypePrimaryKey)
+			if err != nil {
+				return err
+			}
 		}
 
 		processedSchemas = map[string]bool{}
@@ -239,8 +289,10 @@ func (d *diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.
 			// see above for pre table creation stuff
 			// see below for post table creation stuff
 			if !processedSchemas[newSchema.Name] {
-				err := diffSequences(stage1, oldSchema, newSchema)
-				lib.GlobalDBSteward.FatalIfError(err, "while diffing sequences")
+				err := diffSequences(d.Logger(), stage1, oldSchema, newSchema)
+				if err != nil {
+					return fmt.Errorf("while diffing sequences: %w", err)
+				}
 				processedSchemas[newSchema.Name] = true
 			}
 
@@ -256,19 +308,37 @@ func (d *diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.
 			// GlobalDBX.RenamedTableCheckPointer() will modify these pointers to be the old table
 			var err error
 			oldSchema, oldTable, err = lib.GlobalDBSteward.OldDatabase.NewTableName(oldSchema, oldTable, newSchema, newTable)
-			lib.GlobalDBSteward.FatalIfError(err, "getting new table name")
-			err = createTable(stage1, oldSchema, newSchema, newTable)
-			lib.GlobalDBSteward.FatalIfError(err, "while creating table %s.%s", newSchema.Name, newTable.Name)
-			err = diffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
-			lib.GlobalDBSteward.FatalIfError(err, "while diffing table %s.%s", newSchema.Name, newTable.Name)
-			diffIndexesTable(stage1, oldSchema, oldTable, newSchema, newTable)
+			if err != nil {
+				return fmt.Errorf("getting new table name: %w", err)
+			}
+			err = createTable(d.Logger(), stage1, oldSchema, newSchema, newTable)
+			if err != nil {
+				return fmt.Errorf("while creating table %s.%s: %w", newSchema.Name, newTable.Name, err)
+			}
+			err = diffTable(d.Logger(), stage1, stage3, oldSchema, oldTable, newSchema, newTable)
+			if err != nil {
+				return fmt.Errorf("while diffing table %s.%s: %w", newSchema.Name, newTable.Name, err)
+			}
+			err = diffIndexesTable(stage1, oldSchema, oldTable, newSchema, newTable)
+			if err != nil {
+				return err
+			}
 			diffClustersTable(stage1, oldTable, newSchema, newTable)
-			createConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypePrimaryKey)
-			diffTriggersTable(stage1, oldSchema, oldTable, newSchema, newTable)
+			err = createConstraintsTable(d.Logger(), stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypePrimaryKey)
+			if err != nil {
+				return err
+			}
+			err = diffTriggersTable(stage1, oldSchema, oldTable, newSchema, newTable)
+			if err != nil {
+				return err
+			}
 
 			// HACK: For now, we'll generate foreign key constraints in stage 4 in updateData below
 			// https://github.com/dbsteward/dbsteward/issues/142
-			createConstraintsTable(stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypeConstraint&^sql99.ConstraintTypeForeign)
+			err = createConstraintsTable(d.Logger(), stage1, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypeConstraint&^sql99.ConstraintTypeForeign)
+			if err != nil {
+				return err
+			}
 		}
 
 		// drop old tables in reverse dependency order
@@ -282,10 +352,10 @@ func (d *diff) updateStructure(stage1 output.OutputFileSegmenter, stage3 output.
 		}
 	}
 
-	createViewsOrdered(stage3, dbsteward.OldDatabase, dbsteward.NewDatabase)
+	return createViewsOrdered(d.Logger(), stage3, dbsteward.OldDatabase, dbsteward.NewDatabase)
 }
 
-func (d *diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) {
+func (d *diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 output.OutputFileSegmenter) error {
 	// TODO(feat) what if readonly user changed? we need to rebuild those grants
 	// TODO(feat) what about removed permissions, shouldn't we REVOKE those?
 
@@ -296,14 +366,20 @@ func (d *diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 outpu
 
 		for _, newGrant := range newSchema.Grants {
 			if oldSchema == nil || !ir.HasPermissionsOf(oldSchema, newGrant, ir.SqlFormatPgsql8) {
-				stage1.WriteSql(GlobalSchema.GetGrantSql(newDoc, newSchema, newGrant)...)
+				s, err := GlobalSchema.GetGrantSql(newDoc, newSchema, newGrant)
+				if err != nil {
+					return err
+				}
+				stage1.WriteSql(s...)
 			}
 		}
 
 		for _, newTable := range newSchema.Tables {
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
 			isRenamed, err := lib.GlobalDBSteward.OldDatabase.IsRenamedTable(slog.Default(), newSchema, newTable)
-			lib.GlobalDBSteward.FatalIfError(err, "while updating permissions")
+			if err != nil {
+				return fmt.Errorf("while updating permissions: %w", err)
+			}
 			if isRenamed {
 				// skip permission diffing on it, it is the same
 				// TODO(feat) that seems unlikely? we should probably check permissions on renamed table
@@ -311,7 +387,11 @@ func (d *diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 outpu
 			}
 			for _, newGrant := range newTable.Grants {
 				if oldTable == nil || !ir.HasPermissionsOf(oldTable, newGrant, ir.SqlFormatPgsql8) {
-					stage1.WriteSql(getTableGrantSql(newSchema, newTable, newGrant)...)
+					s, err := getTableGrantSql(d.Logger(), newSchema, newTable, newGrant)
+					if err != nil {
+						return err
+					}
+					stage1.WriteSql(s...)
 				}
 			}
 		}
@@ -320,7 +400,11 @@ func (d *diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 outpu
 			oldSeq := oldSchema.TryGetSequenceNamed(newSeq.Name)
 			for _, newGrant := range newSeq.Grants {
 				if oldSeq == nil || !ir.HasPermissionsOf(oldSeq, newGrant, ir.SqlFormatPgsql8) {
-					stage1.WriteSql(getSequenceGrantSql(newSchema, newSeq, newGrant)...)
+					s, err := getSequenceGrantSql(d.Logger(), newSchema, newSeq, newGrant)
+					if err != nil {
+						return err
+					}
+					stage1.WriteSql(s...)
 				}
 			}
 		}
@@ -329,7 +413,11 @@ func (d *diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 outpu
 			oldFunc := oldSchema.TryGetFunctionMatching(newFunc)
 			for _, newGrant := range newFunc.Grants {
 				if oldFunc == nil || !ir.HasPermissionsOf(oldFunc, newGrant, ir.SqlFormatPgsql8) {
-					stage1.WriteSql(getFunctionGrantSql(newSchema, newFunc, newGrant)...)
+					grants, err := getFunctionGrantSql(d.Logger(), newSchema, newFunc, newGrant)
+					if err != nil {
+						return err
+					}
+					stage1.WriteSql(grants...)
 				}
 			}
 		}
@@ -338,13 +426,19 @@ func (d *diff) updatePermissions(stage1 output.OutputFileSegmenter, stage3 outpu
 			oldView := oldSchema.TryGetViewNamed(newView.Name)
 			for _, newGrant := range newView.Grants {
 				if lib.GlobalDBSteward.AlwaysRecreateViews || oldView == nil || !ir.HasPermissionsOf(oldView, newGrant, ir.SqlFormatPgsql8) || !oldView.Equals(newView, ir.SqlFormatPgsql8) {
-					stage3.WriteSql(getViewGrantSql(newDoc, newSchema, newView, newGrant)...)
+					s, err := getViewGrantSql(d.Logger(), newDoc, newSchema, newView, newGrant)
+					if err != nil {
+						return err
+					}
+					stage3.WriteSql(s...)
 				}
 			}
 		}
 	}
+	return nil
 }
-func (d *diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
+
+func (d *diff) updateData(l *slog.Logger, ofs output.OutputFileSegmenter, deleteMode bool) error {
 	if len(d.NewTableDependency) > 0 {
 		for i := 0; i < len(d.NewTableDependency); i += 1 {
 			item := d.NewTableDependency[i]
@@ -359,9 +453,11 @@ func (d *diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
 
 			isRenamed, err := lib.GlobalDBSteward.OldDatabase.IsRenamedTable(slog.Default(), newSchema, newTable)
-			lib.GlobalDBSteward.FatalIfError(err, "while updating data")
+			if err != nil {
+				return fmt.Errorf("while updatign data: %w", err)
+			}
 			if isRenamed {
-				lib.GlobalDBSteward.Info("%s.%s used to be called %s - will diff data against that definition", newSchema.Name, newTable.Name, newTable.OldTableName)
+				d.Logger().Info(fmt.Sprintf("%s.%s used to be called %s - will diff data against that definition", newSchema.Name, newTable.Name, newTable.OldTableName))
 				oldSchema = lib.GlobalDBSteward.OldDatabase.GetOldTableSchema(newSchema, newTable)
 				oldTable = lib.GlobalDBSteward.OldDatabase.GetOldTable(newSchema, newTable)
 			}
@@ -369,13 +465,24 @@ func (d *diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 			if deleteMode {
 				// TODO(go,3) clean up inconsistencies between e.g. GetDeleteDataSql and DiffData wrt writing sql to an ofs
 				// TODO(feat) aren't deletes supposed to go in stage 2?
-				ofs.WriteSql(getDeleteDataSql(oldSchema, oldTable, newSchema, newTable)...)
+				s, err := getDeleteDataSql(l, oldSchema, oldTable, newSchema, newTable)
+				if err != nil {
+					return err
+				}
+				ofs.WriteSql(s...)
 			} else {
-				ofs.WriteSql(getCreateDataSql(oldSchema, oldTable, newSchema, newTable)...)
+				s, err := getCreateDataSql(l, oldSchema, oldTable, newSchema, newTable)
+				if err != nil {
+					return err
+				}
+				ofs.WriteSql(s...)
 
 				// HACK: For now, we'll generate foreign key constraints in stage 4 after inserting data
 				// https://github.com/dbsteward/dbsteward/issues/142
-				createConstraintsTable(ofs, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypeForeign)
+				err = createConstraintsTable(d.Logger(), ofs, oldSchema, oldTable, newSchema, newTable, sql99.ConstraintTypeForeign)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	} else {
@@ -383,7 +490,88 @@ func (d *diff) updateData(ofs output.OutputFileSegmenter, deleteMode bool) {
 		// TODO(feat) the above switches on deleteMode, this does not. we never delete data if table dep order is unknown?
 		for _, newSchema := range lib.GlobalDBSteward.NewDatabase.Schemas {
 			oldSchema := lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(newSchema.Name)
-			diffData(ofs, oldSchema, newSchema)
+			return diffData(l, ofs, oldSchema, newSchema)
 		}
 	}
+	return nil
+}
+
+// DropSchemaSQL this implementation is a bit hacky as it's a
+// transitional step as I factor away global variables
+func (d *diff) DropSchemaSQL(s *ir.Schema) ([]output.ToSql, error) {
+	return GlobalSchema.GetDropSql(s), nil
+}
+
+// CreateSchemaSQL this implementation is a bit hacky as it's a
+// transitional step as I factor away global variables
+func (d *diff) CreateSchemaSQL(s *ir.Schema) ([]output.ToSql, error) {
+	return GlobalSchema.GetCreationSql(s)
+}
+
+func (diff *diff) Logger() *slog.Logger {
+	// Hack to work around instantion order issues
+	return lib.GlobalDBSteward.Logger()
+}
+
+func (diff *diff) DiffDoc(oldFile, newFile string, oldDoc, newDoc *ir.Definition, upgradePrefix string) error {
+	dbsteward := lib.GlobalDBSteward
+	timestamp := time.Now().Format(time.RFC1123Z)
+	oldSetNewSet := fmt.Sprintf("-- Old definition: %s\n-- New definition %s\n", oldFile, newFile)
+
+	var stage1, stage2, stage3, stage4 output.OutputFileSegmenter
+	quoter := diff.Quoter()
+
+	if dbsteward.SingleStageUpgrade {
+		fileName := upgradePrefix + "_single_stage.sql"
+		file, err := os.Create(fileName)
+		if err != nil {
+			return fmt.Errorf("failed to open %s for write: %w", fileName, err)
+		}
+
+		stage1 = output.NewOutputFileSegmenterToFile(diff.Logger(), quoter, fileName, 1, file, fileName, dbsteward.OutputFileStatementLimit)
+		stage1.SetHeader(sql.NewComment("DBsteward single stage upgrade changes - generated %s\n%s", timestamp, oldSetNewSet))
+		defer stage1.Close()
+		stage2 = stage1
+		stage3 = stage1
+		stage4 = stage1
+	} else {
+		stage1 = output.NewOutputFileSegmenter(diff.Logger(), quoter, upgradePrefix+"_stage1_schema", 1, dbsteward.OutputFileStatementLimit)
+		stage1.SetHeader(sql.NewComment("DBSteward stage 1 structure additions and modifications - generated %s\n%s", timestamp, oldSetNewSet))
+		defer stage1.Close()
+		stage2 = output.NewOutputFileSegmenter(diff.Logger(), quoter, upgradePrefix+"_stage2_data", 1, dbsteward.OutputFileStatementLimit)
+		stage2.SetHeader(sql.NewComment("DBSteward stage 2 data definitions removed - generated %s\n%s", timestamp, oldSetNewSet))
+		defer stage2.Close()
+		stage3 = output.NewOutputFileSegmenter(diff.Logger(), quoter, upgradePrefix+"_stage3_schema", 1, dbsteward.OutputFileStatementLimit)
+		stage3.SetHeader(sql.NewComment("DBSteward stage 3 structure changes, constraints, and removals - generated %s\n%s", timestamp, oldSetNewSet))
+		defer stage3.Close()
+		stage4 = output.NewOutputFileSegmenter(diff.Logger(), quoter, upgradePrefix+"_stage4_data", 1, dbsteward.OutputFileStatementLimit)
+		stage4.SetHeader(sql.NewComment("DBSteward stage 4 data definition changes and additions - generated %s\n%s", timestamp, oldSetNewSet))
+		defer stage4.Close()
+	}
+
+	dbsteward.OldDatabase = oldDoc
+	dbsteward.NewDatabase = newDoc
+
+	return diff.DiffDocWork(stage1, stage2, stage3, stage4)
+}
+
+func (diff *diff) DropOldSchemas(ofs output.OutputFileSegmenter) {
+	// TODO(feat) support oldname following?
+	for _, oldSchema := range lib.GlobalDBSteward.OldDatabase.Schemas {
+		if lib.GlobalDBSteward.NewDatabase.TryGetSchemaNamed(oldSchema.Name) == nil {
+			diff.Logger().Info(fmt.Sprintf("Drop old schema: %s", oldSchema.Name))
+			ofs.MustWriteSql(diff.DropSchemaSQL(oldSchema))
+		}
+	}
+}
+
+func (diff *diff) CreateNewSchemas(ofs output.OutputFileSegmenter) error {
+	// TODO(feat) support oldname following?
+	for _, newSchema := range lib.GlobalDBSteward.NewDatabase.Schemas {
+		if lib.GlobalDBSteward.OldDatabase.TryGetSchemaNamed(newSchema.Name) == nil {
+			diff.Logger().Info(fmt.Sprintf("Create new schema: %s", newSchema.Name))
+			ofs.MustWriteSql(diff.CreateSchemaSQL(newSchema))
+		}
+	}
+	return nil
 }

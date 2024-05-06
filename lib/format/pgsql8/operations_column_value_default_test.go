@@ -1,6 +1,7 @@
 package pgsql8
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,80 +11,101 @@ import (
 )
 
 func TestOperations_ColumnValueDefault_NullReturnsNull(t *testing.T) {
-	val := getColumnValueDefault(&ir.Column{
+	val, err := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "text",
 	}, &ir.DataCol{
 		Null: true,
 		Text: "asdf",
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.Equal(t, "NULL", val, `Expected NULL if null="true" is specified`)
 }
 
 func TestOperations_ColumnValueDefault_EmptyReturnsEmpty(t *testing.T) {
-	val := getColumnValueDefault(&ir.Column{
+	val, err := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "text",
 	}, &ir.DataCol{
 		Empty: true,
 		Text:  "asdf",
 	})
-	assert.Equal(t, "E''", val, `Expected "E''" if empty="true" is specified`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, "''", val, `Expected "''" if empty="true" is specified`)
 }
 
 func TestOperations_ColumnValueDefault_SqlReturnsWrapped(t *testing.T) {
-	val := getColumnValueDefault(&ir.Column{
+	val, err := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "text",
 	}, &ir.DataCol{
 		Sql:  true,
 		Text: "some_function()",
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.Equal(t, "(some_function())", val, `Expected literal column value wrapped in parens if sql="true" is specified`)
 }
 
 func TestOperations_ColumnValueDefault_SqlDefaultReturnsWrapped(t *testing.T) {
-	val := getColumnValueDefault(&ir.Column{
+	val, err := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "text",
 	}, &ir.DataCol{
 		Sql:  true,
 		Text: "DEFAULT",
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.Equal(t, "DEFAULT", val, `Expected un-paren-wrapped DEFAULT if sql="true" is specified`)
 }
 
 func TestOperations_ColumnValueDefault_UsesDefaultIfEmpty(t *testing.T) {
-	val := getColumnValueDefault(&ir.Column{
+	val, err := getColumnValueDefault(&ir.Column{
 		Name:    "foo",
 		Type:    "text",
 		Default: "asdf",
 	}, &ir.DataCol{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.Equal(t, "asdf", val, `Expected column default if data was empty`)
 }
 
 func TestOperations_ColumnValueDefault_UsesLiteralForInt(t *testing.T) {
-	val := getColumnValueDefault(&ir.Column{
+	val, err := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "int",
 	}, &ir.DataCol{
 		Text: "42",
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.Equal(t, "42", val, `Expected literal int value for integers`)
 }
 
 func TestOperations_ColumnValueDefaultQuotesStrings(t *testing.T) {
 	defer resetGlobalDBSteward()
-	val := getColumnValueDefault(&ir.Column{
+	val, err := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "text",
 	}, &ir.DataCol{
 		Text: "asdf",
 	})
-	assert.Equal(t, "E'asdf'", val, `Expected quoted string value for text`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, "'asdf'", val, `Expected quoted string value for text`)
 }
 
-func getColumnValueDefault(def *ir.Column, data *ir.DataCol) string {
+func getColumnValueDefault(def *ir.Column, data *ir.DataCol) (string, error) {
 	doc := &ir.Definition{
 		Schemas: []*ir.Schema{
 			&ir.Schema{
@@ -110,10 +132,12 @@ func getColumnValueDefault(def *ir.Column, data *ir.DataCol) string {
 	schema := doc.Schemas[0]
 	table := schema.Tables[0]
 
-	ops := GlobalOperations
-	ops.EscapeStringValues = true
+	ops := NewOperations().(*Operations)
 
 	// TODO(go,nth) can we do this without also testing GetValueSql?
-	toVal := columnValueDefault(schema, table, def.Name, data)
-	return toVal.GetValueSql(ops.GetQuoter())
+	toVal, err := columnValueDefault(slog.Default(), schema, table, def.Name, data)
+	if err != nil {
+		return "", err
+	}
+	return toVal.GetValueSql(ops.GetQuoter()), nil
 }

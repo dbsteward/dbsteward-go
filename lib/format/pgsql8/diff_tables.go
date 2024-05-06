@@ -16,7 +16,7 @@ import (
 // TODO(go,core) lift much of this up to sql99
 
 // applies transformations to tables that exist in both old and new
-func diffTables(stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) error {
+func diffTables(l *slog.Logger, stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) error {
 	// note: old dbsteward called create_tables here, but because we split out DiffTable, we can't call it both places,
 	// so callers were updated to call createTables or CreateTable just before calling DiffTables or DiffTable, respectively
 
@@ -30,7 +30,7 @@ func diffTables(stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema 
 		if err != nil {
 			return err
 		}
-		err = diffTable(stage1, stage3, oldSchema, oldTable, newSchema, newTable)
+		err = diffTable(l, stage1, stage3, oldSchema, oldTable, newSchema, newTable)
 		if err != nil {
 			return errors.Wrapf(err, "while diffing table %s.%s", newSchema.Name, newTable.Name)
 		}
@@ -38,17 +38,17 @@ func diffTables(stage1, stage3 output.OutputFileSegmenter, oldSchema, newSchema 
 	return nil
 }
 
-func diffTable(stage1, stage3 output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
+func diffTable(l *slog.Logger, stage1, stage3 output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	if oldTable == nil || newTable == nil {
 		// create and drop are handled elsewhere
 		return nil
 	}
 
-	err := updateTableOptions(stage1, oldTable, newSchema, newTable)
+	err := updateTableOptions(l, stage1, oldTable, newSchema, newTable)
 	if err != nil {
 		return errors.Wrap(err, "while diffing table options")
 	}
-	err = updateTableColumns(stage1, stage3, oldTable, newSchema, newTable)
+	err = updateTableColumns(l, stage1, stage3, oldTable, newSchema, newTable)
 	if err != nil {
 		return errors.Wrap(err, "while diffing table columns")
 	}
@@ -68,7 +68,7 @@ func diffTable(stage1, stage3 output.OutputFileSegmenter, oldSchema *ir.Schema, 
 	return nil
 }
 
-func updateTableOptions(stage1 output.OutputFileSegmenter, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
+func updateTableOptions(l *slog.Logger, stage1 output.OutputFileSegmenter, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	util.Assert(oldTable != nil, "expect oldTable to not be nil")
 	util.Assert(newTable != nil, "expect newTable to not be nil")
 
@@ -86,10 +86,10 @@ func updateTableOptions(stage1 output.OutputFileSegmenter, oldTable *ir.Table, n
 		return strings.EqualFold(newKey, oldKey) && !strings.EqualFold(newOpts.Get(newKey), oldOpts.Get(newKey))
 	})
 
-	return applyTableOptionsDiff(stage1, newSchema, newTable, updateOpts, createOpts, deleteOpts)
+	return applyTableOptionsDiff(l, stage1, newSchema, newTable, updateOpts, createOpts, deleteOpts)
 }
 
-func applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *ir.Schema, table *ir.Table, updateOpts, createOpts, deleteOpts *util.OrderedMap[string, string]) error {
+func applyTableOptionsDiff(l *slog.Logger, stage1 output.OutputFileSegmenter, schema *ir.Schema, table *ir.Table, updateOpts, createOpts, deleteOpts *util.OrderedMap[string, string]) error {
 	alters := []sql.TableAlterPart{}
 	ref := sql.TableRef{Schema: schema.Name, Table: table.Name}
 
@@ -121,7 +121,7 @@ func applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *ir.Schema,
 				Tablespace: entry.Value,
 			})
 		} else {
-			lib.GlobalDBSteward.Warning("Ignoring create/update of unknown table option %s on table %s.%s", entry.Key, schema.Name, table.Name)
+			l.Warn(fmt.Sprintf("Ignoring create/update of unknown table option %s on table %s.%s", entry.Key, schema.Name, table.Name))
 		}
 	}
 
@@ -140,7 +140,7 @@ func applyTableOptionsDiff(stage1 output.OutputFileSegmenter, schema *ir.Schema,
 				Table: ref,
 			})
 		} else {
-			lib.GlobalDBSteward.Warning("Ignoring removal of unknown table option %s on table %s.%s", entry.Key, schema.Name, table.Name)
+			l.Warn(fmt.Sprintf("Ignoring removal of unknown table option %s on table %s.%s", entry.Key, schema.Name, table.Name))
 		}
 	}
 
@@ -163,7 +163,7 @@ type updateTableColumnsAgg struct {
 	after3  []output.ToSql
 }
 
-func updateTableColumns(stage1, stage3 output.OutputFileSegmenter, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
+func updateTableColumns(l *slog.Logger, stage1, stage3 output.OutputFileSegmenter, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	agg := &updateTableColumnsAgg{}
 
 	// TODO(go,pgsql) old dbsteward interleaved commands into a single list, and output in the same order
@@ -174,11 +174,11 @@ func updateTableColumns(stage1, stage3 output.OutputFileSegmenter, oldTable *ir.
 	if err != nil {
 		return err
 	}
-	err = addCreateTableColumns(agg, oldTable, newSchema, newTable)
+	err = addCreateTableColumns(l, agg, oldTable, newSchema, newTable)
 	if err != nil {
 		return err
 	}
-	err = addModifyTableColumns(agg, oldTable, newSchema, newTable)
+	err = addModifyTableColumns(l, agg, oldTable, newSchema, newTable)
 	if err != nil {
 		return err
 	}
@@ -232,7 +232,7 @@ func addDropTableColumns(agg *updateTableColumnsAgg, oldTable, newTable *ir.Tabl
 	return nil
 }
 
-func addCreateTableColumns(agg *updateTableColumnsAgg, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
+func addCreateTableColumns(l *slog.Logger, agg *updateTableColumnsAgg, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	// note that postgres treats identifiers as case-sensitive when quoted
 	// TODO(go,3) find a way to generalize/streamline this
 	caseSensitive := lib.GlobalDBSteward.QuoteAllNames || lib.GlobalDBSteward.QuoteColumnNames
@@ -243,7 +243,7 @@ func addCreateTableColumns(agg *updateTableColumnsAgg, oldTable *ir.Table, newSc
 			continue
 		}
 
-		isRenamed, err := isRenamedColumn(oldTable, newTable, newColumn)
+		isRenamed, err := isRenamedColumn(l, oldTable, newTable, newColumn)
 		if err != nil {
 			return errors.Wrapf(err, "while adding new table columns")
 		}
@@ -260,9 +260,13 @@ func addCreateTableColumns(agg *updateTableColumnsAgg, oldTable *ir.Table, newSc
 
 		// notice $include_null_definition is false
 		// this is because ADD COLUMNs with NOT NULL will fail when there are existing rows
+		colDef, err := getFullColumnDefinition(l, lib.GlobalDBSteward.NewDatabase, newSchema, newTable, newColumn, false, true)
+		if err != nil {
+			return err
+		}
 		agg.stage1 = append(agg.stage1, &sql.TableAlterPartColumnCreate{
 			// TODO(go,nth) clean up this call, get rid of booleans and global flag
-			ColumnDef: getFullColumnDefinition(lib.GlobalDBSteward.NewDatabase, newSchema, newTable, newColumn, false, true),
+			ColumnDef: colDef,
 		})
 
 		// instead we put the NOT NULL defintion in stage3 schema changes once data has been updated in stage2 data
@@ -330,7 +334,7 @@ func addCreateTableColumns(agg *updateTableColumnsAgg, oldTable *ir.Table, newSc
 	return nil
 }
 
-func addModifyTableColumns(agg *updateTableColumnsAgg, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
+func addModifyTableColumns(l *slog.Logger, agg *updateTableColumnsAgg, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	dbsteward := lib.GlobalDBSteward
 
 	// note that postgres treats identifiers as case-sensitive when quoted
@@ -343,7 +347,7 @@ func addModifyTableColumns(agg *updateTableColumnsAgg, oldTable *ir.Table, newSc
 			// old table does not contain column, CREATE handled by addCreateTableColumns
 			continue
 		}
-		isRenamed, err := isRenamedColumn(oldTable, newTable, newColumn)
+		isRenamed, err := isRenamedColumn(l, oldTable, newTable, newColumn)
 		if err != nil {
 			return errors.Wrapf(err, "while diffing table columns")
 		}
@@ -354,8 +358,14 @@ func addModifyTableColumns(agg *updateTableColumnsAgg, oldTable *ir.Table, newSc
 		}
 
 		// TODO(go,pgsql) orig code calls (oldDB, *newSchema*, oldTable, oldColumn) but that seems wrong, need to validate this
-		oldType := getColumnType(dbsteward.OldDatabase, newSchema, oldTable, oldColumn)
-		newType := getColumnType(dbsteward.NewDatabase, newSchema, newTable, newColumn)
+		oldType, err := getColumnType(l, dbsteward.OldDatabase, newSchema, oldTable, oldColumn)
+		if err != nil {
+			return err
+		}
+		newType, err := getColumnType(l, dbsteward.NewDatabase, newSchema, newTable, newColumn)
+		if err != nil {
+			return err
+		}
 
 		if !isLinkedTableType(oldType) && isLinkedTableType(newType) {
 			// TODO(feat) can we remove this restriction? or is this a postgres thing?
@@ -479,7 +489,7 @@ func addAlterStatistics(stage1 output.OutputFileSegmenter, oldTable *ir.Table, n
 	return nil
 }
 
-func isRenamedColumn(oldTable, newTable *ir.Table, newColumn *ir.Column) (bool, error) {
+func isRenamedColumn(l *slog.Logger, oldTable, newTable *ir.Table, newColumn *ir.Column) (bool, error) {
 	dbsteward := lib.GlobalDBSteward
 	if dbsteward.IgnoreOldNames {
 		return false, nil
@@ -515,19 +525,19 @@ func isRenamedColumn(oldTable, newTable *ir.Table, newColumn *ir.Column) (bool, 
 	// newColumn.OldColumnName exists in old schema
 	// newColumn.OldColumnName does not exist in new schema
 	if oldTable.TryGetColumnNamedCase(newColumn.OldColumnName, caseSensitive) != nil && newTable.TryGetColumnNamedCase(newColumn.OldColumnName, caseSensitive) == nil {
-		dbsteward.Info("Column %s.%s used to be called %s", newTable.Name, newColumn.Name, newColumn.OldColumnName)
+		l.Info(fmt.Sprintf("Column %s.%s used to be called %s", newTable.Name, newColumn.Name, newColumn.OldColumnName))
 		return true, nil
 	}
 	return false, nil
 }
 
-func createTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) error {
+func createTables(l *slog.Logger, ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) error {
 	if newSchema == nil {
 		// if the new schema is nil, there's no tables to create
 		return nil
 	}
 	for _, newTable := range newSchema.Tables {
-		err := createTable(ofs, oldSchema, newSchema, newTable)
+		err := createTable(l, ofs, oldSchema, newSchema, newTable)
 		if err != nil {
 			return err
 		}
@@ -535,13 +545,21 @@ func createTables(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schem
 	return nil
 }
 
-func createTable(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, newTable *ir.Table) error {
+func createTable(l *slog.Logger, ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, newTable *ir.Table) error {
+	l = l.With(
+		slog.String("function", "createTable()"),
+		slog.String("old schema", oldSchema.Name),
+		slog.String("new schema", newSchema.Name),
+	)
 	if newTable == nil {
 		// TODO(go,nth) we shouldn't be here? should this be an Assert?
+		l.Warn("empty table object")
 		return nil
 	}
+	l = l.With(slog.String("new table", newTable.Name))
 	if oldSchema.TryGetTableNamed(newTable.Name) != nil {
 		// old table exists, alters or drops will be handled by other code
+		l.Debug("old table exists")
 		return nil
 	}
 
@@ -550,6 +568,7 @@ func createTable(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema
 		return err
 	}
 	if isRenamed {
+		l.Debug("table renamed")
 		// this is a renamed table, so rename it instead of creating a new one
 		oldTableSchema := lib.GlobalDBSteward.OldDatabase.GetOldTableSchema(newSchema, newTable)
 		oldTable := lib.GlobalDBSteward.OldDatabase.GetOldTable(newSchema, newTable)
@@ -574,8 +593,19 @@ func createTable(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema
 			})
 		}
 	} else {
-		ofs.WriteSql(getCreateTableSql(newSchema, newTable)...)
-		ofs.WriteSql(defineTableColumnDefaults(newSchema, newTable)...)
+		l.Debug("table not renamed")
+		createTableSQL, err := getCreateTableSql(l, newSchema, newTable)
+		if err != nil {
+			return err
+		}
+		err = ofs.WriteSql(createTableSQL...)
+		if err != nil {
+			return err
+		}
+		err = ofs.WriteSql(defineTableColumnDefaults(l, newSchema, newTable)...)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -598,7 +628,7 @@ func dropTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *i
 	if !lib.GlobalDBSteward.IgnoreOldNames {
 		renamedRef := lib.GlobalDBSteward.NewDatabase.TryGetTableFormerlyKnownAs(oldSchema, oldTable)
 		if renamedRef != nil {
-			ofs.Write("-- DROP TABLE %s.%s omitted: new table %s indicates it is her replacement", oldSchema.Name, oldTable.Name, renamedRef)
+			ofs.WriteSql(sql.NewComment("DROP TABLE %s.%s omitted: new table %s indicates it is her replacement", oldSchema.Name, oldTable.Name, renamedRef))
 			return
 		}
 	}
@@ -622,51 +652,78 @@ func diffClustersTable(ofs output.OutputFileSegmenter, oldTable *ir.Table, newSc
 	}
 }
 
-func diffData(ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) {
+func diffData(l *slog.Logger, ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema) error {
 	for _, newTable := range newSchema.Tables {
 		isRenamed, err := lib.GlobalDBSteward.OldDatabase.IsRenamedTable(slog.Default(), newSchema, newTable)
-		lib.GlobalDBSteward.FatalIfError(err, "while diffing data")
+		if err != nil {
+			return fmt.Errorf("while diffing data: %w", err)
+		}
 		if isRenamed {
 			// if the table was renamed, get old definition pointers, diff that
 			oldSchema := lib.GlobalDBSteward.OldDatabase.GetOldTableSchema(newSchema, newTable)
 			oldTable := lib.GlobalDBSteward.OldDatabase.GetOldTable(newSchema, newTable)
-			ofs.WriteSql(getCreateDataSql(oldSchema, oldTable, newSchema, newTable)...)
+			s, err := getCreateDataSql(l, oldSchema, oldTable, newSchema, newTable)
+			if err != nil {
+				return err
+			}
+			ofs.WriteSql(s...)
 		} else {
 			oldTable := oldSchema.TryGetTableNamed(newTable.Name)
-			ofs.WriteSql(getCreateDataSql(oldSchema, oldTable, newSchema, newTable)...)
+			s, err := getCreateDataSql(l, oldSchema, oldTable, newSchema, newTable)
+			if err != nil {
+				return err
+			}
+			ofs.WriteSql(s...)
 		}
 	}
+	return nil
 }
 
-func getCreateDataSql(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) []output.ToSql {
+func getCreateDataSql(l *slog.Logger, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) ([]output.ToSql, error) {
 	newRows, updatedRows := getNewAndChangedRows(oldTable, newTable)
 	// cut back on allocations - we know that there's going to be _at least_ one statement for every new and updated row, and likely 1 for the serial start
 	out := make([]output.ToSql, 0, len(newRows)+len(updatedRows)+1)
 
 	for _, updatedRow := range updatedRows {
-		out = append(out, buildDataUpdate(newSchema, newTable, updatedRow))
+		update, err := buildDataUpdate(l, newSchema, newTable, updatedRow)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, update)
 	}
 	for _, newRow := range newRows {
 		// TODO(go,3) batch inserts
-		out = append(out, buildDataInsert(newSchema, newTable, newRow))
+		insert, err := buildDataInsert(l, newSchema, newTable, newRow)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, insert)
 	}
 
 	if oldTable == nil {
 		// if this is a fresh build, make sure serial starts are issued _after_ the hardcoded data inserts
-		out = append(out, getSerialStartDml(newSchema, newTable, nil)...)
-		return out
+		dml, err := getSerialStartDml(newSchema, newTable, nil)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, dml...)
+		return out, nil
 	}
 
-	return out
+	return out, nil
 }
 
-func getDeleteDataSql(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) []output.ToSql {
+func getDeleteDataSql(l *slog.Logger, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) ([]output.ToSql, error) {
 	oldRows := getOldRows(oldTable, newTable)
 	out := make([]output.ToSql, len(oldRows))
+	var err error
 	for i, oldRow := range oldRows {
-		out[i] = buildDataDelete(oldSchema, oldTable, oldRow)
+		out[i], err = buildDataDelete(l, oldSchema, oldTable, oldRow)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return out
+	return out, nil
 }
 
 // TODO(go,3) all these row diffing functions feel awkward and too involved, let's see if we can't revisit these
@@ -748,21 +805,25 @@ func getOldRows(oldTable, newTable *ir.Table) []*ir.DataRow {
 	return oldRows
 }
 
-func buildDataInsert(schema *ir.Schema, table *ir.Table, row *ir.DataRow) output.ToSql {
+func buildDataInsert(l *slog.Logger, schema *ir.Schema, table *ir.Table, row *ir.DataRow) (output.ToSql, error) {
 	util.Assert(table.Rows != nil, "table.Rows should not be nil when calling buildDataInsert")
 	util.Assert(!row.Delete, "do not call buildDataInsert for a row marked for deletion")
 	values := make([]sql.ToSqlValue, len(row.Columns))
+	var err error
 	for i, col := range table.Rows.Columns {
-		values[i] = columnValueDefault(schema, table, col, row.Columns[i])
+		values[i], err = columnValueDefault(l, schema, table, col, row.Columns[i])
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &sql.DataInsert{
 		Table:   sql.TableRef{Schema: schema.Name, Table: table.Name},
 		Columns: table.Rows.Columns,
 		Values:  values,
-	}
+	}, nil
 }
 
-func buildDataUpdate(schema *ir.Schema, table *ir.Table, change *changedRow) output.ToSql {
+func buildDataUpdate(l *slog.Logger, schema *ir.Schema, table *ir.Table, change *changedRow) (output.ToSql, error) {
 	// TODO(feat) deal with column renames
 	util.Assert(table.Rows != nil, "table.Rows should not be nil when calling buildDataUpdate")
 	util.Assert(!change.newRow.Delete, "do not call buildDataUpdate for a row marked for deletion")
@@ -775,7 +836,11 @@ func buildDataUpdate(schema *ir.Schema, table *ir.Table, change *changedRow) out
 		oldColIdx := util.IStrsIndex(change.oldCols, newColName)
 		if oldColIdx < 0 || !change.oldRow.Columns[oldColIdx].Equals(newCol) {
 			updateCols = append(updateCols, newColName)
-			updateVals = append(updateVals, columnValueDefault(schema, table, newColName, newCol))
+			cvd, err := columnValueDefault(l, schema, table, newColName, newCol)
+			if err != nil {
+				return nil, err
+			}
+			updateVals = append(updateVals, cvd)
 		}
 	}
 
@@ -783,7 +848,11 @@ func buildDataUpdate(schema *ir.Schema, table *ir.Table, change *changedRow) out
 	pkColMap := table.Rows.GetColMapKeys(change.newRow, table.PrimaryKey)
 	for name, col := range pkColMap {
 		// TODO(go,pgsql) orig code in dbx::primary_key_expression uses `format::value_escape`, but that doesn't account for null, empty, sql, etc
-		keyVals = append(keyVals, columnValueDefault(schema, table, name, col))
+		cvd, err := columnValueDefault(l, schema, table, name, col)
+		if err != nil {
+			return nil, err
+		}
+		keyVals = append(keyVals, cvd)
 	}
 
 	return &sql.DataUpdate{
@@ -792,19 +861,23 @@ func buildDataUpdate(schema *ir.Schema, table *ir.Table, change *changedRow) out
 		UpdatedValues:  updateVals,
 		KeyColumns:     table.PrimaryKey,
 		KeyValues:      keyVals,
-	}
+	}, nil
 }
 
-func buildDataDelete(schema *ir.Schema, table *ir.Table, row *ir.DataRow) output.ToSql {
+func buildDataDelete(l *slog.Logger, schema *ir.Schema, table *ir.Table, row *ir.DataRow) (output.ToSql, error) {
 	keyVals := []sql.ToSqlValue{}
 	pkColMap := table.Rows.GetColMapKeys(row, table.PrimaryKey)
 	for name, col := range pkColMap {
 		// TODO(go,pgsql) orig code in dbx::primary_key_expression uses `format::value_escape`, but that doesn't account for null, empty, sql, etc
-		keyVals = append(keyVals, columnValueDefault(schema, table, name, col))
+		val, err := columnValueDefault(l, schema, table, name, col)
+		if err != nil {
+			return nil, err
+		}
+		keyVals = append(keyVals, val)
 	}
 	return &sql.DataDelete{
 		Table:      sql.TableRef{Schema: schema.Name, Table: table.Name},
 		KeyColumns: table.PrimaryKey,
 		KeyValues:  keyVals,
-	}
+	}, nil
 }

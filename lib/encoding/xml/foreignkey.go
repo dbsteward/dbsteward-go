@@ -1,6 +1,7 @@
 package xml
 
 import (
+	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
@@ -15,6 +16,31 @@ type ForeignKey struct {
 	IndexName      string        `xml:"indexName,attr,omitempty"`
 	OnUpdate       string        `xml:"onUpdate,attr,omitempty"`
 	OnDelete       string        `xml:"onDelete,attr,omitempty"`
+}
+
+func ForeignKeysFromIR(l *slog.Logger, ks []*ir.ForeignKey) ([]*ForeignKey, error) {
+	if len(ks) == 0 {
+		return nil, nil
+	}
+	var rv []*ForeignKey
+	for _, k := range ks {
+		if k != nil {
+			rv = append(
+				rv,
+				&ForeignKey{
+					Columns:        k.Columns,
+					ForeignSchema:  k.ForeignSchema,
+					ForeignTable:   k.ForeignTable,
+					ForeignColumns: k.ForeignColumns,
+					ConstraintName: k.ConstraintName,
+					IndexName:      k.IndexName,
+					OnUpdate:       string(k.OnUpdate),
+					OnDelete:       string(k.OnDelete),
+				},
+			)
+		}
+	}
+	return rv, nil
 }
 
 func (fk *ForeignKey) ToIR() (*ir.ForeignKey, error) {

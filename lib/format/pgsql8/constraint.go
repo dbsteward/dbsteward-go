@@ -1,6 +1,7 @@
 package pgsql8
 
 import (
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -16,9 +17,9 @@ import (
 // TODO(go,core) lift this to sql99
 // ConstraintTypeAll includes PrimaryKey,Constraint,Foreign
 // sql99.ConstraintType
-func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table, ct sql99.ConstraintType) []*sql99.TableConstraint {
+func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table, ct sql99.ConstraintType) ([]*sql99.TableConstraint, error) {
 	if table == nil {
-		return nil
+		return nil, nil
 	}
 	// TODO(go,4) manifest explicit object node at compositing/expansion step instead of "hallucinating" them here
 	constraints := []*sql99.TableConstraint{}
@@ -27,11 +28,13 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 	if ct.Includes(sql99.ConstraintTypePrimaryKey) {
 		// TODO(go,3) move validation elsewhere
 		if len(table.PrimaryKey) == 0 {
-			lib.GlobalDBSteward.Fatal("Table %s.%s does not have a primaryKey", schema.Name, table.Name)
+			return nil, fmt.Errorf("table %s.%s does not have a primaryKey", schema.Name, table.Name)
 		}
 
 		cols, err := doc.TryInheritanceGetColumns(schema, table, table.PrimaryKey)
-		lib.GlobalDBSteward.FatalIfError(err, "Table %s.%s does not have all named primary keys %v", schema.Name, table.Name, table.PrimaryKey)
+		if err != nil {
+			return nil, fmt.Errorf("table %s.%s does not have all named primary keys %v: %w", schema.Name, table.Name, table.PrimaryKey, err)
+		}
 		constraints = append(constraints, &sql99.TableConstraint{
 			Name:    util.CoalesceStr(table.PrimaryKeyName, buildPrimaryKeyName(table.Name)),
 			Type:    sql99.ConstraintTypePrimaryKey,
@@ -50,8 +53,8 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 				if constraint.ForeignSchema != "" {
 					fSchema = doc.TryGetSchemaNamed(constraint.ForeignSchema)
 					if fSchema == nil {
-						lib.GlobalDBSteward.Fatal(
-							"Table constraint %s.%s.%s references foreignSchema %s but definition does not contain that schema",
+						return nil, fmt.Errorf(
+							"table constraint %s.%s.%s references foreignSchema %s but definition does not contain that schema",
 							schema.Name,
 							table.Name,
 							constraint.Name,
@@ -67,8 +70,8 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 					fTable = fSchema.TryGetTableNamed(constraint.ForeignTable)
 
 					if fTable == nil {
-						lib.GlobalDBSteward.Fatal(
-							"Table constraint %s.%s.%s references foreignTable %s but schema %s does not contain that table",
+						return nil, fmt.Errorf(
+							"table constraint %s.%s.%s references foreignTable %s but schema %s does not contain that table",
 							schema.Name,
 							table.Name,
 							constraint.Name,
@@ -107,18 +110,16 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 		for _, fk := range table.ForeignKeys {
 			if fk.ConstraintName == "" {
 				// TODO(go,3) remove this restriction, generate a name
-				lib.GlobalDBSteward.Fatal("foreignKey on %s.%s requires a constraintName", schema.Name, table.Name)
+				return nil, fmt.Errorf("foreignKey on %s.%s requires a constraintName", schema.Name, table.Name)
 			}
 
 			localCols, err := doc.TryInheritanceGetColumns(schema, table, fk.Columns)
-			lib.GlobalDBSteward.FatalIfError(
-				err,
-				"foreignKey %s on %s.%s references local columns %v that don't exist",
-				fk.ConstraintName,
-				schema.Name,
-				table.Name,
-				fk.Columns,
-			)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"foreignKey %s on %s.%s references local columns %v that don't exist: %w",
+					fk.ConstraintName, schema.Name, table.Name, fk.Columns, err,
+				)
+			}
 
 			localKey := ir.Key{
 				Schema:  schema,
@@ -127,7 +128,9 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 			}
 
 			ref, err := doc.ResolveForeignKey(localKey, fk.GetReferencedKey())
-			lib.GlobalDBSteward.FatalIfError(err, "")
+			if err != nil {
+				return nil, err
+			}
 			constraints = append(constraints, &sql99.TableConstraint{
 				Name:             fk.ConstraintName,
 				Type:             sql99.ConstraintTypeForeign,
@@ -149,7 +152,9 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 		for _, column := range table.Columns {
 			if ct.Includes(sql99.ConstraintTypeForeign) && column.HasForeignKey() {
 				ref, err := doc.ResolveForeignKeyColumn(schema, table, column)
-				lib.GlobalDBSteward.FatalIfError(err, "")
+				if err != nil {
+					return nil, err
+				}
 				constraints = append(constraints, &sql99.TableConstraint{
 					Name:             util.CoalesceStr(column.ForeignKeyName, buildForeignKeyName(table.Name, column.Name)),
 					Type:             sql99.ConstraintTypeForeign,
@@ -181,17 +186,21 @@ func getTableConstraints(doc *ir.Definition, schema *ir.Schema, table *ir.Table,
 		}
 	}
 
-	return constraints
+	return constraints, nil
 }
 
-func tryGetTableConstraintNamed(doc *ir.Definition, schema *ir.Schema, table *ir.Table, name string, constraintType sql99.ConstraintType) *sql99.TableConstraint {
+func tryGetTableConstraintNamed(doc *ir.Definition, schema *ir.Schema, table *ir.Table, name string, constraintType sql99.ConstraintType) (*sql99.TableConstraint, error) {
 	// TODO(feat) can make this a little more performant if we pass constraint type in
-	for _, constraint := range getTableConstraints(doc, schema, table, constraintType) {
+	constraints, err := getTableConstraints(doc, schema, table, constraintType)
+	if err != nil {
+		return nil, err
+	}
+	for _, constraint := range constraints {
 		if strings.EqualFold(constraint.Name, name) {
-			return constraint
+			return constraint, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 func getTableConstraintDropSql(constraint *sql99.TableConstraint) []output.ToSql {
@@ -259,9 +268,9 @@ func getTableContraintCreationSql(constraint *sql99.TableConstraint) []output.To
 	return nil
 }
 
-func constraintDependsOnRenamedTable(doc *ir.Definition, constraint *sql99.TableConstraint) bool {
+func constraintDependsOnRenamedTable(l *slog.Logger, doc *ir.Definition, constraint *sql99.TableConstraint) (bool, error) {
 	if lib.GlobalDBSteward.IgnoreOldNames {
-		return false
+		return false, nil
 	}
 
 	refSchema := constraint.ForeignSchema
@@ -270,30 +279,32 @@ func constraintDependsOnRenamedTable(doc *ir.Definition, constraint *sql99.Table
 		if matches := util.IMatch(`^.+\s+REFERENCES\s+\"?(\w+)\"?\.\"?(\w+)\"?\s*\(\s*\"?(.*)\"?\s*\)$`, constraint.TextDefinition); len(matches) > 0 {
 			refSchema = doc.TryGetSchemaNamed(matches[1])
 			if refSchema == nil {
-				lib.GlobalDBSteward.Fatal("Constraint %s.%s.%s references schema %s but could not find it", constraint.Schema.Name, constraint.Table.Name, constraint.Name, matches[1])
+				return false, fmt.Errorf("constraint %s.%s.%s references schema %s but could not find it", constraint.Schema.Name, constraint.Table.Name, constraint.Name, matches[1])
 			}
 
 			refTable = refSchema.TryGetTableNamed(matches[2])
 			if refTable == nil {
-				lib.GlobalDBSteward.Fatal("Constraint %s.%s.%s references table %s.%s but could not find it", constraint.Schema.Name, constraint.Table.Name, constraint.Name, matches[1], matches[2])
+				return false, fmt.Errorf("constraint %s.%s.%s references table %s.%s but could not find it", constraint.Schema.Name, constraint.Table.Name, constraint.Name, matches[1], matches[2])
 			}
 		} else {
-			lib.GlobalDBSteward.Fatal("Failed to parse REFERENCES definition for constraint %s.%s.%s: %s", constraint.Schema.Name, constraint.Table.Name, constraint.Name, constraint.TextDefinition)
+			return false, fmt.Errorf("failed to parse REFERENCES definition for constraint %s.%s.%s: %s", constraint.Schema.Name, constraint.Table.Name, constraint.Name, constraint.TextDefinition)
 		}
 	}
 
 	if refTable == nil {
-		return false
+		return false, nil
 	}
 	isRenamed := lib.GlobalDBSteward.IgnoreOldNames
 	if !isRenamed {
 		var err error
 		isRenamed, err = lib.GlobalDBSteward.OldDatabase.IsRenamedTable(slog.Default(), refSchema, refTable)
-		lib.GlobalDBSteward.FatalIfError(err, "while checking if constraint depends on renamed table")
+		if err != nil {
+			return false, fmt.Errorf("while checking if constraint depends on renamed table: %w", err)
+		}
 	}
 	if isRenamed {
-		lib.GlobalDBSteward.Notice("Constraint %s.%s.%s references renamed table %s.%s", constraint.Schema.Name, constraint.Table.Name, constraint.Name, refSchema.Name, refTable.Name)
-		return true
+		l.Info(fmt.Sprintf("Constraint %s.%s.%s references renamed table %s.%s", constraint.Schema.Name, constraint.Table.Name, constraint.Name, refSchema.Name, refTable.Name))
+		return true, nil
 	}
-	return false
+	return false, nil
 }

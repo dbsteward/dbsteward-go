@@ -15,24 +15,28 @@ type Annotated struct {
 	Annotation string
 }
 
-func (self *Annotated) ToSql(q output.Quoter) string {
+func (an *Annotated) ToSql(q output.Quoter) string {
 	return fmt.Sprintf(
 		"%s\n%s",
-		util.PrefixLines(self.Annotation, "-- "),
-		self.Wrapped.ToSql(q),
+		util.PrefixLines(an.Annotation, "-- "),
+		an.Wrapped.ToSql(q),
 	)
 }
 
-type Comment struct {
-	Comment string
+func (an *Annotated) StripAnnotation() output.ToSql {
+	return an.Wrapped
 }
 
-func NewComment(format string, args ...interface{}) *Comment {
-	return &Comment{
-		Comment: fmt.Sprintf(format, args...),
-	}
+type Comment string
+
+func NewComment(format string, args ...interface{}) Comment {
+	return Comment(fmt.Sprintf(format, args...))
 }
 
-func (self *Comment) ToSql(q output.Quoter) string {
-	return util.PrefixLines(self.Comment, "-- ")
+func (c Comment) Comment() string {
+	return util.PrefixLines(string(c), "-- ")
+}
+
+func (c Comment) ToSql(_ output.Quoter) string {
+	return c.Comment()
 }

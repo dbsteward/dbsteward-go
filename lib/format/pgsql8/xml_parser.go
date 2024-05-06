@@ -1,6 +1,8 @@
 package pgsql8
 
 import (
+	"fmt"
+	"log/slog"
 	"strconv"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -10,6 +12,7 @@ import (
 )
 
 type XmlParser struct {
+	logger *slog.Logger
 }
 
 type slonyRange struct {
@@ -17,59 +20,72 @@ type slonyRange struct {
 	last  int
 }
 
-func tryNewSlonyRange(firstStr, lastStr string, parts int) *slonyRange {
+func tryNewSlonyRange(firstStr, lastStr string, parts int) (*slonyRange, error) {
 	if firstStr == "" {
 		if lastStr == "" {
-			return nil
+			return nil, nil
 		}
-		lib.GlobalDBSteward.Fatal("tablePartitionOption 'lastSlonyId' was provided but not 'firstSlonyId'")
+		return nil, fmt.Errorf("tablePartitionOption 'lastSlonyId' was provided but not 'firstSlonyId'")
 	}
 
 	first, err := strconv.Atoi(firstStr)
-	lib.GlobalDBSteward.FatalIfError(err, "tablePartitionOption 'firstSlonyId' must be a number")
+	if err != nil {
+		return nil, fmt.Errorf("tablePartitionOption 'firstSlonyId' must be a number: %w", err)
+	}
 
 	last := first + parts - 1
 	if lastStr != "" {
 		lastTmp, err := strconv.Atoi(lastStr)
-		lib.GlobalDBSteward.FatalIfError(err, "tablePartitionOption 'lastSlonyId' must be a number")
+		if err != nil {
+			return nil, fmt.Errorf("tablePartitionOption 'lastSlonyId' must be a number: %w", err)
+		}
 		allocated := lastTmp - first + 1
 		if allocated != parts {
-			lib.GlobalDBSteward.Fatal("Requested %d partitions but provided %d slony IDs", parts, allocated)
+			return nil, fmt.Errorf("requested %d partitions but provided %d slony IDs", parts, allocated)
 		}
 		last = lastTmp
 	}
 
-	return &slonyRange{first, last}
+	return &slonyRange{first, last}, nil
 }
 
 func NewXmlParser() *XmlParser {
 	return &XmlParser{}
 }
 
-func (self *XmlParser) Process(doc *ir.Definition) {
+// @hack until we get proper instantiation ordering (i.e. remove all globals)
+func (parser *XmlParser) Logger() *slog.Logger {
+	if parser.logger == nil {
+		parser.logger = lib.GlobalDBSteward.Logger()
+	}
+	return parser.logger
+}
+
+func (parser *XmlParser) Process(doc *ir.Definition) error {
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
 			if table.Partitioning != nil {
-				self.expandPartitionedTable(doc, schema, table)
+				parser.Logger().Warn(fmt.Sprintf("Table %s.%s definies partition which is only partially supported at this time", schema.Name, table.Name))
+				return parser.expandPartitionedTable(doc, schema, table)
 			}
 		}
 	}
+	return nil
 }
 
-func (self *XmlParser) expandPartitionedTable(doc *ir.Definition, schema *ir.Schema, table *ir.Table) {
+func (parser *XmlParser) expandPartitionedTable(doc *ir.Definition, schema *ir.Schema, table *ir.Table) error {
 	util.Assert(table.Partitioning != nil, "Table.Partitioning must not be nil")
 	// TODO(feat) hash partitions
 	// TODO(feat) native partitioning in recent postgres
 
 	if table.Partitioning.Type.Equals(ir.TablePartitionTypeModulo) {
-		self.expandModuloParitionedTable(doc, schema, table)
-		return
+		return parser.expandModuloParitionedTable(doc, schema, table)
 	}
 
-	lib.GlobalDBSteward.Fatal("Invalid partition type: %s", table.Partitioning.Type)
+	return fmt.Errorf("invalid partition type: %s", table.Partitioning.Type)
 }
 
-func (self *XmlParser) CheckPartitionChange(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
+func (parser *XmlParser) CheckPartitionChange(oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	util.Assert(oldTable.Partitioning != nil, "oldTable.Partitioning must not be nil")
 	util.Assert(newTable.Partitioning != nil, "newTable.Partitioning must not be nil")
 
@@ -82,7 +98,7 @@ func (self *XmlParser) CheckPartitionChange(oldSchema *ir.Schema, oldTable *ir.T
 	}
 
 	if newTable.Partitioning.Type.Equals(ir.TablePartitionTypeModulo) {
-		return self.checkModuloPartitionChange(oldSchema, oldTable, newSchema, newTable)
+		return parser.checkModuloPartitionChange(oldSchema, oldTable, newSchema, newTable)
 	}
 
 	return errors.Errorf("Invalid partition type: %s", newTable.Partitioning.Type)

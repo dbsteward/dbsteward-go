@@ -5,18 +5,22 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-func diffTriggers(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
+func diffTriggers(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) error {
 	for _, newTable := range newSchema.Tables {
 		oldTable := oldSchema.TryGetTableNamed(newTable.Name)
-		diffTriggersTable(ofs, oldSchema, oldTable, newSchema, newTable)
+		err := diffTriggersTable(ofs, oldSchema, oldTable, newSchema, newTable)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func diffTriggersTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) {
+func diffTriggersTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table) error {
 	if newTable == nil {
 		// if newTable does not exist, existing triggers will have been implicitly dropped
 		// and there cannot (should not?) be triggers for it
-		return
+		return nil
 	}
 
 	if oldTable != nil {
@@ -40,7 +44,12 @@ func diffTriggersTable(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, old
 
 		oldTrigger := oldSchema.TryGetTriggerMatching(newTrigger)
 		if oldTrigger == nil || !oldTrigger.Equals(newTrigger) {
-			ofs.WriteSql(getCreateTriggerSql(newSchema, newTrigger)...)
+			s, err := getCreateTriggerSql(newSchema, newTrigger)
+			if err != nil {
+				return err
+			}
+			ofs.WriteSql(s...)
 		}
 	}
+	return nil
 }

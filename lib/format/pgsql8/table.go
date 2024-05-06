@@ -2,6 +2,7 @@ package pgsql8
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
@@ -14,11 +15,15 @@ import (
 
 var includeColumnDefaultNextvalInCreateSql bool
 
-func getCreateTableSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
+func getCreateTableSql(l *slog.Logger, schema *ir.Schema, table *ir.Table) ([]output.ToSql, error) {
 	cols := []sql.ColumnDefinition{}
 	colSetup := []output.ToSql{}
 	for _, col := range table.Columns {
-		cols = append(cols, getReducedColumnDefinition(lib.GlobalDBSteward.NewDatabase, schema, table, col))
+		newCol, err := getReducedColumnDefinition(l, lib.GlobalDBSteward.NewDatabase, schema, table, col)
+		if err != nil {
+			return nil, err
+		}
+		cols = append(cols, newCol)
 		colSetup = append(colSetup, getColumnSetupSql(schema, table, col)...)
 	}
 
@@ -57,7 +62,10 @@ func getCreateTableSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	ddl = append(ddl, colSetup...)
 
 	if table.Owner != "" {
-		role := roleEnum(lib.GlobalDBSteward.NewDatabase, table.Owner)
+		role, err := roleEnum(l, lib.GlobalDBSteward.NewDatabase, table.Owner)
+		if err != nil {
+			return nil, err
+		}
 		ddl = append(ddl, &sql.TableAlterOwner{
 			Table: sql.TableRef{Schema: schema.Name, Table: table.Name},
 			Role:  role,
@@ -76,7 +84,7 @@ func getCreateTableSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
 		}
 	}
 
-	return ddl
+	return ddl, nil
 }
 
 func getDropTableSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
@@ -87,11 +95,11 @@ func getDropTableSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	}
 }
 
-func getDefaultNextvalSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
+func getDefaultNextvalSql(l *slog.Logger, schema *ir.Schema, table *ir.Table) []output.ToSql {
 	out := []output.ToSql{}
 	for _, column := range table.Columns {
 		if hasDefaultNextval(column) {
-			lib.GlobalDBSteward.Info("Specifying skipped %s.%s.%s default expression \"%s\"", schema.Name, table.Name, column.Name, column.Default)
+			l.Info(fmt.Sprintf("Specifying skipped %s.%s.%s default expression \"%s\"", schema.Name, table.Name, column.Name, column.Default))
 			out = append(out, &sql.Annotated{
 				Wrapped: &sql.ColumnSetDefault{
 					Column:  sql.ColumnRef{Schema: schema.Name, Table: table.Name, Column: column.Name},
@@ -104,27 +112,31 @@ func getDefaultNextvalSql(schema *ir.Schema, table *ir.Table) []output.ToSql {
 	return out
 }
 
-func defineTableColumnDefaults(schema *ir.Schema, table *ir.Table) []output.ToSql {
+func defineTableColumnDefaults(l *slog.Logger, schema *ir.Schema, table *ir.Table) []output.ToSql {
 	out := []output.ToSql{}
 	for _, column := range table.Columns {
-		out = append(out, getColumnDefaultSql(schema, table, column)...)
+		out = append(out, getColumnDefaultSql(l, schema, table, column)...)
 	}
 	return out
 }
 
-func getTableGrantSql(schema *ir.Schema, table *ir.Table, grant *ir.Grant) []output.ToSql {
+func getTableGrantSql(l *slog.Logger, schema *ir.Schema, table *ir.Table, grant *ir.Grant) ([]output.ToSql, error) {
 	roles := make([]string, len(grant.Roles))
+	var err error
 	for i, role := range grant.Roles {
-		roles[i] = roleEnum(lib.GlobalDBSteward.NewDatabase, role)
+		roles[i], err = roleEnum(l, lib.GlobalDBSteward.NewDatabase, role)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	perms := util.IIntersectStrs(grant.Permissions, ir.PermissionListAllPgsql8)
 	if len(perms) == 0 {
-		lib.GlobalDBSteward.Fatal("No format-compatible permissions on table %s.%s grant: %v", schema.Name, table.Name, grant.Permissions)
+		return nil, fmt.Errorf("no format-compatible permissions on table %s.%s grant: %v", schema.Name, table.Name, grant.Permissions)
 	}
 	invalidPerms := util.IDifferenceStrs(perms, ir.PermissionListValidTable)
 	if len(invalidPerms) > 0 {
-		lib.GlobalDBSteward.Fatal("Invalid permissions on table %s.%s grant: %v", schema.Name, table.Name, invalidPerms)
+		return nil, fmt.Errorf("invalid permissions on table %s.%s grant: %v", schema.Name, table.Name, invalidPerms)
 	}
 
 	ddl := []output.ToSql{
@@ -138,7 +150,10 @@ func getTableGrantSql(schema *ir.Schema, table *ir.Table, grant *ir.Grant) []out
 	// TABLE IMPLICIT GRANTS
 	// READYONLY USER PROVISION: grant select on the table for the readonly user
 	// TODO(go,3) move this out of here, let this create just a single grant
-	roRole := roleEnum(lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
+	roRole, err := roleEnum(l, lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
+	if err != nil {
+		return nil, err
+	}
 	if roRole != "" {
 		ddl = append(ddl, &sql.TableGrant{
 			Table:    sql.TableRef{Schema: schema.Name, Table: table.Name},
@@ -198,26 +213,30 @@ func getTableGrantSql(schema *ir.Schema, table *ir.Table, grant *ir.Grant) []out
 		}
 	}
 
-	return ddl
+	return ddl, nil
 }
 
-func getSerialStartDml(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
+func getSerialStartDml(schema *ir.Schema, table *ir.Table, column *ir.Column) ([]output.ToSql, error) {
 	if column == nil {
 		out := []output.ToSql{}
 		for _, column := range table.Columns {
-			out = append(out, getSerialStartDml(schema, table, column)...)
+			dml, err := getSerialStartDml(schema, table, column)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, dml...)
 		}
-		return out
+		return out, nil
 	}
 	return _getSerialStartDml(schema, table, column)
 }
 
-func _getSerialStartDml(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
+func _getSerialStartDml(schema *ir.Schema, table *ir.Table, column *ir.Column) ([]output.ToSql, error) {
 	if column.SerialStart == nil {
-		return nil
+		return nil, nil
 	}
 	if !isColumnSerialType(column) {
-		lib.GlobalDBSteward.Fatal("Expected serial type for column %s.%s.%s because serialStart='%d' was defined, found type %s",
+		return nil, fmt.Errorf("expected serial type for column %s.%s.%s because serialStart='%d' was defined, found type %s",
 			schema.Name, table.Name, column.Name, *column.SerialStart, column.Type)
 	}
 	return []output.ToSql{
@@ -228,7 +247,7 @@ func _getSerialStartDml(schema *ir.Schema, table *ir.Table, column *ir.Column) [
 				Value:  *column.SerialStart,
 			},
 		},
-	}
+	}, nil
 }
 
 func parseStorageParams(value string) map[string]string {

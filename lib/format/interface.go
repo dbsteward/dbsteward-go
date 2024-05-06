@@ -7,13 +7,13 @@ import (
 )
 
 type Operations interface {
-	Build(outputPrefix string, dbDoc *ir.Definition)
+	Build(outputPrefix string, dbDoc *ir.Definition) error
 	BuildUpgrade(
 		oldOutputPrefix, oldCompositeFile string, oldDbDoc *ir.Definition, oldFiles []string,
 		newOutputPrefix, newCompositeFile string, newDbDoc *ir.Definition, newFiles []string,
-	)
-	ExtractSchema(host string, port uint, name, user, pass string) *ir.Definition
-	CompareDbData(dbDoc *ir.Definition, host string, port uint, name, user, pass string) *ir.Definition
+	) error
+	ExtractSchema(host string, port uint, name, user, pass string) (*ir.Definition, error)
+	CompareDbData(dbDoc *ir.Definition, host string, port uint, name, user, pass string) (*ir.Definition, error)
 	SqlDiff(old, new []string, outputFile string)
 
 	GetQuoter() output.Quoter
@@ -26,7 +26,7 @@ type SlonyOperations interface {
 }
 
 type Schema interface {
-	GetCreationSql(*ir.Schema) []output.ToSql
+	GetCreationSql(*ir.Schema) ([]output.ToSql, error)
 	GetDropSql(*ir.Schema) []output.ToSql
 }
 
@@ -36,9 +36,9 @@ type Index interface {
 }
 
 type Diff interface {
-	DiffDoc(oldFile, newFile string, oldDoc, newDoc *ir.Definition, upgradePrefix string)
-	DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegmenter)
+	DiffDoc(oldFile, newFile string, oldDoc, newDoc *ir.Definition, upgradePrefix string) error
+	DiffDocWork(stage1, stage2, stage3, stage4 output.OutputFileSegmenter) error
 
 	DropOldSchemas(output.OutputFileSegmenter)
-	CreateNewSchemas(output.OutputFileSegmenter)
+	CreateNewSchemas(output.OutputFileSegmenter) error
 }

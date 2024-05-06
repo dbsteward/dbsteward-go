@@ -2,6 +2,7 @@ package xml
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
 )
@@ -20,10 +21,60 @@ type Function struct {
 	Grants          []*Grant              `xml:"grant"`
 }
 
+func FunctionsFromIR(l *slog.Logger, funcs []*ir.Function) ([]*Function, error) {
+	if len(funcs) == 0 {
+		return nil, nil
+	}
+	var rv []*Function
+	for _, f := range funcs {
+		if f != nil {
+			ll := l.With(slog.String("function", f.Name))
+			nf := Function{
+				Name:            f.Name,
+				Owner:           f.Owner,
+				Description:     f.Description,
+				Returns:         f.Returns,
+				CachePolicy:     f.CachePolicy,
+				ForceRedefine:   f.ForceRedefine,
+				SecurityDefiner: f.SecurityDefiner,
+				Parameters:      FunctionParametersFromIR(ll, f.Parameters),
+				Definitions:     FunctionDefitionsFromIR(ll, f.Definitions),
+			}
+			var err error
+			nf.Grants, err = GrantsFromIR(ll, f.Grants)
+			if err != nil {
+				return nil, err
+			}
+			rv = append(rv, &nf)
+		}
+	}
+	return rv, nil
+}
+
 type FunctionParameter struct {
 	Name      string `xml:"name,attr,omitempty"`
 	Type      string `xml:"type,attr"`
 	Direction string `xml:"direction,attr,omitempty"`
+}
+
+func FunctionParametersFromIR(l *slog.Logger, params []*ir.FunctionParameter) []*FunctionParameter {
+	if len(params) == 0 {
+		return nil
+	}
+	var rv []*FunctionParameter
+	for _, param := range params {
+		if param != nil {
+			rv = append(
+				rv,
+				&FunctionParameter{
+					Name:      param.Name,
+					Type:      param.Type,
+					Direction: string(param.Direction),
+				},
+			)
+		}
+	}
+	return rv
 }
 
 func (fp *FunctionParameter) ToIR() (*ir.FunctionParameter, error) {
@@ -46,6 +97,26 @@ type FunctionDefinition struct {
 	SqlFormat string `xml:"sqlFormat,attr,omitempty"`
 	Language  string `xml:"language,attr,omitempty"`
 	Text      string `xml:",cdata"`
+}
+
+func FunctionDefitionsFromIR(l *slog.Logger, defs []*ir.FunctionDefinition) []*FunctionDefinition {
+	if len(defs) == 0 {
+		return nil
+	}
+	var rv []*FunctionDefinition
+	for _, def := range defs {
+		if def != nil {
+			rv = append(
+				rv,
+				&FunctionDefinition{
+					SqlFormat: string(def.SqlFormat),
+					Language:  def.Language,
+					Text:      def.Text,
+				},
+			)
+		}
+	}
+	return rv
 }
 
 func (fd *FunctionDefinition) ToIR() (*ir.FunctionDefinition, error) {

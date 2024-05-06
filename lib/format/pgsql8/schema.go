@@ -1,6 +1,8 @@
 package pgsql8
 
 import (
+	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
@@ -18,29 +20,37 @@ func NewSchema() *Schema {
 	return &Schema{}
 }
 
-func (self *Schema) GetCreationSql(schema *ir.Schema) []output.ToSql {
+func (sc *Schema) logger() *slog.Logger {
+	// Hack until I can get proper constuctor ordering
+	return lib.GlobalDBSteward.Logger()
+}
+
+func (s *Schema) GetCreationSql(schema *ir.Schema) ([]output.ToSql, error) {
 	// don't create the public schema
 	if strings.EqualFold(schema.Name, "public") {
-		return nil
+		return nil, nil
 	}
 
 	ddl := []output.ToSql{
-		&sql.SchemaCreate{schema.Name},
+		&sql.SchemaCreate{Schema: schema.Name},
 	}
 
 	if schema.Owner != "" {
-		owner := roleEnum(lib.GlobalDBSteward.NewDatabase, schema.Owner)
-		ddl = append(ddl, &sql.SchemaAlterOwner{schema.Name, owner})
+		owner, err := roleEnum(s.logger(), lib.GlobalDBSteward.NewDatabase, schema.Owner)
+		if err != nil {
+			return nil, err
+		}
+		ddl = append(ddl, &sql.SchemaAlterOwner{Schema: schema.Name, Owner: owner})
 	}
 
 	if schema.Description != "" {
-		ddl = append(ddl, &sql.SchemaSetComment{schema.Name, schema.Description})
+		ddl = append(ddl, &sql.SchemaSetComment{Schema: schema.Name, Comment: schema.Description})
 	}
 
-	return ddl
+	return ddl, nil
 }
 
-func (self *Schema) GetDropSql(schema *ir.Schema) []output.ToSql {
+func (s *Schema) GetDropSql(schema *ir.Schema) []output.ToSql {
 	return []output.ToSql{
 		&sql.SchemaDrop{
 			Schema:  schema.Name,
@@ -49,16 +59,20 @@ func (self *Schema) GetDropSql(schema *ir.Schema) []output.ToSql {
 	}
 }
 
-func (self *Schema) GetGrantSql(doc *ir.Definition, schema *ir.Schema, grant *ir.Grant) []output.ToSql {
+func (s *Schema) GetGrantSql(doc *ir.Definition, schema *ir.Schema, grant *ir.Grant) ([]output.ToSql, error) {
 	roles := make([]string, len(grant.Roles))
+	var err error
 	for i, role := range grant.Roles {
-		roles[i] = roleEnum(lib.GlobalDBSteward.NewDatabase, role)
+		roles[i], err = roleEnum(s.logger(), lib.GlobalDBSteward.NewDatabase, role)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	perms := util.IIntersectStrs(grant.Permissions, ir.PermissionListAllPgsql8)
 	invalidPerms := util.IDifferenceStrs(perms, ir.PermissionListValidSchema)
 	if len(invalidPerms) > 0 {
-		lib.GlobalDBSteward.Fatal("Invalid permissions on schema grant: %v", invalidPerms)
+		return nil, fmt.Errorf("invalid permissions on schema grant: %v", invalidPerms)
 	}
 
 	ddl := []output.ToSql{
@@ -73,7 +87,10 @@ func (self *Schema) GetGrantSql(doc *ir.Definition, schema *ir.Schema, grant *ir
 	// SCHEMA IMPLICIT GRANTS
 	// READYONLY USER PROVISION: grant usage on the schema for the readonly user
 	// TODO(go,3) move this out of here, let this create just a single grant
-	roRole := roleEnum(lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
+	roRole, err := roleEnum(s.logger(), lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
+	if err != nil {
+		return nil, err
+	}
 	if roRole != "" {
 		ddl = append(ddl, &sql.SchemaGrant{
 			Schema:   schema.Name,
@@ -83,10 +100,10 @@ func (self *Schema) GetGrantSql(doc *ir.Definition, schema *ir.Schema, grant *ir
 		})
 	}
 
-	return ddl
+	return ddl, nil
 }
 
-func (self *Schema) GetFunctionsDependingOnType(schema *ir.Schema, datatype *ir.TypeDef) []*ir.Function {
+func (s *Schema) GetFunctionsDependingOnType(schema *ir.Schema, datatype *ir.TypeDef) []*ir.Function {
 	out := []*ir.Function{}
 	for _, fn := range schema.Functions {
 		if functionDependsOnType(fn, schema, datatype) {

@@ -1,6 +1,7 @@
 package xml
 
 import (
+	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
@@ -13,6 +14,47 @@ type DataRows struct {
 	Columns         DelimitedList `xml:"columns,attr,omitempty"`
 	Rows            []*DataRow    `xml:"row"`
 	TabRows         []string      `xml:"tabrow"`
+}
+
+func DataRowsFromIR(l *slog.Logger, rows *ir.DataRows) (*DataRows, error) {
+	if rows == nil {
+		return nil, nil
+	}
+	rv := DataRows{
+		TabRowDelimiter: rows.TabRowDelimiter,
+		Columns:         rows.Columns,
+	}
+	rv.TabRows = append(rv.TabRows, rows.TabRows...)
+	for _, row := range rows.Rows {
+		if row != nil {
+			rv.Rows = append(
+				rv.Rows,
+				&DataRow{
+					Columns: DataColFromIR(l, row.Columns),
+					Delete:  row.Delete,
+				},
+			)
+		}
+	}
+	return &rv, nil
+}
+
+func DataColFromIR(l *slog.Logger, cols []*ir.DataCol) []*DataCol {
+	var rv []*DataCol
+	for _, col := range cols {
+		if col != nil {
+			rv = append(
+				rv,
+				&DataCol{
+					Null:  col.Null,
+					Empty: col.Empty,
+					Sql:   col.Sql,
+					Text:  col.Text,
+				},
+			)
+		}
+	}
+	return rv
 }
 
 func (dr *DataRows) ToIR() (*ir.DataRows, error) {
@@ -76,20 +118,20 @@ func (dc *DataCol) ToIR() (*ir.DataCol, error) {
 	return &rv, nil
 }
 
-func (self *DataRows) AddColumn(name string, value string) error {
-	if self.HasColumn(name) {
+func (drs *DataRows) AddColumn(name string, value string) error {
+	if drs.HasColumn(name) {
 		return errors.Errorf("already has column %s", name)
 	}
-	self.Columns = append(self.Columns, name)
-	for _, row := range self.Rows {
+	drs.Columns = append(drs.Columns, name)
+	for _, row := range drs.Rows {
 		// TODO(feat) what about nulls?
 		row.Columns = append(row.Columns, &DataCol{Text: value})
 	}
 	return nil
 }
 
-func (self *DataRows) HasColumn(name string) bool {
-	for _, col := range self.Columns {
+func (drs *DataRows) HasColumn(name string) bool {
+	for _, col := range drs.Columns {
 		if col == name {
 			return true
 		}
@@ -98,13 +140,13 @@ func (self *DataRows) HasColumn(name string) bool {
 }
 
 // Replaces TabRows with Rows
-func (self *DataRows) ConvertTabRows() {
-	delimiter := util.CoalesceStr(self.TabRowDelimiter, "\t")
+func (drs *DataRows) ConvertTabRows() {
+	delimiter := util.CoalesceStr(drs.TabRowDelimiter, "\t")
 	delimiter = strings.ReplaceAll(delimiter, "\\t", "\t")
 	delimiter = strings.ReplaceAll(delimiter, "\\n", "\n")
-	self.TabRowDelimiter = ""
+	drs.TabRowDelimiter = ""
 
-	for _, tabrow := range self.TabRows {
+	for _, tabrow := range drs.TabRows {
 		tabcols := strings.Split(tabrow, delimiter)
 		row := &DataRow{
 			Columns: make([]*DataCol, len(tabcols)),
@@ -119,26 +161,26 @@ func (self *DataRows) ConvertTabRows() {
 			}
 		}
 	}
-	self.TabRows = nil
+	drs.TabRows = nil
 }
 
-func (self *DataRows) GetColMap(row *DataRow) map[string]*DataCol {
-	return self.GetColMapKeys(row, self.Columns)
+func (drs *DataRows) GetColMap(row *DataRow) map[string]*DataCol {
+	return drs.GetColMapKeys(row, drs.Columns)
 }
 
-func (self *DataRows) GetColMapKeys(row *DataRow, keys []string) map[string]*DataCol {
+func (drs *DataRows) GetColMapKeys(row *DataRow, keys []string) map[string]*DataCol {
 	out := map[string]*DataCol{}
 	for i, col := range row.Columns {
-		if util.IStrsContains(keys, self.Columns[i]) {
-			out[self.Columns[i]] = col
+		if util.IStrsContains(keys, drs.Columns[i]) {
+			out[drs.Columns[i]] = col
 		}
 	}
 	return out
 }
 
-func (self *DataRows) TryGetRowMatchingColMap(colmap map[string]*DataCol) *DataRow {
-	for _, row := range self.Rows {
-		if self.RowMatchesColMap(row, colmap) {
+func (drs *DataRows) TryGetRowMatchingColMap(colmap map[string]*DataCol) *DataRow {
+	for _, row := range drs.Rows {
+		if drs.RowMatchesColMap(row, colmap) {
 			return row
 		}
 	}
@@ -146,10 +188,10 @@ func (self *DataRows) TryGetRowMatchingColMap(colmap map[string]*DataCol) *DataR
 }
 
 // `row` matches `colmap` if all the columns in colmap match a column in the row
-func (self *DataRows) RowMatchesColMap(row *DataRow, colmap map[string]*DataCol) bool {
+func (drs *DataRows) RowMatchesColMap(row *DataRow, colmap map[string]*DataCol) bool {
 	for colName, col := range colmap {
 		// find the corresponding column
-		idx := util.IStrsIndex(self.Columns, colName)
+		idx := util.IStrsIndex(drs.Columns, colName)
 		if idx < 0 {
 			return false // the column doesn't exist in this DataRows
 		}
@@ -162,11 +204,11 @@ func (self *DataRows) RowMatchesColMap(row *DataRow, colmap map[string]*DataCol)
 	return true
 }
 
-func (self *DataRows) tryGetColIndexesOfNames(names []string) ([]int, bool) {
+func (drs *DataRows) tryGetColIndexesOfNames(names []string) ([]int, bool) {
 	out := make([]int, len(names))
 	for i, name := range names {
 		found := false
-		for j, col := range self.Columns {
+		for j, col := range drs.Columns {
 			if strings.EqualFold(name, col) {
 				out[i] = j
 				found = true
@@ -181,8 +223,8 @@ func (self *DataRows) tryGetColIndexesOfNames(names []string) ([]int, bool) {
 }
 
 // checks to see that ownRow == otherRow, accounting for possible differences in column count or order
-func (self *DataRows) RowEquals(ownRow, otherRow *DataRow, otherColumns []string) bool {
-	if len(self.Columns) != len(otherColumns) {
+func (drs *DataRows) RowEquals(ownRow, otherRow *DataRow, otherColumns []string) bool {
+	if len(drs.Columns) != len(otherColumns) {
 		return false
 	}
 
@@ -190,7 +232,7 @@ func (self *DataRows) RowEquals(ownRow, otherRow *DataRow, otherColumns []string
 		return false
 	}
 
-	otherIndexes, ok := self.tryGetColIndexesOfNames(otherColumns)
+	otherIndexes, ok := drs.tryGetColIndexesOfNames(otherColumns)
 	if !ok {
 		return false
 	}
@@ -204,19 +246,19 @@ func (self *DataRows) RowEquals(ownRow, otherRow *DataRow, otherColumns []string
 	return false
 }
 
-func (self *DataCol) Equals(other *DataCol) bool {
-	if self == nil || other == nil {
+func (dc *DataCol) Equals(other *DataCol) bool {
+	if dc == nil || other == nil {
 		return false
 	}
-	if self.Null && other.Null {
+	if dc.Null && other.Null {
 		return true
 	}
-	if self.Empty && other.Empty {
+	if dc.Empty && other.Empty {
 		return true
 	}
-	if self.Sql != other.Sql {
+	if dc.Sql != other.Sql {
 		return false
 	}
 	// TODO(feat) something other than plain old string equality?
-	return self.Text == other.Text
+	return dc.Text == other.Text
 }

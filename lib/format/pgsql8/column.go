@@ -1,25 +1,32 @@
 package pgsql8
 
 import (
+	"fmt"
 	"log/slog"
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-func getReducedColumnDefinition(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column) sql.ColumnDefinition {
+func getReducedColumnDefinition(l *slog.Logger, doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column) (sql.ColumnDefinition, error) {
+	t, err := getColumnType(l, doc, schema, table, column)
+	if err != nil {
+		return sql.ColumnDefinition{}, err
+	}
 	return sql.ColumnDefinition{
 		Name: column.Name,
-		Type: sql.ParseTypeRef(getColumnType(doc, schema, table, column)),
-	}
+		Type: sql.ParseTypeRef(t),
+	}, nil
 }
 
-func getFullColumnDefinition(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column, includeNullDefinition, includeDefaultNextval bool) sql.ColumnDefinition {
-	colType := getColumnType(doc, schema, table, column)
+func getFullColumnDefinition(l *slog.Logger, doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column, includeNullDefinition, includeDefaultNextval bool) (sql.ColumnDefinition, error) {
+	colType, err := getColumnType(l, doc, schema, table, column)
+	if err != nil {
+		return sql.ColumnDefinition{}, err
+	}
 	out := sql.ColumnDefinition{
 		Name:     column.Name,
 		Type:     sql.ParseTypeRef(colType),
@@ -32,12 +39,12 @@ func getFullColumnDefinition(doc *ir.Definition, schema *ir.Schema, table *ir.Ta
 			// if the default is a nextval expression, don't specify it in the regular full definition
 			// because if the sequence has not been defined yet,
 			// the nextval expression will be evaluated inline and fail
-			lib.GlobalDBSteward.Info(
+			l.Info(fmt.Sprintf(
 				"Skipping %s.%s default expression \"%s\" - this default expression will be applied after all sequences have been created",
 				table.Name,
 				column.Name,
 				column.Default,
-			)
+			))
 		} else {
 			deftmp := sql.RawSql(column.Default)
 			out.Default = &deftmp
@@ -49,7 +56,7 @@ func getFullColumnDefinition(doc *ir.Definition, schema *ir.Schema, table *ir.Ta
 		out.Nullable = &nulltmp
 	}
 
-	return out
+	return out, nil
 }
 
 func getColumnSetupSql(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
@@ -71,18 +78,18 @@ func getColumnSetupSql(schema *ir.Schema, table *ir.Table, column *ir.Column) []
 	return ddl
 }
 
-func getColumnDefaultSql(schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
+func getColumnDefaultSql(l *slog.Logger, schema *ir.Schema, table *ir.Table, column *ir.Column) []output.ToSql {
 	if !includeColumnDefaultNextvalInCreateSql && hasDefaultNextval(column) {
 		// if the default is a nextval expression, don't specify it in the regular full definition
 		// because if the sequence has not been defined yet,
 		// the nextval expression will be evaluated inline and fail
-		lib.GlobalDBSteward.Info(
+		l.Info(fmt.Sprintf(
 			"Skipping %s.%s.%s default expression \"%s\" - this default expression will be applied after all sequences have been created",
 			schema.Name,
 			table.Name,
 			column.Name,
 			column.Default,
-		)
+		))
 		return nil
 	}
 	ref := sql.ColumnRef{Schema: schema.Name, Table: table.Name, Column: column.Name}
@@ -122,26 +129,28 @@ func hasDefaultNow(column *ir.Column) bool {
 }
 
 // TODO(go,3) it would be super if types had dedicated types/values
-func getColumnType(doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column) string {
+func getColumnType(l *slog.Logger, doc *ir.Definition, schema *ir.Schema, table *ir.Table, column *ir.Column) (string, error) {
 	// if it is a foreign keyed column, solve for the foreign key type
 	if column.ForeignTable != "" {
 		// TODO(feat) what about compound FKs?
-		foreign, err := doc.GetTerminalForeignColumn(slog.Default(), schema, table, column)
-		lib.GlobalDBSteward.FatalIfError(err, "")
-		return getReferenceType(foreign.Type)
+		foreign, err := doc.GetTerminalForeignColumn(l, schema, table, column)
+		if err != nil {
+			return "", err
+		}
+		return getReferenceType(foreign.Type), nil
 	}
 
 	if column.Type == "" {
-		lib.GlobalDBSteward.Fatal("column %s.%s.%s missing type", schema.Name, table.Name, column.Name)
+		return "", fmt.Errorf("column %s.%s.%s missing type", schema.Name, table.Name, column.Name)
 	}
 
 	if schema.TryGetTypeNamed(column.Type) != nil {
 		// this is a user defined type in the same schema, make sure to qualify it for later
 		// TODO(go,3) what if it's in a different schema?
-		return schema.Name + "." + column.Type
+		return schema.Name + "." + column.Type, nil
 	}
 
-	return column.Type
+	return column.Type, nil
 }
 
 // GetReferenceType returns the data type needed to reference a column of the given type

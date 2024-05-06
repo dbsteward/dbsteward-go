@@ -2,6 +2,7 @@ package lib
 
 import (
 	"fmt"
+	"log"
 	"log/slog"
 	"os"
 	"path"
@@ -12,6 +13,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/alexflint/go-arg"
 	"github.com/rs/zerolog"
@@ -27,8 +29,9 @@ var ApiVersion = "1.4"
 var GlobalDBSteward *DBSteward
 
 type DBSteward struct {
-	logger    zerolog.Logger
-	lookupMap format.LookupMap
+	logger     zerolog.Logger
+	slogLogger *slog.Logger
+	lookupMap  format.LookupMap
 
 	SqlFormat ir.SqlFormat
 
@@ -105,64 +108,64 @@ func NewDBSteward(lookupMap format.LookupMap) *DBSteward {
 	return dbsteward
 }
 
-func (self *DBSteward) Lookup() *format.Lookup {
-	return self.lookupMap[self.SqlFormat]
+func (dbsteward *DBSteward) Lookup() *format.Lookup {
+	return dbsteward.lookupMap[dbsteward.SqlFormat]
 }
 
 // correlates to dbsteward->arg_parse()
-func (self *DBSteward) ArgParse() {
+func (dbsteward *DBSteward) ArgParse() {
 	// TODO(go,nth): deck this out with better go-arg config
 	args := &config.Args{}
 	arg.MustParse(args)
 
-	self.setVerbosity(args)
+	dbsteward.setVerbosity(args)
 
 	// XML file parameter sanity checks
 	if len(args.XmlFiles) > 0 {
 		if len(args.OldXmlFiles) > 0 {
-			self.Fatal("Parameter error: xml and oldxml options are not to be mixed. Did you mean newxml?")
+			dbsteward.fatal("Parameter error: xml and oldxml options are not to be mixed. Did you mean newxml?")
 		}
 		if len(args.NewXmlFiles) > 0 {
-			self.Fatal("Parameter error: xml and newxml options are not to be mixed. Did you mean oldxml?")
+			dbsteward.fatal("Parameter error: xml and newxml options are not to be mixed. Did you mean oldxml?")
 		}
 	}
 	if len(args.OldXmlFiles) > 0 && len(args.NewXmlFiles) == 0 {
-		self.Fatal("Parameter error: oldxml needs newxml specified for differencing to occur")
+		dbsteward.fatal("Parameter error: oldxml needs newxml specified for differencing to occur")
 	}
 	if len(args.NewXmlFiles) > 0 && len(args.OldXmlFiles) == 0 {
-		self.Fatal("Parameter error: oldxml needs newxml specified for differencing to occur")
+		dbsteward.fatal("Parameter error: oldxml needs newxml specified for differencing to occur")
 	}
 
 	// database connectivity values
-	// self.dbHost = args.DbHost
-	// self.dbPort = args.DbPort
-	// self.dbName = args.DbName
-	// self.dbUser = args.DbUser
-	// self.dbPass = args.DbPassword
+	// dbsteward.dbHost = args.DbHost
+	// dbsteward.dbPort = args.DbPort
+	// dbsteward.dbName = args.DbName
+	// dbsteward.dbUser = args.DbUser
+	// dbsteward.dbPass = args.DbPassword
 
 	// SQL DDL DML DCL output flags
-	self.OnlySchemaSql = args.OnlySchemaSql
-	self.OnlyDataSql = args.OnlyDataSql
+	dbsteward.OnlySchemaSql = args.OnlySchemaSql
+	dbsteward.OnlyDataSql = args.OnlyDataSql
 	for _, onlyTable := range args.OnlyTables {
 		table := ParseQualifiedTableName(onlyTable)
-		self.LimitToTables[table.Schema] = append(self.LimitToTables[table.Schema], table.Table)
+		dbsteward.LimitToTables[table.Schema] = append(dbsteward.LimitToTables[table.Schema], table.Table)
 	}
 
 	// XML parsing switches
-	self.SingleStageUpgrade = args.SingleStageUpgrade
-	if self.SingleStageUpgrade {
+	dbsteward.SingleStageUpgrade = args.SingleStageUpgrade
+	if dbsteward.SingleStageUpgrade {
 		// don't recreate views when in single stage upgrade mode
 		// TODO(feat) make view diffing smart enough that this doesn't need to be done
-		self.AlwaysRecreateViews = false
+		dbsteward.AlwaysRecreateViews = false
 	}
-	self.IgnoreOldNames = args.IgnoreOldNames
-	self.IgnoreCustomRoles = args.IgnoreCustomRoles
-	self.ignorePrimaryKeyErrors = args.IgnorePrimaryKeyErrors
-	self.requireSlonyId = args.RequireSlonyId
-	self.requireSlonySetId = args.RequireSlonySetId
-	self.GenerateSlonik = args.GenerateSlonik
-	self.slonyIdStartValue = args.SlonyIdStartValue
-	self.slonyIdSetValue = args.SlonyIdSetValue
+	dbsteward.IgnoreOldNames = args.IgnoreOldNames
+	dbsteward.IgnoreCustomRoles = args.IgnoreCustomRoles
+	dbsteward.ignorePrimaryKeyErrors = args.IgnorePrimaryKeyErrors
+	dbsteward.requireSlonyId = args.RequireSlonyId
+	dbsteward.requireSlonySetId = args.RequireSlonySetId
+	dbsteward.GenerateSlonik = args.GenerateSlonik
+	dbsteward.slonyIdStartValue = args.SlonyIdStartValue
+	dbsteward.slonyIdSetValue = args.SlonyIdSetValue
 
 	// determine operation and check arguments for each
 	mode := ModeUnknown
@@ -196,30 +199,30 @@ func (self *DBSteward) ArgParse() {
 	// validate mode parameters
 	if mode == ModeXmlDataInsert {
 		if len(args.XmlFiles) == 0 {
-			self.Fatal("xmldatainsert needs xml parameter defined")
+			dbsteward.fatal("xmldatainsert needs xml parameter defined")
 		} else if len(args.XmlFiles) > 1 {
-			self.Fatal("xmldatainsert only supports one xml file")
+			dbsteward.fatal("xmldatainsert only supports one xml file")
 		}
 	}
 	if mode == ModeExtract || mode == ModeDbDataDiff {
 		if len(args.DbHost) == 0 {
-			self.Fatal("dbhost not specified")
+			dbsteward.fatal("dbhost not specified")
 		}
 		if len(args.DbName) == 0 {
-			self.Fatal("dbname not specified")
+			dbsteward.fatal("dbname not specified")
 		}
 		if len(args.DbUser) == 0 {
-			self.Fatal("dbuser not specified")
+			dbsteward.fatal("dbuser not specified")
 		}
 		if args.DbPassword == nil {
 			p, err := util.PromptPassword("[DBSteward] Enter password for postgres://%s@%s:%d/%s: ", args.DbUser, args.DbHost, args.DbPort, args.DbName)
-			self.FatalIfError(err, "Could not read password input")
+			dbsteward.fatalIfError(err, "Could not read password input")
 			args.DbPassword = &p
 		}
 	}
 	if mode == ModeExtract || mode == ModeSqlDiff {
 		if len(args.OutputFile) == 0 {
-			self.Fatal("output file not specified")
+			dbsteward.fatal("output file not specified")
 		}
 	}
 	if mode == ModeXmlSlonyId {
@@ -227,114 +230,105 @@ func (self *DBSteward) ArgParse() {
 			if args.SlonyIdIn[0] == args.SlonyIdOut {
 				// TODO(go,nth) resolve filepaths to do this correctly
 				// TODO(go,nth) check all SlonyIdIn elements
-				self.Fatal("slonyidin and slonyidout file paths should not be the same")
+				dbsteward.fatal("slonyidin and slonyidout file paths should not be the same")
 			}
 		}
 	}
 
 	if len(args.OutputDir) > 0 {
 		if !util.IsDir(args.OutputDir) {
-			self.Fatal("outputdir is not a directory, must be a writable directory")
+			dbsteward.fatal("outputdir is not a directory, must be a writable directory")
 		}
-		self.fileOutputDirectory = args.OutputDir
+		dbsteward.fileOutputDirectory = args.OutputDir
 	}
-	self.fileOutputPrefix = args.OutputFilePrefix
+	dbsteward.fileOutputPrefix = args.OutputFilePrefix
 
 	if args.XmlCollectDataAddendums > 0 {
 		if mode != ModeDbDataDiff {
-			self.Fatal("--xmlcollectdataaddendums is only supported for fresh builds")
+			dbsteward.fatal("--xmlcollectdataaddendums is only supported for fresh builds")
 		}
 		// dammit go
 		// invalid operation: args.XmlCollectDataAddendums > len(args.XmlFiles) (mismatched types uint and int)
 		if int(args.XmlCollectDataAddendums) > len(args.XmlFiles) {
-			self.Fatal("Cannot collect more data addendums than files provided")
+			dbsteward.fatal("Cannot collect more data addendums than files provided")
 		}
 	}
 
-	self.Notice("DBSteward Version %s", Version)
+	dbsteward.Info("DBSteward Version %s", Version)
 
 	// set the global sql format
-	self.SqlFormat = self.reconcileSqlFormat(ir.SqlFormatPgsql8, args.SqlFormat)
-	self.Notice("Using sqlformat=%s", self.SqlFormat)
-	self.defineSqlFormatDefaultValues(self.SqlFormat, args)
+	dbsteward.SqlFormat = dbsteward.reconcileSqlFormat(ir.SqlFormatPgsql8, args.SqlFormat)
+	dbsteward.Info("Using sqlformat=%s", dbsteward.SqlFormat)
+	dbsteward.defineSqlFormatDefaultValues(dbsteward.SqlFormat, args)
 
-	self.QuoteSchemaNames = args.QuoteSchemaNames
-	self.QuoteTableNames = args.QuoteTableNames
-	self.QuoteColumnNames = args.QuoteColumnNames
-	self.QuoteAllNames = args.QuoteAllNames
-	self.QuoteIllegalIdentifiers = args.QuoteIllegalNames
-	self.QuoteReservedIdentifiers = args.QuoteReservedNames
+	dbsteward.QuoteSchemaNames = args.QuoteSchemaNames
+	dbsteward.QuoteTableNames = args.QuoteTableNames
+	dbsteward.QuoteColumnNames = args.QuoteColumnNames
+	dbsteward.QuoteAllNames = args.QuoteAllNames
+	dbsteward.QuoteIllegalIdentifiers = args.QuoteIllegalNames
+	dbsteward.QuoteReservedIdentifiers = args.QuoteReservedNames
 
 	// TODO(go,3) move all of these to separate subcommands
 	switch mode {
 	case ModeXmlDataInsert:
-		self.doXmlDataInsert(args.XmlFiles[0], args.XmlDataInsert)
+		dbsteward.doXmlDataInsert(args.XmlFiles[0], args.XmlDataInsert)
 	case ModeXmlSort:
-		self.doXmlSort(args.XmlSort)
+		dbsteward.doXmlSort(args.XmlSort)
 	case ModeXmlConvert:
-		self.doXmlConvert(args.XmlConvert)
+		dbsteward.doXmlConvert(args.XmlConvert)
 	case ModeXmlSlonyId:
-		self.doXmlSlonyId(args.SlonyIdIn, args.SlonyIdOut)
+		dbsteward.doXmlSlonyId(args.SlonyIdIn, args.SlonyIdOut)
 	case ModeBuild:
-		self.doBuild(args.XmlFiles, args.PgDataXml, args.XmlCollectDataAddendums)
+		dbsteward.doBuild(args.XmlFiles, args.PgDataXml, args.XmlCollectDataAddendums)
 	case ModeDiff:
-		self.doDiff(args.OldXmlFiles, args.NewXmlFiles, args.PgDataXml)
+		dbsteward.doDiff(args.OldXmlFiles, args.NewXmlFiles, args.PgDataXml)
 	case ModeExtract:
-		self.doExtract(args.DbHost, args.DbPort, args.DbName, args.DbUser, *args.DbPassword, args.OutputFile)
+		dbsteward.doExtract(args.DbHost, args.DbPort, args.DbName, args.DbUser, *args.DbPassword, args.OutputFile)
 	case ModeDbDataDiff:
-		self.doDbDataDiff(args.XmlFiles, args.PgDataXml, args.XmlCollectDataAddendums, args.DbHost, args.DbPort, args.DbName, args.DbUser, *args.DbPassword)
+		dbsteward.doDbDataDiff(args.XmlFiles, args.PgDataXml, args.XmlCollectDataAddendums, args.DbHost, args.DbPort, args.DbName, args.DbUser, *args.DbPassword)
 	case ModeSqlDiff:
-		self.doSqlDiff(args.OldSql, args.NewSql, args.OutputFile)
+		dbsteward.doSqlDiff(args.OldSql, args.NewSql, args.OutputFile)
 	case ModeSlonikConvert:
-		self.doSlonikConvert(args.SlonikConvert, args.OutputFile)
+		dbsteward.doSlonikConvert(args.SlonikConvert, args.OutputFile)
 	case ModeSlonyCompare:
-		self.doSlonyCompare(args.SlonyCompare)
+		dbsteward.doSlonyCompare(args.SlonyCompare)
 	case ModeSlonyDiff:
-		self.doSlonyDiff(args.SlonyDiffOld, args.SlonyDiffNew)
+		dbsteward.doSlonyDiff(args.SlonyDiffOld, args.SlonyDiffNew)
 	default:
-		self.Fatal("No operation specified")
+		dbsteward.fatal("No operation specified")
 	}
 }
 
-func (self *DBSteward) Fatal(s string, args ...interface{}) {
-	self.logger.Fatal().Msgf(s, args...)
+// Logger returns an *slog.Logger pointed at the console
+func (dbsteward *DBSteward) Logger() *slog.Logger {
+	if dbsteward == nil {
+		panic("dbsteward is nil")
+	}
+	if dbsteward.slogLogger == nil {
+		dbsteward.slogLogger = slog.New(newLogHandler(dbsteward))
+	}
+	return dbsteward.slogLogger
 }
-func (self *DBSteward) FatalIfError(err error, s string, args ...interface{}) {
+
+func (dbsteward *DBSteward) fatal(s string, args ...interface{}) {
+	dbsteward.logger.Fatal().Msgf(s, args...)
+}
+func (dbsteward *DBSteward) fatalIfError(err error, s string, args ...interface{}) {
 	if err != nil {
-		self.logger.Fatal().Err(err).Msgf(s, args...)
+		dbsteward.logger.Fatal().Err(err).Msgf(s, args...)
 	}
 }
 
-func (self *DBSteward) Warning(s string, args ...interface{}) {
-	self.logger.Warn().Msgf(s, args...)
+func (dbsteward *DBSteward) warning(s string, args ...interface{}) {
+	dbsteward.logger.Warn().Msgf(s, args...)
 }
 
-func (self *DBSteward) Error(s string, args ...interface{}) {
-	self.logger.Error().Msgf(s, args...)
-}
-
-func (self *DBSteward) ErrorIfError(err error, s string, args ...interface{}) {
-	if err != nil {
-		self.logger.Error().Err(err).Msgf(s, args...)
-	}
-}
-
-func (self *DBSteward) Notice(s string, args ...interface{}) {
-	// TODO(go,nth) differentiate between notice and info
-	self.Info(s, args...)
-}
-func (self *DBSteward) Info(s string, args ...interface{}) {
-	self.logger.Info().Msgf(s, args...)
-}
-func (self *DBSteward) Debug(s string, args ...interface{}) {
-	self.logger.Debug().Msgf(s, args...)
-}
-func (self *DBSteward) Trace(s string, args ...interface{}) {
-	self.logger.Trace().Msgf(s, args...)
+func (dbsteward *DBSteward) Info(s string, args ...interface{}) {
+	dbsteward.logger.Info().Msgf(s, args...)
 }
 
 // dbsteward::set_verbosity($options)
-func (self *DBSteward) setVerbosity(args *config.Args) {
+func (dbsteward *DBSteward) setVerbosity(args *config.Args) {
 	// TODO(go,nth): differentiate between notice and info
 
 	// remember, lower level is higher verbosity
@@ -368,21 +362,21 @@ func (self *DBSteward) setVerbosity(args *config.Args) {
 		level = zerolog.TraceLevel
 	}
 
-	self.logger = self.logger.Level(level)
+	dbsteward.logger = dbsteward.logger.Level(level)
 }
 
-func (self *DBSteward) reconcileSqlFormat(target, requested ir.SqlFormat) ir.SqlFormat {
+func (dbsteward *DBSteward) reconcileSqlFormat(target, requested ir.SqlFormat) ir.SqlFormat {
 	if target != ir.SqlFormatUnknown {
 		if requested != ir.SqlFormatUnknown {
 			if target == requested {
 				return target
 			}
 
-			self.Warning("XML is targeted for %s but you are forcing %s. Things will probably break!", target, requested)
+			dbsteward.warning("XML is targeted for %s but you are forcing %s. Things will probably break!", target, requested)
 			return requested
 		}
 
-		self.Notice("XML file(s) are targetd for sqlformat=%s", target)
+		dbsteward.Info("XML file(s) are targetd for sqlformat=%s", target)
 		return target
 	}
 
@@ -393,263 +387,261 @@ func (self *DBSteward) reconcileSqlFormat(target, requested ir.SqlFormat) ir.Sql
 	return DefaultSqlFormat
 }
 
-func (self *DBSteward) defineSqlFormatDefaultValues(SqlFormat ir.SqlFormat, args *config.Args) {
+func (dbsteward *DBSteward) defineSqlFormatDefaultValues(SqlFormat ir.SqlFormat, args *config.Args) {
 	switch SqlFormat {
 	case ir.SqlFormatPgsql8:
-		self.CreateLanguages = true
-		self.QuoteSchemaNames = false
-		self.QuoteTableNames = false
-		self.QuoteColumnNames = false
+		dbsteward.CreateLanguages = true
+		dbsteward.QuoteSchemaNames = false
+		dbsteward.QuoteTableNames = false
+		dbsteward.QuoteColumnNames = false
 		if args.DbPort == 0 {
 			args.DbPort = 5432
 		}
-
-	case ir.SqlFormatMssql10:
-		self.QuoteTableNames = true
-		self.QuoteColumnNames = true
-		if args.DbPort == 0 {
-			args.DbPort = 1433
-		}
-
-	case ir.SqlFormatMysql5:
-		self.QuoteSchemaNames = true
-		self.QuoteTableNames = true
-		self.QuoteColumnNames = true
-		if args.DbPort == 0 {
-			args.DbPort = 3306
-		}
-		self.lookupMap[ir.SqlFormatMysql5].Operations.SetConfig(args)
 	}
 
 	if SqlFormat != ir.SqlFormatPgsql8 {
 		if len(args.PgDataXml) > 0 {
-			self.Fatal("pgdataxml parameter is not supported by %s driver", SqlFormat)
+			dbsteward.fatal("pgdataxml parameter is not supported by %s driver", SqlFormat)
 		}
 	}
 }
 
-func (self *DBSteward) calculateFileOutputPrefix(files []string) string {
+func (dbsteward *DBSteward) calculateFileOutputPrefix(files []string) string {
 	return path.Join(
-		self.calculateFileOutputDirectory(files[0]),
-		util.CoalesceStr(self.fileOutputPrefix, util.Basename(files[0], ".xml")),
+		dbsteward.calculateFileOutputDirectory(files[0]),
+		util.CoalesceStr(dbsteward.fileOutputPrefix, util.Basename(files[0], ".xml")),
 	)
 }
-func (self *DBSteward) calculateFileOutputDirectory(file string) string {
-	return util.CoalesceStr(self.fileOutputDirectory, path.Dir(file))
+func (dbsteward *DBSteward) calculateFileOutputDirectory(file string) string {
+	return util.CoalesceStr(dbsteward.fileOutputDirectory, path.Dir(file))
 }
 
 // Append columns in a table's rows collection, based on a simplified XML definition of what to insert
-func (self *DBSteward) doXmlDataInsert(defFile string, dataFile string) {
+func (dbsteward *DBSteward) doXmlDataInsert(defFile string, dataFile string) {
 	// TODO(go,xmlutil) verify this behavior is correct, add tests. need to change fatals to returns
-	self.Info("Automatic insert data into %s from %s", defFile, dataFile)
+	dbsteward.Info("Automatic insert data into %s from %s", defFile, dataFile)
 	defDoc, err := xml.LoadDefintion(defFile)
-	self.FatalIfError(err, "Failed to load %s", defFile)
+	dbsteward.fatalIfError(err, "Failed to load %s", defFile)
 
 	dataDoc, err := xml.LoadDefintion(dataFile)
-	self.FatalIfError(err, "Failed to load %s", dataFile)
+	dbsteward.fatalIfError(err, "Failed to load %s", dataFile)
 
 	for _, dataSchema := range dataDoc.Schemas {
 		defSchema, err := defDoc.GetSchemaNamed(dataSchema.Name)
-		self.FatalIfError(err, "while searching %s", defFile)
+		dbsteward.fatalIfError(err, "while searching %s", defFile)
 		for _, dataTable := range dataSchema.Tables {
 			defTable, err := defSchema.GetTableNamed(dataTable.Name)
-			self.FatalIfError(err, "while searching %s", defFile)
+			dbsteward.fatalIfError(err, "while searching %s", defFile)
 
 			dataRows := dataTable.Rows
 			if dataRows == nil {
-				self.Fatal("table %s in %s does not have a <rows> element", dataTable.Name, dataFile)
+				dbsteward.fatal("table %s in %s does not have a <rows> element", dataTable.Name, dataFile)
 			}
 
 			if len(dataRows.Columns) == 0 {
-				self.Fatal("Unexpected: no rows[columns] found in table %s in file %s", dataTable.Name, dataFile)
+				dbsteward.fatal("Unexpected: no rows[columns] found in table %s in file %s", dataTable.Name, dataFile)
 			}
 
 			if len(dataRows.Rows) > 1 {
-				self.Fatal("Unexpected: more than one rows->row found in table %s in file %s", dataTable.Name, dataFile)
+				dbsteward.fatal("Unexpected: more than one rows->row found in table %s in file %s", dataTable.Name, dataFile)
 			}
 
 			if len(dataRows.Rows[0].Columns) != len(dataRows.Columns) {
-				self.Fatal("Unexpected: Table %s in %s defines %d colums but has %d <col> elements",
+				dbsteward.fatal("Unexpected: Table %s in %s defines %d colums but has %d <col> elements",
 					dataTable.Name, dataFile, len(dataRows.Columns), len(dataRows.Rows[0].Columns))
 			}
 
 			for i, newColumn := range dataRows.Columns {
-				self.Info("Adding rows column %s to definition table %s", newColumn, defTable.Name)
+				dbsteward.Info("Adding rows column %s to definition table %s", newColumn, defTable.Name)
 
 				if defTable.Rows == nil {
 					defTable.Rows = &ir.DataRows{}
 				}
 				err = defTable.Rows.AddColumn(newColumn, dataRows.Columns[i])
-				self.FatalIfError(err, "Could not add column %s to %s in %s", newColumn, dataTable.Name, dataFile)
+				dbsteward.fatalIfError(err, "Could not add column %s to %s in %s", newColumn, dataTable.Name, dataFile)
 			}
 		}
 	}
 
 	defFileModified := defFile + ".xmldatainserted"
-	self.Notice("Saving modified dbsteward definition as %s", defFileModified)
-	err = xml.SaveDefinition(defFileModified, defDoc)
-	self.FatalIfError(err, "saving file")
+	dbsteward.Info("Saving modified dbsteward definition as %s", defFileModified)
+	err = xml.SaveDefinition(dbsteward.Logger(), defFileModified, defDoc)
+	dbsteward.fatalIfError(err, "saving file")
 }
-func (self *DBSteward) doXmlSort(files []string) {
+func (dbsteward *DBSteward) doXmlSort(files []string) {
 	for _, file := range files {
 		sortedFileName := file + ".xmlsorted"
-		self.Info("Sorting XML definition file: %s", file)
-		self.Info("Sorted XML output file: %s", sortedFileName)
+		dbsteward.Info("Sorting XML definition file: %s", file)
+		dbsteward.Info("Sorted XML output file: %s", sortedFileName)
 		xml.FileSort(file, sortedFileName)
 	}
 }
-func (self *DBSteward) doXmlConvert(files []string) {
+func (dbsteward *DBSteward) doXmlConvert(files []string) {
 	for _, file := range files {
 		convertedFileName := file + ".xmlconverted"
-		self.Info("Upconverting XML definition file: %s", file)
-		self.Info("Upconvert XML output file: %s", convertedFileName)
+		dbsteward.Info("Upconverting XML definition file: %s", file)
+		dbsteward.Info("Upconvert XML output file: %s", convertedFileName)
 
 		doc, err := xml.LoadDefintion(file)
-		self.FatalIfError(err, "Could not load %s", file)
+		dbsteward.fatalIfError(err, "Could not load %s", file)
 		xml.SqlFormatConvert(doc)
-		convertedXml, err := xml.FormatXml(doc)
-		self.ErrorIfError(err, "formatting xml")
+		convertedXml, err := xml.FormatXml(dbsteward.Logger(), doc)
+		dbsteward.fatalIfError(err, "formatting xml")
 		convertedXml = strings.Replace(convertedXml, "pgdbxml>", "dbsteward>", -1)
 		err = util.WriteFile(convertedXml, convertedFileName)
-		self.FatalIfError(err, "Could not write converted xml to %s", convertedFileName)
+		dbsteward.fatalIfError(err, "Could not write converted xml to %s", convertedFileName)
 	}
 }
-func (self *DBSteward) doXmlSlonyId(files []string, slonyOut string) {
-	self.Info("Compositing XML file for Slony ID processing")
-	dbDoc, err := xml.XmlComposite(files)
-	self.FatalIfError(err, "compositing files: %v", files)
-	self.Info("Xml files %s composited", strings.Join(files, " "))
+func (dbsteward *DBSteward) doXmlSlonyId(files []string, slonyOut string) {
+	dbsteward.Info("Compositing XML file for Slony ID processing")
+	dbDoc, err := xml.XmlComposite(dbsteward.Logger(), files)
+	dbsteward.fatalIfError(err, "compositing files: %v", files)
+	dbsteward.Info("Xml files %s composited", strings.Join(files, " "))
 
-	outputPrefix := self.calculateFileOutputPrefix(files)
+	outputPrefix := dbsteward.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
-	self.Notice("Saving composite as %s", compositeFile)
-	err = xml.SaveDefinition(compositeFile, dbDoc)
-	self.ErrorIfError(err, "saving file")
+	dbsteward.Info("Saving composite as %s", compositeFile)
+	err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, dbDoc)
+	dbsteward.fatalIfError(err, "saving file")
 
-	self.Notice("Slony ID numbering any missing attributes")
-	self.Info("slonyidstartvalue = %d", self.slonyIdStartValue)
-	self.Info("slonyidsetvalue = %d", self.slonyIdSetValue)
+	dbsteward.Info("Slony ID numbering any missing attributes")
+	dbsteward.Info("slonyidstartvalue = %d", dbsteward.slonyIdStartValue)
+	dbsteward.Info("slonyidsetvalue = %d", dbsteward.slonyIdSetValue)
 	slonyIdDoc := xml.SlonyIdNumber(dbDoc)
 	slonyIdNumberedFile := outputPrefix + "_slonyid_numbered.xml"
 	if len(slonyOut) > 0 {
 		slonyIdNumberedFile = slonyOut
 	}
-	self.Notice("Saving Slony ID numbered XML as %s", slonyIdNumberedFile)
-	err = xml.SaveDefinition(slonyIdNumberedFile, slonyIdDoc)
-	self.ErrorIfError(err, "saving file")
+	dbsteward.Info("Saving Slony ID numbered XML as %s", slonyIdNumberedFile)
+	err = xml.SaveDefinition(dbsteward.Logger(), slonyIdNumberedFile, slonyIdDoc)
+	dbsteward.fatalIfError(err, "saving file")
 }
-func (self *DBSteward) doBuild(files []string, dataFiles []string, addendums uint) {
-	self.Info("Compositing XML files...")
+func (dbsteward *DBSteward) doBuild(files []string, dataFiles []string, addendums uint) {
+	dbsteward.Info("Compositing XML files...")
 	if addendums > 0 {
-		self.Info("Collecting %d data addendums", addendums)
+		dbsteward.Info("Collecting %d data addendums", addendums)
 	}
-	dbDoc, addendumsDoc, err := xml.XmlCompositeAddendums(slog.Default(), files, addendums)
-
+	dbDoc, addendumsDoc, err := xml.XmlCompositeAddendums(dbsteward.Logger(), files, addendums)
+	if err != nil {
+		mErr, isMErr := err.(*multierror.Error)
+		if isMErr {
+			for _, e := range mErr.Errors {
+				log.Println(e.Error())
+			}
+		} else {
+			log.Println(err.Error())
+		}
+		os.Exit(1)
+	}
 	if len(dataFiles) > 0 {
-		self.Info("Compositing pgdata XML files on top of XML composite...")
+		dbsteward.Info("Compositing pgdata XML files on top of XML composite...")
 		xml.XmlCompositePgData(dbDoc, dataFiles)
-		self.Info("postgres data XML files [%s] composited", strings.Join(dataFiles, " "))
+		dbsteward.Info("postgres data XML files [%s] composited", strings.Join(dataFiles, " "))
 	}
 
-	self.Info("XML files %s composited", strings.Join(files, " "))
+	dbsteward.Info("XML files %s composited", strings.Join(files, " "))
 
-	outputPrefix := self.calculateFileOutputPrefix(files)
+	outputPrefix := dbsteward.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
-	self.Notice("Saving composite as %s", compositeFile)
-	err = xml.SaveDefinition(compositeFile, dbDoc)
-	self.ErrorIfError(err, "saving file")
+	dbsteward.Info("Saving composite as %s", compositeFile)
+	err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, dbDoc)
+	dbsteward.fatalIfError(err, "saving file")
 
 	if addendumsDoc != nil {
 		addendumsFile := outputPrefix + "_addendums.xml"
-		self.Notice("Saving addendums as %s", addendumsFile)
-		err = xml.SaveDefinition(compositeFile, addendumsDoc)
-		self.ErrorIfError(err, "saving file")
+		dbsteward.Info("Saving addendums as %s", addendumsFile)
+		err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, addendumsDoc)
+		dbsteward.fatalIfError(err, "saving file")
 	}
 
-	self.Lookup().Operations.Build(outputPrefix, dbDoc)
+	err = dbsteward.Lookup().OperationsConstructor().Build(outputPrefix, dbDoc)
+	dbsteward.fatalIfError(err, "building")
 }
-func (self *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []string) {
-	self.Info("Compositing old XML files...")
-	oldDbDoc, err := xml.XmlComposite(oldFiles)
-	self.ErrorIfError(err, "compositing")
-	self.Info("Old XML files %s composited", strings.Join(oldFiles, " "))
+func (dbsteward *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []string) {
+	dbsteward.Info("Compositing old XML files...")
+	oldDbDoc, err := xml.XmlComposite(dbsteward.Logger(), oldFiles)
+	dbsteward.fatalIfError(err, "compositing")
+	dbsteward.Info("Old XML files %s composited", strings.Join(oldFiles, " "))
 
-	self.Info("Compositing new XML files...")
-	newDbDoc, err := xml.XmlComposite(newFiles)
-	self.ErrorIfError(err, "compositing")
+	dbsteward.Info("Compositing new XML files...")
+	newDbDoc, err := xml.XmlComposite(dbsteward.Logger(), newFiles)
+	dbsteward.fatalIfError(err, "compositing")
 	if len(dataFiles) > 0 {
-		self.Info("Compositing pgdata XML files on top of new XML composite...")
+		dbsteward.Info("Compositing pgdata XML files on top of new XML composite...")
 		xml.XmlCompositePgData(newDbDoc, dataFiles)
-		self.Info("postgres data XML files [%s] composited", strings.Join(dataFiles, " "))
+		dbsteward.Info("postgres data XML files [%s] composited", strings.Join(dataFiles, " "))
 	}
-	self.Info("New XML files %s composited", strings.Join(newFiles, " "))
+	dbsteward.Info("New XML files %s composited", strings.Join(newFiles, " "))
 
-	oldOutputPrefix := self.calculateFileOutputPrefix(oldFiles)
+	oldOutputPrefix := dbsteward.calculateFileOutputPrefix(oldFiles)
 	oldCompositeFile := oldOutputPrefix + "_composite.xml"
-	self.Notice("Saving composite as %s", oldCompositeFile)
-	err = xml.SaveDefinition(oldCompositeFile, oldDbDoc)
-	self.ErrorIfError(err, "saving file")
+	dbsteward.Info("Saving composite as %s", oldCompositeFile)
+	err = xml.SaveDefinition(dbsteward.Logger(), oldCompositeFile, oldDbDoc)
+	dbsteward.fatalIfError(err, "saving file")
 
-	newOutputPrefix := self.calculateFileOutputPrefix(newFiles)
+	newOutputPrefix := dbsteward.calculateFileOutputPrefix(newFiles)
 	newCompositeFile := newOutputPrefix + "_composite.xml"
-	self.Notice("Saving composite as %s", newCompositeFile)
-	err = xml.SaveDefinition(newCompositeFile, newDbDoc)
-	self.ErrorIfError(err, "saving file")
+	dbsteward.Info("Saving composite as %s", newCompositeFile)
+	err = xml.SaveDefinition(dbsteward.Logger(), newCompositeFile, newDbDoc)
+	dbsteward.fatalIfError(err, "saving file")
 
-	self.Lookup().Operations.BuildUpgrade(
+	err = dbsteward.Lookup().OperationsConstructor().BuildUpgrade(
 		oldOutputPrefix, oldCompositeFile, oldDbDoc, oldFiles,
 		newOutputPrefix, newCompositeFile, newDbDoc, newFiles,
 	)
+	dbsteward.fatalIfError(err, "building upgrade")
 }
-func (self *DBSteward) doExtract(dbHost string, dbPort uint, dbName, dbUser, dbPass string, outputFile string) {
-	output := self.Lookup().Operations.ExtractSchema(dbHost, dbPort, dbName, dbUser, dbPass)
-	self.Notice("Saving extracted database schema to %s", outputFile)
-	err := xml.SaveDefinition(outputFile, output)
-	self.ErrorIfError(err, "saving file")
+func (dbsteward *DBSteward) doExtract(dbHost string, dbPort uint, dbName, dbUser, dbPass string, outputFile string) {
+	output, err := dbsteward.Lookup().OperationsConstructor().ExtractSchema(dbHost, dbPort, dbName, dbUser, dbPass)
+	dbsteward.fatalIfError(err, "extracting")
+	dbsteward.Info("Saving extracted database schema to %s", outputFile)
+	err = xml.SaveDefinition(dbsteward.Logger(), outputFile, output)
+	dbsteward.fatalIfError(err, "saving file")
 }
-func (self *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendums uint, dbHost string, dbPort uint, dbName, dbUser, dbPass string) {
-	self.Info("Compositing XML files...")
+func (dbsteward *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendums uint, dbHost string, dbPort uint, dbName, dbUser, dbPass string) {
+	dbsteward.Info("Compositing XML files...")
 	if addendums > 0 {
-		self.Info("Collecting %d data addendums", addendums)
+		dbsteward.Info("Collecting %d data addendums", addendums)
 	}
 	// TODO(feat) can this just be XmlComposite(files)? why do we need addendums?
-	dbDoc, _, err := xml.XmlCompositeAddendums(slog.Default(), files, addendums)
-	self.ErrorIfError(err, "compositing addendums")
+	dbDoc, _, err := xml.XmlCompositeAddendums(dbsteward.Logger(), files, addendums)
+	dbsteward.fatalIfError(err, "compositing addendums")
 
 	if len(dataFiles) > 0 {
-		self.Info("Compositing pgdata XML files on top of XML composite...")
+		dbsteward.Info("Compositing pgdata XML files on top of XML composite...")
 		xml.XmlCompositePgData(dbDoc, dataFiles)
-		self.Info("postgres data XML files [%s] composited", strings.Join(dataFiles, " "))
+		dbsteward.Info("postgres data XML files [%s] composited", strings.Join(dataFiles, " "))
 	}
 
-	self.Info("XML files %s composited", strings.Join(files, " "))
+	dbsteward.Info("XML files %s composited", strings.Join(files, " "))
 
-	outputPrefix := self.calculateFileOutputPrefix(files)
+	outputPrefix := dbsteward.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
-	self.Notice("Saving composite as %s", compositeFile)
-	err = xml.SaveDefinition(compositeFile, dbDoc)
-	self.ErrorIfError(err, "saving file")
+	dbsteward.Info("Saving composite as %s", compositeFile)
+	err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, dbDoc)
+	dbsteward.fatalIfError(err, "saving file")
 
-	output := self.Lookup().Operations.CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
-	err = xml.SaveDefinition(compositeFile, output)
-	self.ErrorIfError(err, "saving file")
+	output, err := dbsteward.Lookup().OperationsConstructor().CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
+	dbsteward.fatalIfError(err, "comparing data")
+	err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, output)
+	dbsteward.fatalIfError(err, "saving file")
 }
-func (self *DBSteward) doSqlDiff(oldSql, newSql []string, outputFile string) {
-	self.Lookup().Operations.SqlDiff(oldSql, newSql, outputFile)
+func (dbsteward *DBSteward) doSqlDiff(oldSql, newSql []string, outputFile string) {
+	dbsteward.Lookup().OperationsConstructor().SqlDiff(oldSql, newSql, outputFile)
 }
-func (self *DBSteward) doSlonikConvert(file string, outputFile string) {
+func (dbsteward *DBSteward) doSlonikConvert(file string, outputFile string) {
 	// TODO(go,nth) is there a nicer way to handle this output idiom?
 	output := NewSlonik().Convert(file)
 	if len(outputFile) > 0 {
 		err := util.WriteFile(output, outputFile)
-		self.FatalIfError(err, "Failed to save slonikconvert output to %s", outputFile)
+		dbsteward.fatalIfError(err, "Failed to save slonikconvert output to %s", outputFile)
 	} else {
 		fmt.Println(output)
 	}
 }
-func (self *DBSteward) doSlonyCompare(file string) {
-	self.lookupMap[ir.SqlFormatPgsql8].Operations.(format.SlonyOperations).SlonyCompare(file)
+func (dbsteward *DBSteward) doSlonyCompare(file string) {
+	dbsteward.lookupMap[ir.SqlFormatPgsql8].OperationsConstructor().(format.SlonyOperations).SlonyCompare(file)
 }
-func (self *DBSteward) doSlonyDiff(oldFile string, newFile string) {
-	self.lookupMap[ir.SqlFormatPgsql8].Operations.(format.SlonyOperations).SlonyDiff(oldFile, newFile)
+func (dbsteward *DBSteward) doSlonyDiff(oldFile string, newFile string) {
+	dbsteward.lookupMap[ir.SqlFormatPgsql8].OperationsConstructor().(format.SlonyOperations).SlonyDiff(oldFile, newFile)
 }

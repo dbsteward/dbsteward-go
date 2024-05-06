@@ -2,6 +2,7 @@ package pgsql8
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -119,12 +120,15 @@ func isIntType(spec string) bool {
 }
 
 // Change all table columns that are the given datatype to a placeholder type
-func alterColumnTypePlaceholder(datatype *ir.TypeDef) ([]*ir.ColumnRef, []output.ToSql) {
+func alterColumnTypePlaceholder(l *slog.Logger, differ *diff, datatype *ir.TypeDef) ([]*ir.ColumnRef, []output.ToSql, error) {
 	ddl := []output.ToSql{}
 	cols := []*ir.ColumnRef{}
 	for _, newTableRef := range differ.NewTableDependency {
 		for _, newColumn := range newTableRef.Table.Columns {
-			columnType := getColumnType(lib.GlobalDBSteward.NewDatabase, newTableRef.Schema, newTableRef.Table, newColumn)
+			columnType, err := getColumnType(l, lib.GlobalDBSteward.NewDatabase, newTableRef.Schema, newTableRef.Table, newColumn)
+			if err != nil {
+				return nil, nil, err
+			}
 			if strings.EqualFold(columnType, datatype.Name) || strings.EqualFold(columnType, newTableRef.Schema.Name+"."+datatype.Name) {
 				sqlRef := sql.TableRef{Schema: newTableRef.Schema.Name, Table: newTableRef.Table.Name}
 				ddl = append(ddl, sql.NewTableAlter(sqlRef, &sql.TableAlterPartColumnChangeType{
@@ -135,7 +139,7 @@ func alterColumnTypePlaceholder(datatype *ir.TypeDef) ([]*ir.ColumnRef, []output
 			}
 		}
 	}
-	return cols, ddl
+	return cols, ddl, nil
 }
 
 func alterColumnTypePlaceholderType(datatype *ir.TypeDef) sql.TypeRef {

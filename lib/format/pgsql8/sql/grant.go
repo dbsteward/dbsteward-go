@@ -25,9 +25,9 @@ type grant struct {
 	CanGrant bool
 }
 
-func (self *grant) ToSql(q output.Quoter) string {
-	roles := make([]string, len(self.Roles))
-	for i, role := range self.Roles {
+func (g *grant) ToSql(q output.Quoter) string {
+	roles := make([]string, len(g.Roles))
+	for i, role := range g.Roles {
 		// the PUBLIC role is actually a keyword, not an identifier, so don't quote it
 		if strings.EqualFold(role, "public") {
 			roles[i] = role
@@ -37,21 +37,20 @@ func (self *grant) ToSql(q output.Quoter) string {
 	}
 
 	// NOTE it is the job of callers to validate that the correct permissions are set
-	perms := make([]string, len(self.Perms))
-	for i, perm := range self.Perms {
+	perms := make([]string, len(g.Perms))
+	for i, perm := range g.Perms {
 		perms[i] = strings.ToUpper(perm)
 	}
 
 	option := ""
-	if self.CanGrant {
+	if g.CanGrant {
 		option = " WITH GRANT OPTION"
 	}
-
 	return fmt.Sprintf(
 		"GRANT %s ON %s %s TO %s%s;",
 		strings.Join(perms, ", "),
-		self.ObjType,
-		self.Object.Qualified(q),
+		g.ObjType,
+		g.Object.Qualified(q),
 		strings.Join(roles, ", "),
 		option,
 	)

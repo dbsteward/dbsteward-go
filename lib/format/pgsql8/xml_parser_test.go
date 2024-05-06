@@ -162,6 +162,9 @@ END;`,
 	}
 
 	// note that Process mutates the document in place
-	pgsql8.GlobalXmlParser.Process(doc)
+	err := pgsql8.GlobalXmlParser.Process(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.Equal(t, expected, doc)
 }

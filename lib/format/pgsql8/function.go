@@ -2,6 +2,7 @@ package pgsql8
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -34,7 +35,7 @@ func functionDefinitionReferencesTable(definition *ir.FunctionDefinition) *lib.Q
 	return &parsed
 }
 
-func getFunctionCreationSql(schema *ir.Schema, function *ir.Function) []output.ToSql {
+func getFunctionCreationSql(l *slog.Logger, schema *ir.Schema, function *ir.Function) ([]output.ToSql, error) {
 	ref := sql.FunctionRef{Schema: schema.Name, Function: function.Name, Params: function.ParamSigs()}
 	def := function.TryGetDefinition(ir.SqlFormatPgsql8)
 	out := []output.ToSql{
@@ -49,9 +50,13 @@ func getFunctionCreationSql(schema *ir.Schema, function *ir.Function) []output.T
 	}
 
 	if function.Owner != "" {
+		role, err := roleEnum(l, lib.GlobalDBSteward.NewDatabase, function.Owner)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, &sql.FunctionAlterOwner{
 			Function: ref,
-			Role:     roleEnum(lib.GlobalDBSteward.NewDatabase, function.Owner),
+			Role:     role,
 		})
 	}
 	if function.Description != "" {
@@ -61,7 +66,7 @@ func getFunctionCreationSql(schema *ir.Schema, function *ir.Function) []output.T
 		})
 	}
 
-	return out
+	return out, nil
 }
 
 func getFunctionDropSql(schema *ir.Schema, function *ir.Function) []output.ToSql {
@@ -89,19 +94,23 @@ func normalizeFunctionParameterType(paramType string) string {
 	return paramType
 }
 
-func getFunctionGrantSql(schema *ir.Schema, fn *ir.Function, grant *ir.Grant) []output.ToSql {
+func getFunctionGrantSql(l *slog.Logger, schema *ir.Schema, fn *ir.Function, grant *ir.Grant) ([]output.ToSql, error) {
 	roles := make([]string, len(grant.Roles))
+	var err error
 	for i, role := range grant.Roles {
-		roles[i] = roleEnum(lib.GlobalDBSteward.NewDatabase, role)
+		roles[i], err = roleEnum(l, lib.GlobalDBSteward.NewDatabase, role)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	perms := util.IIntersectStrs(grant.Permissions, ir.PermissionListAllPgsql8)
 	if len(perms) == 0 {
-		lib.GlobalDBSteward.Fatal("No format-compatible permissions on function %s.%s(%s) grant: %v", schema.Name, fn.Name, grant.Permissions, strings.Join(fn.ParamTypes(), ","))
+		return nil, fmt.Errorf("no format-compatible permissions on function %s.%s(%s) grant: %v", schema.Name, fn.Name, grant.Permissions, strings.Join(fn.ParamTypes(), ","))
 	}
 	invalidPerms := util.IDifferenceStrs(perms, ir.PermissionListValidFunction)
 	if len(invalidPerms) > 0 {
-		lib.GlobalDBSteward.Fatal("Invalid permissions on sequence grant: %v", invalidPerms)
+		return nil, fmt.Errorf("invalid permissions on sequence grant: %v", invalidPerms)
 	}
 
 	ddl := []output.ToSql{
@@ -115,7 +124,7 @@ func getFunctionGrantSql(schema *ir.Schema, fn *ir.Function, grant *ir.Grant) []
 
 	// TODO(feat) should there be an implicit read-only grant?
 
-	return ddl
+	return ddl, nil
 }
 
 // TODO(go,3) move this to model

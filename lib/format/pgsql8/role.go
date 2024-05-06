@@ -1,6 +1,8 @@
 package pgsql8
 
 import (
+	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -111,7 +113,7 @@ func (ri *roleIndex) get(r string) string {
 	return r
 }
 
-func roleEnum(doc *ir.Definition, role string) string {
+func roleEnum(l *slog.Logger, doc *ir.Definition, role string) (string, error) {
 	if doc.Database == nil {
 		// TODO(go,nth) somehow was incompletely constructed
 		doc.Database = &ir.Database{
@@ -123,15 +125,15 @@ func roleEnum(doc *ir.Definition, role string) string {
 	switch role {
 	case ir.RolePublic, ir.RolePgsql:
 		// RolePublic, RolePgsql are their own constants
-		return role
+		return role, nil
 	case ir.RoleApplication:
-		return roles.Application
+		return roles.Application, nil
 	case ir.RoleOwner:
-		return roles.Owner
+		return roles.Owner, nil
 	case ir.RoleReadOnly:
-		return roles.ReadOnly
+		return roles.ReadOnly, nil
 	case ir.RoleReplication:
-		return roles.Replication
+		return roles.Replication, nil
 	}
 
 	// NEW: if role matches any of the specific role assignments, don't consider it to be an error
@@ -141,13 +143,14 @@ func roleEnum(doc *ir.Definition, role string) string {
 		strings.EqualFold(roles.ReadOnly, role) ||
 		strings.EqualFold(roles.Replication, role) ||
 		util.IStrsContains(roles.CustomRoles, role) {
-		return role
+		return role, nil
 	}
 
 	if !lib.GlobalDBSteward.IgnoreCustomRoles {
-		lib.GlobalDBSteward.Fatal("Failed to confirm custom role: %s", role)
+		l.Error(fmt.Sprintf("'%s' not in %+v", role, roles))
+		return "", fmt.Errorf("failed to confirm custom role: %s", role)
 	}
 
-	lib.GlobalDBSteward.Warning("Ignoring custom roles, Role '%s' is being overridden by ROLE_OWNER (%s)", role, roles.Owner)
-	return roles.Owner
+	l.Warn(fmt.Sprintf("Ignoring custom roles, Role '%s' is being overridden by ROLE_OWNER (%s)", role, roles.Owner))
+	return roles.Owner, nil
 }

@@ -2,6 +2,7 @@ package xml
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
 )
@@ -16,9 +17,54 @@ type View struct {
 	Queries        []*ViewQuery  `xml:"viewQuery"`
 }
 
+func ViewsFromIR(l *slog.Logger, views []*ir.View) ([]*View, error) {
+	if len(views) == 0 {
+		return nil, nil
+	}
+	var rv []*View
+	for _, view := range views {
+		if view != nil {
+			ll := l.With(slog.String("view", view.Name))
+			nv := View{
+				Name:           view.Name,
+				Description:    view.Description,
+				Owner:          view.Owner,
+				DependsOnViews: view.DependsOnViews,
+				Queries:        ViewQueriesFromIR(ll, view.Queries),
+			}
+			var err error
+			nv.Grants, err = GrantsFromIR(ll, view.Grants)
+			if err != nil {
+				return nil, err
+			}
+			rv = append(rv, &nv)
+		}
+	}
+	return rv, nil
+}
+
 type ViewQuery struct {
 	SqlFormat string `xml:"sqlFormat,attr,omitempty"`
 	Text      string `xml:",cdata"`
+}
+
+func ViewQueriesFromIR(l *slog.Logger, queries []*ir.ViewQuery) []*ViewQuery {
+	if len(queries) == 0 {
+		return nil
+	}
+	var rv []*ViewQuery
+	for _, query := range queries {
+		if query != nil {
+			rv = append(
+				rv,
+				&ViewQuery{
+					SqlFormat: string(query.SqlFormat),
+					Text:      query.Text,
+				},
+			)
+		}
+	}
+	return rv
 }
 
 func (vq *ViewQuery) ToIR() (*ir.ViewQuery, error) {

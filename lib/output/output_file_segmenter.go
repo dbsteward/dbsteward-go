@@ -2,42 +2,13 @@ package output
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"unicode"
-
-	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-const CommentLinePrefix = "--"
-
-type ToSql interface {
-	ToSql(Quoter) string
-}
-
-type Quoter interface {
-	QuoteSchema(schema string) string
-	QuoteTable(table string) string
-	QuoteColumn(column string) string
-	QuoteRole(role string) string
-	QuoteObject(obj string) string
-	QualifyTable(schema, table string) string
-	QualifyObject(schema, obj string) string
-	QualifyColumn(schema, table, column string) string
-	LiteralString(value string) string
-	LiteralValue(datatype, value string, isNull bool) string
-}
-
-type OutputFileSegmenter interface {
-	Close()
-	SetHeader(format string, args ...interface{})
-	AppendHeader(format string, args ...interface{})
-	AppendFooter(format string, args ...interface{})
-	Write(format string, args ...interface{})
-	WriteSql(...ToSql)
-}
-
-func NewOutputFileSegmenter(log util.Logger, quoter Quoter, baseFileName string, startingFileSegment uint, statementLimit uint) OutputFileSegmenter {
+func NewOutputFileSegmenter(log *slog.Logger, quoter Quoter, baseFileName string, startingFileSegment uint, statementLimit uint) OutputFileSegmenter {
 	return &outputFileSegmenter{
 		log:               log,
 		quoter:            quoter,
@@ -52,8 +23,8 @@ func NewOutputFileSegmenter(log util.Logger, quoter Quoter, baseFileName string,
 	}
 }
 
-func NewOutputFileSegmenterToFile(log util.Logger, quoter Quoter, baseFileName string, startingFileSegment uint, file *os.File, currentOutputFile string, statementLimit uint) OutputFileSegmenter {
-	log.Notice("[File Segment] Fixed output file: %s", currentOutputFile)
+func NewOutputFileSegmenterToFile(log *slog.Logger, quoter Quoter, baseFileName string, startingFileSegment uint, file *os.File, currentOutputFile string, statementLimit uint) OutputFileSegmenter {
+	log.Info(fmt.Sprintf("[File Segment] Fixed output file: %s", currentOutputFile))
 	return &outputFileSegmenter{
 		log:               log,
 		quoter:            quoter,
@@ -69,7 +40,7 @@ func NewOutputFileSegmenterToFile(log util.Logger, quoter Quoter, baseFileName s
 }
 
 type outputFileSegmenter struct {
-	log                  util.Logger
+	log                  *slog.Logger
 	quoter               Quoter
 	baseFileName         string
 	fileSegment          uint
@@ -85,106 +56,154 @@ type outputFileSegmenter struct {
 	writeWasCalledEver   bool
 }
 
-func (self *outputFileSegmenter) Close() {
+func (ofs *outputFileSegmenter) Close() error {
 	// before we insist on writing the footer
 	// if write was never called then the file segmenting has not initialized
 	// and will blow up when write_footer() calls write()
-	if !self.writeWasCalledEver {
-		self.Write("\n")
+	if !ofs.writeWasCalledEver {
+		err := ofs.Write("\n")
+		if err != nil {
+			return err
+		}
 	}
-	self.writeFooter()
-	err := self.file.Close()
-	self.log.ErrorIfError(err, "[File Segment] While closing file")
+	if err := ofs.writeFooter(); err != nil {
+		return err
+	}
+	return ofs.file.Close()
 }
 
-func (self *outputFileSegmenter) SetHeader(format string, args ...interface{}) {
-	self.contentHeader = fmt.Sprintf(format, args...)
+func (ofs *outputFileSegmenter) SetHeader(stmt ToSql) error {
+	ofs.contentHeader = stmt.ToSql(ofs.quoter)
+	return nil
 }
 
-func (self *outputFileSegmenter) AppendHeader(format string, args ...interface{}) {
-	self.contentHeader += fmt.Sprintf(format, args...)
+func (ofs *outputFileSegmenter) AppendHeader(stmt ToSql) error {
+	ofs.contentHeader += stmt.ToSql(ofs.quoter)
+	return nil
 }
 
-func (self *outputFileSegmenter) AppendFooter(format string, args ...interface{}) {
-	self.contentFooter += fmt.Sprintf(format, args...)
+func (ofs *outputFileSegmenter) AppendFooter(stmt ToSql) error {
+	ofs.contentFooter += stmt.ToSql(ofs.quoter)
+	return nil
 }
 
-func (self *outputFileSegmenter) WriteSql(stmts ...ToSql) {
+func (ofs *outputFileSegmenter) WriteSql(stmts ...ToSql) error {
 	// TODO(go,nth) implement ALTER TABLE batching. might be tricky though because behavior might change per dialect?
 	for _, stmt := range stmts {
 		// make sure every sql statement ends with ;\n\n for consistency, and has no other leading/trailing whitespace
-		sql := stmt.ToSql(self.quoter)
+		sql := stmt.ToSql(ofs.quoter)
 		sql = strings.TrimSpace(sql)
 		if sql == "" {
-			return
+			ofs.log.Warn(fmt.Sprintf("empty SQL string from %T", stmt))
+			continue
 		}
 		sql = strings.TrimSuffix(sql, ";")
-		self.Write("%s", sql+";\n\n")
+		if err := ofs.Write("%s", sql+";\n\n"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (ofs *outputFileSegmenter) MustWriteSql(stmts []ToSql, err error) {
+	if err != nil {
+		panic(err)
+	}
+	err = ofs.WriteSql(stmts...)
+	if err != nil {
+		panic(err)
 	}
 }
 
-func (self *outputFileSegmenter) Write(format string, args ...interface{}) {
+func (ofs *outputFileSegmenter) Write(format string, args ...interface{}) error {
 	// do the next segment if the pointer has not been set
 	// this is for first file header setup between set_header() / append_header() and write time
-	if self.file == nil {
-		self.nextFileSegment()
+	if ofs.file == nil {
+		err := ofs.nextFileSegment()
+		if err != nil {
+			return err
+		}
 	}
 
 	// if this segmenter is using a fixed file pointer
 	// need to do write_header() because next_file_segment() isn't going to get called
-	if self.fixedFilePointer && !self.wroteFixedFileHeader {
-		self.wroteFixedFileHeader = true
-		self.writeHeader()
+	if ofs.fixedFilePointer && !ofs.wroteFixedFileHeader {
+		ofs.wroteFixedFileHeader = true
+		err := ofs.writeHeader()
+		if err != nil {
+			return err
+		}
 	}
 
 	text := fmt.Sprintf(format, args...)
-	_, err := self.file.WriteString(text)
-	self.log.FatalIfError(err, "[File Segment] Failed to write to file %s, text: %s", self.file.Name(), text)
-	self.countStatements(text)
-	self.checkStatementCount()
-	self.writeWasCalledEver = true
+	_, err := ofs.file.WriteString(text)
+	if err != nil {
+		return fmt.Errorf("[File Segment] Failed to write to file %s, text: %s: %w", ofs.file.Name(), text, err)
+	}
+	ofs.countStatements(text)
+	err = ofs.checkStatementCount()
+	if err != nil {
+		return err
+	}
+	ofs.writeWasCalledEver = true
+	return nil
 }
 
-func (self *outputFileSegmenter) nextFileSegment() {
-	if !self.segmentingEnabled {
-		self.log.Fatal("next_file_segment called while segmenting_enabled is false. base_file_name = %s", self.baseFileName)
+func (ofs *outputFileSegmenter) nextFileSegment() error {
+	if !ofs.segmentingEnabled {
+		return fmt.Errorf("next_file_segment called while segmenting_enabled is false. base_file_name = %s", ofs.baseFileName)
 	}
-	if self.file != nil {
-		self.writeFooter()
-		self.log.ErrorIfError(self.file.Close(), "[File Segment] while closing file")
-		self.fileSegment += 1
+	if ofs.file != nil {
+		ofs.writeFooter()
+		if err := ofs.file.Close(); err != nil {
+			return fmt.Errorf("[File Segment] while closing file: %w", err)
+		}
+		ofs.fileSegment += 1
 	}
-	self.currentOutputFile = fmt.Sprintf("%s%d.sql", self.baseFileName, self.fileSegment)
-	self.log.Notice("[File Segment] Opening output file segment %s", self.currentOutputFile)
-	file, err := os.Create(self.currentOutputFile)
-	self.log.FatalIfError(err, "[File Segment] while opening file")
-	self.file = file
-	self.writeHeader()
-	self.statementCount = 0
+	ofs.currentOutputFile = fmt.Sprintf("%s%d.sql", ofs.baseFileName, ofs.fileSegment)
+	ofs.log.Info(fmt.Sprintf("[File Segment] Opening output file segment %s", ofs.currentOutputFile))
+	file, err := os.Create(ofs.currentOutputFile)
+	if err != nil {
+		return fmt.Errorf("[File Segment] while opening file: %w", err)
+	}
+	ofs.file = file
+	err = ofs.writeHeader()
+	if err != nil {
+		return err
+	}
+	ofs.statementCount = 0
+	return nil
 }
 
-func (self *outputFileSegmenter) writeHeader() {
-	self.withoutSegmenting(func() {
-		self.Write("%s %s\n", CommentLinePrefix, self.currentOutputFile)
-		self.Write(self.contentHeader)
+func (ofs *outputFileSegmenter) writeHeader() error {
+	return ofs.withoutSegmenting(func() error {
+		err := ofs.Write("%s %s\n", CommentLinePrefix, ofs.currentOutputFile)
+		if err != nil {
+			return err
+		}
+		err = ofs.Write(ofs.contentHeader)
+		if err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
-func (self *outputFileSegmenter) writeFooter() {
-	self.withoutSegmenting(func() {
-		self.Write(self.contentFooter)
+func (ofs *outputFileSegmenter) writeFooter() error {
+	return ofs.withoutSegmenting(func() error {
+		return ofs.Write(ofs.contentFooter)
 	})
 }
 
-func (self *outputFileSegmenter) withoutSegmenting(f func()) {
-	se := self.segmentingEnabled
-	self.segmentingEnabled = false
+func (ofs *outputFileSegmenter) withoutSegmenting(f func() error) error {
+	se := ofs.segmentingEnabled
+	ofs.segmentingEnabled = false
 	// the defer ensures we're in a good state following a panic in f
-	defer func() { self.segmentingEnabled = se }()
-	f()
+	defer func() { ofs.segmentingEnabled = se }()
+	return f()
 }
 
-func (self *outputFileSegmenter) countStatements(text string) {
+func (ofs *outputFileSegmenter) countStatements(text string) {
 	// TODO(feat) is this method adequate?
 	for _, line := range strings.Split(text, "\n") {
 		// strip comments off end of line
@@ -196,16 +215,17 @@ func (self *outputFileSegmenter) countStatements(text string) {
 		line = strings.TrimRightFunc(line, unicode.IsSpace)
 		// does line end in semicolon?
 		if strings.HasSuffix(line, ";") {
-			self.statementCount += 1
+			ofs.statementCount += 1
 		}
 	}
 }
 
-func (self *outputFileSegmenter) checkStatementCount() {
-	if !self.segmentingEnabled || self.statementLimit == 0 {
-		return
+func (ofs *outputFileSegmenter) checkStatementCount() error {
+	if !ofs.segmentingEnabled || ofs.statementLimit == 0 {
+		return nil
 	}
-	if self.statementCount >= self.statementLimit {
-		self.nextFileSegment()
+	if ofs.statementCount >= ofs.statementLimit {
+		return ofs.nextFileSegment()
 	}
+	return nil
 }

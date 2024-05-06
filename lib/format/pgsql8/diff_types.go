@@ -2,17 +2,20 @@ package pgsql8
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-func diffTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
+func diffTypes(l *slog.Logger, differ *diff, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) error {
 	dropTypes(ofs, oldSchema, newSchema)
-	createTypes(ofs, oldSchema, newSchema)
+	err := createTypes(ofs, oldSchema, newSchema)
+	if err != nil {
+		return err
+	}
 
 	// there is no alter for types
 	// find types that still exist that are different
@@ -38,25 +41,38 @@ func diffTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *
 			ofs.WriteSql(getFunctionDropSql(oldSchema, oldFunc)...)
 		}
 
-		columns, sql := alterColumnTypePlaceholder(oldType)
+		columns, sql, err := alterColumnTypePlaceholder(l, differ, oldType)
+		if err != nil {
+			return err
+		}
 		ofs.WriteSql(sql...)
 
 		if newType.Kind == ir.DataTypeKindDomain {
-			diffDomain(ofs, oldSchema, oldType, newSchema, newType)
+			err = diffDomain(ofs, oldSchema, oldType, newSchema, newType)
+			if err != nil {
+				return err
+			}
 		} else {
 			ofs.WriteSql(getDropTypeSql(oldSchema, oldType)...)
 			sql, err := getCreateTypeSql(newSchema, newType)
-			lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for type alter")
+			if err != nil {
+				return fmt.Errorf("could not get data type creation sql for type alter: %w", err)
+			}
 			ofs.WriteSql(sql...)
 		}
 
 		// functions are only recreated if they changed elsewise, so need to create them here
 		for _, newFunc := range GlobalSchema.GetFunctionsDependingOnType(newSchema, newType) {
-			ofs.WriteSql(getFunctionCreationSql(newSchema, newFunc)...)
+			s, err := getFunctionCreationSql(l, newSchema, newFunc)
+			if err != nil {
+				return err
+			}
+			ofs.WriteSql(s...)
 		}
 
 		ofs.WriteSql(alterColumnTypeRestore(columns, newSchema, newType)...)
 	}
+	return nil
 }
 
 func dropTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
@@ -70,17 +86,20 @@ func dropTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *
 	}
 }
 
-func createTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) {
+func createTypes(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) error {
 	for _, newType := range newSchema.Types {
 		if oldSchema.TryGetTypeNamed(newType.Name) == nil {
 			sql, err := getCreateTypeSql(newSchema, newType)
-			lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for type diff")
+			if err != nil {
+				return fmt.Errorf("could not get data type creation sql for type diff: %w", err)
+			}
 			ofs.WriteSql(sql...)
 		}
 	}
+	return nil
 }
 
-func diffDomain(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldType *ir.TypeDef, newSchema *ir.Schema, newType *ir.TypeDef) {
+func diffDomain(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldType *ir.TypeDef, newSchema *ir.Schema, newType *ir.TypeDef) error {
 	oldInfo := oldType.DomainType
 	newInfo := newType.DomainType
 
@@ -90,16 +109,18 @@ func diffDomain(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldType *i
 		ofs.WriteSql(sql.NewComment("domain base type changed from %s to %s; recreating the type", oldInfo.BaseType, newInfo.BaseType))
 		ofs.WriteSql(getDropTypeSql(oldSchema, oldType)...)
 		sql, err := getCreateTypeSql(newSchema, newType)
-		lib.GlobalDBSteward.FatalIfError(err, "Could not get data type creation sql for domain diff")
+		if err != nil {
+			return fmt.Errorf("could not get data type creation sql for domain diff: %w", err)
+		}
 		ofs.WriteSql(sql...)
 	}
 
-	ref := sql.TypeRef{newSchema.Name, newType.Name}
+	ref := sql.TypeRef{Schema: newSchema.Name, Type: newType.Name}
 
 	if oldInfo.Default != "" && newInfo.Default == "" {
 		ofs.WriteSql(&sql.Annotated{
 			Annotation: "domain default dropped",
-			Wrapped:    &sql.TypeDomainAlterDropDefault{ref},
+			Wrapped:    &sql.TypeDomainAlterDropDefault{Type: ref},
 		})
 	} else if oldInfo.Default != newInfo.Default {
 		// TODO(feat) what about recursively resolving this in the case that the base type is another user defined type?
@@ -119,7 +140,7 @@ func diffDomain(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldType *i
 	if oldInfo.Nullable != newInfo.Nullable {
 		ofs.WriteSql(&sql.Annotated{
 			Annotation: "domain nullability changed",
-			Wrapped:    &sql.TypeDomainAlterSetNullable{ref, newInfo.Nullable},
+			Wrapped:    &sql.TypeDomainAlterSetNullable{Type: ref, Nullable: newInfo.Nullable},
 		})
 	}
 
@@ -128,20 +149,29 @@ func diffDomain(ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldType *i
 		if oldConstraint != nil {
 			if !oldConstraint.Equals(newConstraint) {
 				ofs.WriteSql(sql.NewComment("domain constraint %s changed from %s", oldConstraint.Name, oldConstraint.Check))
-				ofs.WriteSql(&sql.TypeDomainAlterDropConstraint{ref, oldConstraint.Name})
-				ofs.WriteSql(&sql.TypeDomainAlterAddConstraint{ref, newConstraint.Name, sql.RawSql(newConstraint.GetNormalizedCheck())})
+				ofs.WriteSql(&sql.TypeDomainAlterDropConstraint{Type: ref, Constraint: oldConstraint.Name})
+				ofs.WriteSql(&sql.TypeDomainAlterAddConstraint{
+					Type:       ref,
+					Constraint: newConstraint.Name,
+					Check:      sql.RawSql(newConstraint.GetNormalizedCheck())},
+				)
 			}
 		} else {
 			ofs.WriteSql(sql.NewComment("domain constraint %s added", newConstraint.Name))
-			ofs.WriteSql(&sql.TypeDomainAlterAddConstraint{ref, newConstraint.Name, sql.RawSql(newConstraint.GetNormalizedCheck())})
+			ofs.WriteSql(&sql.TypeDomainAlterAddConstraint{
+				Type:       ref,
+				Constraint: newConstraint.Name,
+				Check:      sql.RawSql(newConstraint.GetNormalizedCheck())},
+			)
 		}
 	}
 	for _, oldConstraint := range oldType.DomainConstraints {
 		if newType.TryGetDomainConstraintNamed(oldConstraint.Name) == nil {
 			ofs.WriteSql(&sql.Annotated{
 				Annotation: fmt.Sprintf("domain constraint %s removed", oldConstraint.Name),
-				Wrapped:    &sql.TypeDomainAlterDropConstraint{ref, oldConstraint.Name},
+				Wrapped:    &sql.TypeDomainAlterDropConstraint{Type: ref, Constraint: oldConstraint.Name},
 			})
 		}
 	}
+	return nil
 }

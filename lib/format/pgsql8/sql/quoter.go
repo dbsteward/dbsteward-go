@@ -2,6 +2,7 @@ package sql
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"unicode"
 
@@ -13,7 +14,7 @@ import (
 // Would also give us a nice platform for the later quoting/casing changes (see README)
 
 type Quoter struct {
-	Logger util.Logger
+	Logger *slog.Logger
 
 	ShouldQuoteSchemaNames         bool
 	ShouldQuoteTableNames          bool
@@ -172,13 +173,13 @@ func (quoter *Quoter) getQuotedName(name string, shouldQuote bool) string {
 	if !shouldQuote {
 		if quoter.isIllegalIdentifier(name) {
 			if quoter.ShouldQuoteIllegalIdentifiers {
-				quoter.Logger.Warning("Quoting illegal identifier '%s'", name)
+				quoter.Logger.Warn(fmt.Sprintf("Quoting illegal identifier '%s'", name))
 				shouldQuote = true
 			} else {
-				quoter.Logger.Fatal("Illegal identifier '%s' - turn on quoting of illegal identifiers with --quoteillegalnames", name)
+				quoter.Logger.Error(fmt.Sprintf("Illegal identifier '%s' - turn on quoting of illegal identifiers with --quoteillegalnames", name))
 			}
 		} else if identifierNeedsQuoted(name) {
-			quoter.Logger.Warning("Quoting identifier '%s'", name)
+			quoter.Logger.Warn(fmt.Sprintf("Quoting identifier '%s'", name))
 			shouldQuote = true
 		}
 	}
@@ -240,7 +241,7 @@ func (quoter *Quoter) LiteralValue(datatype, value string, isNull bool) string {
 
 	// complain when we require verbose interval notation but data uses a different format
 	if quoter.RequireVerboseIntervalNotation && util.IMatch("interval", datatype) != nil && value[0] != '@' {
-		quoter.Logger.Fatal("bad interval value: '%s' -- interval types must be postgresql verbose format: '@ 2 hours 30 minutes'", value)
+		quoter.Logger.Error(fmt.Sprintf("bad interval value: '%s' -- interval types must be postgresql verbose format: '@ 2 hours 30 minutes'", value))
 	}
 
 	// datatypes that should be encoded as strings

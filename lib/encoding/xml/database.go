@@ -2,6 +2,7 @@ package xml
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
 )
@@ -22,9 +23,41 @@ type RoleAssignment struct {
 	CustomRoles DelimitedList `xml:"customRole,omitempty"`
 }
 
+func RoleAssignmentFromIR(l *slog.Logger, i *ir.RoleAssignment) *RoleAssignment {
+	l.Debug("translating role assignments")
+	defer l.Debug("done translating role assignments")
+	ra := RoleAssignment{
+		Application: i.Application,
+		Owner:       i.Owner,
+		Replication: i.Replication,
+		ReadOnly:    i.ReadOnly,
+		CustomRoles: i.CustomRoles,
+	}
+	return &ra
+}
+
 type ConfigParam struct {
 	Name  string `xml:"name,attr"`
 	Value string `xml:"value,attr"`
+}
+
+func ConfigParamsFromIR(l *slog.Logger, c []*ir.ConfigParam) []*ConfigParam {
+	l.Debug("translating config parameters")
+	defer l.Debug("done translating config parameters")
+	if len(c) == 0 {
+		return nil
+	}
+	var cp []*ConfigParam
+	for _, ircp := range c {
+		cp = append(
+			cp,
+			&ConfigParam{
+				Name:  ircp.Name,
+				Value: ircp.Value,
+			},
+		)
+	}
+	return cp
 }
 
 func (db *Database) ToIR() (*ir.Database, error) {

@@ -23,31 +23,32 @@ func LoadDefintion(file string) (*ir.Definition, error) {
 	return ReadDef(f)
 }
 
-func SaveDefinition(filename string, def *ir.Definition) error {
+func SaveDefinition(l *slog.Logger, filename string, def *ir.Definition) error {
+	l = l.With(slog.String("filename", filename))
 	f, err := os.Create(filename)
 	if err != nil {
 		return fmt.Errorf("could not open file %s for writing: %w", filename, err)
 	}
 	defer f.Close()
 
-	err = WriteDef(f, def)
+	err = WriteDef(l, f, def)
 	if err != nil {
 		return fmt.Errorf("could not write XML document to '%s': %w", filename, err)
 	}
 	return nil
 }
 
-func FormatXml(def *ir.Definition) (string, error) {
+func FormatXml(l *slog.Logger, def *ir.Definition) (string, error) {
 	buf := &bytes.Buffer{}
-	err := WriteDef(buf, def)
+	err := WriteDef(l, buf, def)
 	if err != nil {
 		return "", fmt.Errorf("could not marshal definition: %w", err)
 	}
 	return buf.String(), nil
 }
 
-func XmlComposite(files []string) (*ir.Definition, error) {
-	doc, _, err := XmlCompositeAddendums(slog.Default(), files, 0)
+func XmlComposite(l *slog.Logger, files []string) (*ir.Definition, error) {
+	doc, _, err := XmlCompositeAddendums(l, files, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -76,9 +77,9 @@ func XmlCompositeAddendums(l *slog.Logger, files []string, addendums uint) (*ir.
 			return nil, nil, fmt.Errorf("failed to composite xml file %s: %w", file, err)
 		}
 	}
-	formatted, err := FormatXml(composite)
+	formatted, err := FormatXml(l, composite)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to format XML: %w", err)
 	}
 	ValidateXml(formatted)
 
@@ -94,12 +95,12 @@ func CompositeDoc(base, overlay *ir.Definition, file string, startAddendumsIdx i
 
 	overlay, err := expandIncludes(overlay, file)
 	if err != nil {
-		return base, err
+		return base, fmt.Errorf("failed expandIncludes: %w", err)
 	}
 	overlay = expandTabrowData(overlay)
 	overlay, err = SqlFormatConvert(overlay)
 	if err != nil {
-		return base, err
+		return base, fmt.Errorf("failed SqlFormatConvert: %w", err)
 	}
 
 	// TODO(go,core) data addendums

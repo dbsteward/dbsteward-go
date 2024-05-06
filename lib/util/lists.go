@@ -127,6 +127,9 @@ func Map[S ~[]T, T, U any](slice S, f func(T) U) []U {
 }
 
 func MapErr[S ~[]T, T, U any](slice S, f func(T) (U, error)) ([]U, error) {
+	if len(slice) == 0 {
+		return nil, nil
+	}
 	out := make([]U, len(slice))
 	for i, t := range slice {
 		u, err := f(t)

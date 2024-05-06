@@ -11,7 +11,7 @@ function _help_post {
 }
 
 function run { # <...args>: Run DBSteward
-  cmd go run .. "$@"
+  cmd go run .. --debug "$@"
 }
 
 function run-format { # <format> <...args>: Run DBSteward, injecting format-specific arguments
