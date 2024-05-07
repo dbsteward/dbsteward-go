@@ -220,6 +220,34 @@ func (ops *Operations) BuildUpgrade(
 	return nil
 }
 
+func (ops *Operations) Upgrade(l *slog.Logger, oldDoc *ir.Definition, newDoc *ir.Definition) ([]output.DDLStatement, error) {
+	var err error
+	ops.differ.OldTableDependency, err = oldDoc.TableDependencyOrder()
+	if err != nil {
+		return nil, fmt.Errorf("old document: %w", err)
+	}
+	ops.differ.NewTableDependency, err = newDoc.TableDependencyOrder()
+	if err != nil {
+		return nil, fmt.Errorf("new document: %w", err)
+	}
+	lib.GlobalDBSteward.OldDatabase = oldDoc
+	lib.GlobalDBSteward.NewDatabase = newDoc
+
+	stage1 := output.NewSegmenter(ops.GetQuoter())
+	stage2 := output.NewSegmenter(ops.GetQuoter())
+	stage3 := output.NewSegmenter(ops.GetQuoter())
+	stage4 := output.NewSegmenter(ops.GetQuoter())
+	err = ops.differ.DiffDocWork(stage1, stage2, stage3, stage4)
+	if err != nil {
+		return nil, err
+	}
+	stmts := stage1.AllStatements()
+	stmts = append(stmts, stage2.AllStatements()...)
+	stmts = append(stmts, stage3.AllStatements()...)
+	stmts = append(stmts, stage4.AllStatements()...)
+	return stmts, nil
+}
+
 func (ops *Operations) ExtractSchemaConn(ctx context.Context, c *pgx.Conn) (*ir.Definition, error) {
 	conn := &liveConnection{c}
 	return ops.extractSchema(ctx, conn)
