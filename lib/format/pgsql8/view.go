@@ -11,7 +11,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-func getCreateViewSql(dbs *lib.DBSteward, schema *ir.Schema, view *ir.View) ([]output.ToSql, error) {
+func getCreateViewSql(conf lib.Config, schema *ir.Schema, view *ir.View) ([]output.ToSql, error) {
 	ref := sql.ViewRef{Schema: schema.Name, View: view.Name}
 	query := view.TryGetViewQuery(ir.SqlFormatPgsql8)
 	util.Assert(query != nil, "Calling View.GetCreationSql for a view not defined for this sqlformat")
@@ -30,7 +30,7 @@ func getCreateViewSql(dbs *lib.DBSteward, schema *ir.Schema, view *ir.View) ([]o
 		})
 	}
 	if view.Owner != "" {
-		role, err := roleEnum(dbs.Logger(), dbs.NewDatabase, view.Owner, dbs.IgnoreCustomRoles)
+		role, err := roleEnum(conf.Logger, conf.NewDatabase, view.Owner, conf.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}
@@ -51,12 +51,12 @@ func getDropViewSql(schema *ir.Schema, view *ir.View) []output.ToSql {
 	}
 }
 
-func getViewGrantSql(dbs *lib.DBSteward, doc *ir.Definition, schema *ir.Schema, view *ir.View, grant *ir.Grant) ([]output.ToSql, error) {
+func getViewGrantSql(conf lib.Config, doc *ir.Definition, schema *ir.Schema, view *ir.View, grant *ir.Grant) ([]output.ToSql, error) {
 	// NOTE: pgsql views use table grants!
 	roles := make([]string, len(grant.Roles))
 	var err error
 	for i, role := range grant.Roles {
-		roles[i], err = roleEnum(dbs.Logger(), dbs.NewDatabase, role, dbs.IgnoreCustomRoles)
+		roles[i], err = roleEnum(conf.Logger, conf.NewDatabase, role, conf.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}

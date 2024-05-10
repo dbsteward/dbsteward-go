@@ -5,9 +5,9 @@ import (
 	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
-func setOldNewDocs(dbs *lib.DBSteward, differ *diff, old, new *ir.Definition) {
-	dbs.OldDatabase = old
-	dbs.NewDatabase = new
+func setOldNewDocs(conf lib.Config, differ *diff, old, new *ir.Definition) lib.Config {
+	conf.OldDatabase = old
+	conf.NewDatabase = new
 	var err error
 	if old != nil {
 		differ.OldTableDependency, err = old.TableDependencyOrder()
@@ -21,4 +21,5 @@ func setOldNewDocs(dbs *lib.DBSteward, differ *diff, old, new *ir.Definition) {
 			panic(err)
 		}
 	}
+	return conf
 }

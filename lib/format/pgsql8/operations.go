@@ -22,32 +22,32 @@ import (
 )
 
 type Operations struct {
-	logger    *slog.Logger
-	dbsteward *lib.DBSteward
-	differ    *diff
+	logger *slog.Logger
+	config lib.Config
+	differ *diff
 }
 
 var quoter output.Quoter
 
-func defaultQuoter(dbsteward *lib.DBSteward) output.Quoter {
+func defaultQuoter(c lib.Config) output.Quoter {
 	return &sql.Quoter{
-		Logger:                         dbsteward.Logger(),
-		ShouldQuoteSchemaNames:         dbsteward.QuoteAllNames || dbsteward.QuoteSchemaNames,
-		ShouldQuoteTableNames:          dbsteward.QuoteAllNames || dbsteward.QuoteTableNames,
-		ShouldQuoteColumnNames:         dbsteward.QuoteAllNames || dbsteward.QuoteColumnNames,
-		ShouldQuoteObjectNames:         dbsteward.QuoteAllNames || dbsteward.QuoteObjectNames,
-		ShouldQuoteIllegalIdentifiers:  dbsteward.QuoteIllegalIdentifiers,
-		ShouldQuoteReservedIdentifiers: dbsteward.QuoteReservedIdentifiers,
+		Logger:                         c.Logger,
+		ShouldQuoteSchemaNames:         c.QuoteAllNames || c.QuoteSchemaNames,
+		ShouldQuoteTableNames:          c.QuoteAllNames || c.QuoteTableNames,
+		ShouldQuoteColumnNames:         c.QuoteAllNames || c.QuoteColumnNames,
+		ShouldQuoteObjectNames:         c.QuoteAllNames || c.QuoteObjectNames,
+		ShouldQuoteIllegalIdentifiers:  c.QuoteIllegalIdentifiers,
+		ShouldQuoteReservedIdentifiers: c.QuoteReservedIdentifiers,
 		ShouldEEscape:                  false,
-		RequireVerboseIntervalNotation: dbsteward.RequireVerboseIntervalNotation,
+		RequireVerboseIntervalNotation: c.RequireVerboseIntervalNotation,
 	}
 }
 
-func NewOperations(dbs *lib.DBSteward) lib.Operations {
-	quoter = defaultQuoter(dbs)
+func NewOperations(c lib.Config) lib.Operations {
+	quoter = defaultQuoter(c)
 	ops := &Operations{
-		logger:    dbs.Logger(),
-		dbsteward: dbs,
+		logger: c.Logger,
+		config: c,
 	}
 	ops.differ = newDiff(ops, quoter)
 	return ops
@@ -76,7 +76,7 @@ func (ops *Operations) Build(outputPrefix string, dbDoc *ir.Definition) error {
 		return fmt.Errorf("failed to open file %s for output: %w", buildFileName, err)
 	}
 
-	buildFileOfs := output.NewOutputFileSegmenterToFile(ops.logger, ops.GetQuoter(), buildFileName, 1, buildFile, buildFileName, ops.dbsteward.OutputFileStatementLimit)
+	buildFileOfs := output.NewOutputFileSegmenterToFile(ops.logger, ops.GetQuoter(), buildFileName, 1, buildFile, buildFileName, ops.config.OutputFileStatementLimit)
 	err = ops.build(buildFileOfs, dbDoc)
 	if err != nil {
 		return err
@@ -87,10 +87,10 @@ func (ops *Operations) Build(outputPrefix string, dbDoc *ir.Definition) error {
 func (ops *Operations) build(buildFileOfs output.OutputFileSegmenter, dbDoc *ir.Definition) error {
 	// TODO(go,4) can we just consider a build(def) to be diff(null, def)?
 
-	if len(ops.dbsteward.LimitToTables) == 0 {
+	if len(ops.config.LimitToTables) == 0 {
 		buildFileOfs.WriteSql(sql.NewComment("full database definition file generated %s\n", time.Now().Format(time.RFC1123Z)))
 	}
-	if !ops.dbsteward.GenerateSlonik {
+	if !ops.config.GenerateSlonik {
 		buildFileOfs.WriteSql(output.NewRawSQL("BEGIN;\n\n"))
 	}
 
@@ -101,12 +101,12 @@ func (ops *Operations) build(buildFileOfs output.OutputFileSegmenter, dbDoc *ir.
 	}
 
 	// database-specific implementation code refers to dbsteward::$new_database when looking up roles/values/conflicts etc
-	ops.dbsteward.NewDatabase = dbDoc
+	ops.config.NewDatabase = dbDoc
 
 	// language definitions
-	if ops.dbsteward.CreateLanguages {
+	if ops.config.CreateLanguages {
 		for _, language := range dbDoc.Languages {
-			s, err := getCreateLanguageSql(ops.dbsteward, language)
+			s, err := getCreateLanguageSql(ops.config, language)
 			if err != nil {
 				return err
 			}
@@ -159,23 +159,23 @@ outer:
 		ops.logger.Info(setCheckFunctionBodiesInfo)
 	}
 
-	if ops.dbsteward.OnlySchemaSql || !ops.dbsteward.OnlyDataSql {
+	if ops.config.OnlySchemaSql || !ops.config.OnlyDataSql {
 		ops.logger.Info("Defining structure")
 		err := ops.buildSchema(dbDoc, buildFileOfs, tableDependency)
 		if err != nil {
 			return err
 		}
 	}
-	if !ops.dbsteward.OnlySchemaSql || ops.dbsteward.OnlyDataSql {
+	if !ops.config.OnlySchemaSql || ops.config.OnlyDataSql {
 		ops.logger.Info("Defining data inserts")
 		err = ops.buildData(ops.logger, dbDoc, buildFileOfs, tableDependency)
 		if err != nil {
 			return err
 		}
 	}
-	ops.dbsteward.NewDatabase = nil
+	ops.config.NewDatabase = nil
 
-	if !ops.dbsteward.GenerateSlonik {
+	if !ops.config.GenerateSlonik {
 		buildFileOfs.WriteSql(output.NewRawSQL("COMMIT;\n\n"))
 	}
 
@@ -223,8 +223,8 @@ func (ops *Operations) Upgrade(l *slog.Logger, oldDoc *ir.Definition, newDoc *ir
 	if err != nil {
 		return nil, fmt.Errorf("new document: %w", err)
 	}
-	ops.dbsteward.OldDatabase = oldDoc
-	ops.dbsteward.NewDatabase = newDoc
+	ops.config.OldDatabase = oldDoc
+	ops.config.NewDatabase = newDoc
 
 	stage1 := output.NewSegmenter(ops.GetQuoter())
 	stage2 := output.NewSegmenter(ops.GetQuoter())
@@ -957,7 +957,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 	// TODO(go,3) roll this into diffing nil -> doc
 	// schema creation
 	for _, schema := range doc.Schemas {
-		s, err := commonSchema.GetCreationSql(ops.dbsteward, schema)
+		s, err := commonSchema.GetCreationSql(ops.config, schema)
 		if err != nil {
 			return err
 		}
@@ -965,7 +965,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 
 		// schema grants
 		for _, grant := range schema.Grants {
-			s, err := commonSchema.GetGrantSql(ops.dbsteward, doc, schema, grant)
+			s, err := commonSchema.GetGrantSql(ops.config, doc, schema, grant)
 			if err != nil {
 				return err
 			}
@@ -990,7 +990,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 		includeColumnDefaultNextvalInCreateSql = false
 		for _, table := range schema.Tables {
 			// table definition
-			s, err := getCreateTableSql(ops.dbsteward, schema, table)
+			s, err := getCreateTableSql(ops.config, schema, table)
 			if err != nil {
 				return err
 			}
@@ -1004,7 +1004,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 
 			// table grants
 			for _, grant := range table.Grants {
-				s, err := getTableGrantSql(ops.dbsteward, schema, table, grant)
+				s, err := getTableGrantSql(ops.config, schema, table, grant)
 				if err != nil {
 					return err
 				}
@@ -1016,7 +1016,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 		// sequences contained in the schema
 		for _, sequence := range schema.Sequences {
 			if sequence.OwnedByColumn == "" {
-				sql, err := getCreateSequenceSql(ops.dbsteward, schema, sequence)
+				sql, err := getCreateSequenceSql(ops.config, schema, sequence)
 				if err != nil {
 					return err
 				}
@@ -1029,7 +1029,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 
 			// sequence permission grants
 			for _, grant := range sequence.Grants {
-				s, err := getSequenceGrantSql(ops.dbsteward, schema, sequence, grant)
+				s, err := getSequenceGrantSql(ops.config, schema, sequence, grant)
 				if err != nil {
 					return err
 				}
@@ -1049,7 +1049,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 	for _, schema := range doc.Schemas {
 		for _, function := range schema.Functions {
 			if function.HasDefinition(ir.SqlFormatPgsql8) {
-				s, err := getFunctionCreationSql(ops.dbsteward, schema, function)
+				s, err := getFunctionCreationSql(ops.config, schema, function)
 				if err != nil {
 					return err
 				}
@@ -1058,7 +1058,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 				// they are not included in pg_function::get_creation_sql()
 
 				for _, grant := range function.Grants {
-					grant, err := getFunctionGrantSql(ops.dbsteward, schema, function, grant)
+					grant, err := getFunctionGrantSql(ops.config, schema, function, grant)
 					if err != nil {
 						return err
 					}
@@ -1079,7 +1079,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 	// define table primary keys before foreign keys so unique requirements are always met for FOREIGN KEY constraints
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
-			err := createConstraintsTable(ops.dbsteward, ofs, nil, nil, schema, table, sql99.ConstraintTypePrimaryKey)
+			err := createConstraintsTable(ops.config, ofs, nil, nil, schema, table, sql99.ConstraintTypePrimaryKey)
 			if err != nil {
 				return err
 			}
@@ -1090,7 +1090,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 	// use the dependency order to specify foreign keys in an order that will satisfy nested foreign keys and etc
 	// TODO(feat) shouldn't this consider GlobalDBSteward.LimitToTables like BuildData does?
 	for _, entry := range tableDep {
-		err := createConstraintsTable(ops.dbsteward, ofs, nil, nil, entry.Schema, entry.Table, sql99.ConstraintTypeConstraint)
+		err := createConstraintsTable(ops.config, ofs, nil, nil, entry.Schema, entry.Table, sql99.ConstraintTypeConstraint)
 		if err != nil {
 			return err
 		}
@@ -1109,7 +1109,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 		}
 	}
 
-	err := createViewsOrdered(ops.dbsteward, ofs, nil, doc)
+	err := createViewsOrdered(ops.config, ofs, nil, doc)
 	if err != nil {
 		return err
 	}
@@ -1118,7 +1118,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 	for _, schema := range doc.Schemas {
 		for _, view := range schema.Views {
 			for _, grant := range view.Grants {
-				s, err := getViewGrantSql(ops.dbsteward, doc, schema, view, grant)
+				s, err := getViewGrantSql(ops.config, doc, schema, view, grant)
 				if err != nil {
 					return err
 				}
@@ -1132,7 +1132,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 }
 
 func (ops *Operations) buildData(_ *slog.Logger, doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) error {
-	limitToTables := ops.dbsteward.LimitToTables
+	limitToTables := ops.config.LimitToTables
 
 	// use the dependency order to then write out the actual data inserts into the data sql file
 	for _, entry := range tableDep {
@@ -1222,7 +1222,7 @@ func (ops *Operations) columnValueDefault(l *slog.Logger, schema *ir.Schema, tab
 		}
 	}
 
-	col, err := ops.dbsteward.NewDatabase.TryInheritanceGetColumn(schema, table, columnName)
+	col, err := ops.config.NewDatabase.TryInheritanceGetColumn(schema, table, columnName)
 	if err != nil {
 		return nil, fmt.Errorf("TryInheritanceGetColumn %w", err)
 	}
@@ -1244,7 +1244,7 @@ func (ops *Operations) columnValueDefault(l *slog.Logger, schema *ir.Schema, tab
 		return sql.RawSql(col.Default), nil
 	}
 
-	colType, err := getColumnType(l, ops.dbsteward.NewDatabase, schema, table, col)
+	colType, err := getColumnType(l, ops.config.NewDatabase, schema, table, col)
 	if err != nil {
 		return nil, err
 	}

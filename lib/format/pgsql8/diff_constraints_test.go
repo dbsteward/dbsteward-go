@@ -3,7 +3,6 @@ package pgsql8
 import (
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 
@@ -102,7 +101,7 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 	oldSchema := &ir.Schema{
 		Name: "public",
 		Tables: []*ir.Table{
-			&ir.Table{
+			{
 				Name:       "test",
 				PrimaryKey: []string{"pka"},
 				Columns: []*ir.Column{
@@ -114,7 +113,7 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 	newSchema := &ir.Schema{
 		Name: "public",
 		Tables: []*ir.Table{
-			&ir.Table{
+			{
 				Name:          "newtable",
 				PrimaryKey:    []string{"pkb"},
 				OldSchemaName: "public",
@@ -135,15 +134,15 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 	newDoc := &ir.Definition{
 		Schemas: []*ir.Schema{newSchema},
 	}
-	dbs := lib.NewDBSteward()
-	ofs := output.NewSegmenter(defaultQuoter(dbs))
-	differ := newDiff(NewOperations(dbs).(*Operations), defaultQuoter(dbs))
-	setOldNewDocs(dbs, differ, oldDoc, newDoc)
-	err := dropConstraintsTable(dbs, ofs, oldSchema, oldSchema.Tables[0], newSchema, nil, sql99.ConstraintTypePrimaryKey)
+	config := DefaultConfig
+	ofs := output.NewSegmenter(defaultQuoter(config))
+	differ := newDiff(NewOperations(config).(*Operations), defaultQuoter(config))
+	config = setOldNewDocs(config, differ, oldDoc, newDoc)
+	err := dropConstraintsTable(config, ofs, oldSchema, oldSchema.Tables[0], newSchema, nil, sql99.ConstraintTypePrimaryKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = createConstraintsTable(dbs, ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], sql99.ConstraintTypePrimaryKey)
+	err = createConstraintsTable(config, ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], sql99.ConstraintTypePrimaryKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,15 +381,15 @@ func diffConstraintsTableCommon(t *testing.T, oldSchema, newSchema *ir.Schema, c
 	newDoc := &ir.Definition{
 		Schemas: []*ir.Schema{newSchema},
 	}
-	dbs := lib.NewDBSteward()
-	ofs := output.NewSegmenter(defaultQuoter(dbs))
-	differ := newDiff(NewOperations(dbs).(*Operations), defaultQuoter(dbs))
-	setOldNewDocs(dbs, differ, oldDoc, newDoc)
-	err := dropConstraintsTable(dbs, ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
+	config := DefaultConfig
+	ofs := output.NewSegmenter(defaultQuoter(config))
+	differ := newDiff(NewOperations(config).(*Operations), defaultQuoter(config))
+	config = setOldNewDocs(config, differ, oldDoc, newDoc)
+	err := dropConstraintsTable(config, ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = createConstraintsTable(dbs, ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
+	err = createConstraintsTable(config, ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
 	if err != nil {
 		t.Fatal(err)
 	}

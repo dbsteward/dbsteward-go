@@ -10,7 +10,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-func diffTypes(dbs *lib.DBSteward, differ *diff, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) error {
+func diffTypes(conf lib.Config, differ *diff, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) error {
 	dropTypes(ofs, oldSchema, newSchema)
 	err := createTypes(ofs, oldSchema, newSchema)
 	if err != nil {
@@ -41,7 +41,7 @@ func diffTypes(dbs *lib.DBSteward, differ *diff, ofs output.OutputFileSegmenter,
 			ofs.WriteSql(getFunctionDropSql(oldSchema, oldFunc)...)
 		}
 
-		columns, sql, err := alterColumnTypePlaceholder(dbs, differ, oldType)
+		columns, sql, err := alterColumnTypePlaceholder(conf, differ, oldType)
 		if err != nil {
 			return err
 		}
@@ -63,7 +63,7 @@ func diffTypes(dbs *lib.DBSteward, differ *diff, ofs output.OutputFileSegmenter,
 
 		// functions are only recreated if they changed elsewise, so need to create them here
 		for _, newFunc := range commonSchema.GetFunctionsDependingOnType(newSchema, newType) {
-			s, err := getFunctionCreationSql(dbs, newSchema, newFunc)
+			s, err := getFunctionCreationSql(conf, newSchema, newFunc)
 			if err != nil {
 				return err
 			}

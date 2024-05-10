@@ -3,7 +3,6 @@ package pgsql8
 import (
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -43,7 +42,7 @@ func TestTable_GetCreationSql_TableOptions(t *testing.T) {
 		},
 	}
 
-	ddl, err := getCreateTableSql(lib.NewDBSteward(), schema, schema.Tables[0])
+	ddl, err := getCreateTableSql(DefaultConfig, schema, schema.Tables[0])
 	if err != nil {
 		t.Fatal(err)
 	}

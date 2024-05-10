@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,9 +27,8 @@ func TestOneEighty(t *testing.T) {
 	}
 	defer Teardowndb(t, c, "pg")
 	role := os.Getenv("DB_USER")
-	dbs := lib.NewDBSteward()
-	dbs.SqlFormat = ir.SqlFormatPgsql8
-	ops := NewOperations(dbs).(*Operations)
+	conf := DefaultConfig
+	ops := NewOperations(conf).(*Operations)
 	statements, err := ops.CreateStatements(ir.FullFeatureSchema(role))
 	if err != nil {
 		t.Fatal(err)

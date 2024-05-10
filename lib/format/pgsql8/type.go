@@ -119,12 +119,12 @@ func isIntType(spec string) bool {
 }
 
 // Change all table columns that are the given datatype to a placeholder type
-func alterColumnTypePlaceholder(dbs *lib.DBSteward, differ *diff, datatype *ir.TypeDef) ([]*ir.ColumnRef, []output.ToSql, error) {
+func alterColumnTypePlaceholder(conf lib.Config, differ *diff, datatype *ir.TypeDef) ([]*ir.ColumnRef, []output.ToSql, error) {
 	ddl := []output.ToSql{}
 	cols := []*ir.ColumnRef{}
 	for _, newTableRef := range differ.NewTableDependency {
 		for _, newColumn := range newTableRef.Table.Columns {
-			columnType, err := getColumnType(dbs.Logger(), dbs.NewDatabase, newTableRef.Schema, newTableRef.Table, newColumn)
+			columnType, err := getColumnType(conf.Logger, conf.NewDatabase, newTableRef.Schema, newTableRef.Table, newColumn)
 			if err != nil {
 				return nil, nil, err
 			}

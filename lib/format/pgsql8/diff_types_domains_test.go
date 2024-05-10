@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -323,12 +322,12 @@ func diffTypesForTest(t *testing.T, oldSchema, newSchema *ir.Schema) []output.To
 	newDoc := &ir.Definition{
 		Schemas: []*ir.Schema{newSchema},
 	}
-	dbs := lib.NewDBSteward()
-	ops := NewOperations(dbs).(*Operations)
-	differ := newDiff(ops, defaultQuoter(dbs))
-	setOldNewDocs(dbs, differ, oldDoc, newDoc)
-	ofs := output.NewAnnotationStrippingSegmenter(defaultQuoter(dbs))
-	err := diffTypes(dbs, differ, ofs, oldSchema, newSchema)
+	config := DefaultConfig
+	ops := NewOperations(config).(*Operations)
+	differ := newDiff(ops, defaultQuoter(config))
+	config = setOldNewDocs(config, differ, oldDoc, newDoc)
+	ofs := output.NewAnnotationStrippingSegmenter(defaultQuoter(config))
+	err := diffTypes(config, differ, ofs, oldSchema, newSchema)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -19,7 +19,7 @@ func NewSchema() *Schema {
 	return &Schema{}
 }
 
-func (s *Schema) GetCreationSql(dbs *lib.DBSteward, schema *ir.Schema) ([]output.ToSql, error) {
+func (s *Schema) GetCreationSql(conf lib.Config, schema *ir.Schema) ([]output.ToSql, error) {
 	// don't create the public schema
 	if strings.EqualFold(schema.Name, "public") {
 		return nil, nil
@@ -30,7 +30,7 @@ func (s *Schema) GetCreationSql(dbs *lib.DBSteward, schema *ir.Schema) ([]output
 	}
 
 	if schema.Owner != "" {
-		owner, err := roleEnum(dbs.Logger(), dbs.NewDatabase, schema.Owner, dbs.IgnoreCustomRoles)
+		owner, err := roleEnum(conf.Logger, conf.NewDatabase, schema.Owner, conf.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}
@@ -53,11 +53,11 @@ func (s *Schema) GetDropSql(schema *ir.Schema) []output.ToSql {
 	}
 }
 
-func (s *Schema) GetGrantSql(dbs *lib.DBSteward, doc *ir.Definition, schema *ir.Schema, grant *ir.Grant) ([]output.ToSql, error) {
+func (s *Schema) GetGrantSql(conf lib.Config, doc *ir.Definition, schema *ir.Schema, grant *ir.Grant) ([]output.ToSql, error) {
 	roles := make([]string, len(grant.Roles))
 	var err error
 	for i, role := range grant.Roles {
-		roles[i], err = roleEnum(dbs.Logger(), dbs.NewDatabase, role, dbs.IgnoreCustomRoles)
+		roles[i], err = roleEnum(conf.Logger, conf.NewDatabase, role, conf.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +81,7 @@ func (s *Schema) GetGrantSql(dbs *lib.DBSteward, doc *ir.Definition, schema *ir.
 	// SCHEMA IMPLICIT GRANTS
 	// READYONLY USER PROVISION: grant usage on the schema for the readonly user
 	// TODO(go,3) move this out of here, let this create just a single grant
-	roRole, err := roleEnum(dbs.Logger(), dbs.NewDatabase, ir.RoleReadOnly, dbs.IgnoreCustomRoles)
+	roRole, err := roleEnum(conf.Logger, conf.NewDatabase, ir.RoleReadOnly, conf.IgnoreCustomRoles)
 	if err != nil {
 		return nil, err
 	}

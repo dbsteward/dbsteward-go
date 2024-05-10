@@ -7,10 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/encoding/xml"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
-	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
 //go:embed example/someapp_v1.xml
@@ -36,8 +34,6 @@ func TestXMLPostgresIngegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dbs := lib.NewDBSteward()
-	dbs.SqlFormat = ir.SqlFormatPgsql8
 	err = pgsql8.CreateRoleIfNotExists(c, def1.Database.Roles.Application)
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +50,7 @@ func TestXMLPostgresIngegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ops := pgsql8.NewOperations(dbs).(*pgsql8.Operations)
+	ops := pgsql8.NewOperations(pgsql8.DefaultConfig).(*pgsql8.Operations)
 	statements, err := ops.CreateStatements(*def1)
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +75,7 @@ func TestXMLPostgresIngegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ops = pgsql8.NewOperations(dbs).(*pgsql8.Operations)
+	ops = pgsql8.NewOperations(pgsql8.DefaultConfig).(*pgsql8.Operations)
 	statements, err = ops.Upgrade(slog.Default(), def1, def2)
 	if err != nil {
 		t.Fatal(err)
@@ -100,7 +96,7 @@ func TestXMLPostgresIngegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ops = pgsql8.NewOperations(dbs).(*pgsql8.Operations)
+	ops = pgsql8.NewOperations(pgsql8.DefaultConfig).(*pgsql8.Operations)
 	_, err = ops.ExtractSchemaConn(context.TODO(), c)
 	if err != nil {
 		t.Fatal(err)

@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/stretchr/testify/assert"
 )
@@ -163,7 +162,7 @@ END;`,
 	}
 
 	// note that Process mutates the document in place
-	xmlParser := NewXmlParser(defaultQuoter(lib.NewDBSteward()))
+	xmlParser := NewXmlParser(defaultQuoter(DefaultConfig))
 	err := xmlParser.Process(slog.Default(), doc)
 	if err != nil {
 		t.Fatal(err)
