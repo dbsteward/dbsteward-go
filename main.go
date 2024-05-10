@@ -448,9 +448,12 @@ func (dbsteward *DBSteward) doXmlDataInsert(defFile string, dataFile string) {
 
 	defFileModified := defFile + ".xmldatainserted"
 	dbsteward.Info("Saving modified dbsteward definition as %s", defFileModified)
-	err = xml.SaveDefinition(dbsteward.Logger(), defFileModified, defDoc)
+	enc, err := lib.GetEncoding("xml")
+	dbsteward.fatalIfError(err, "saving file")
+	err = saveDefinition(dbsteward.Logger(), enc(), defFileModified, defDoc)
 	dbsteward.fatalIfError(err, "saving file")
 }
+
 func (dbsteward *DBSteward) doXmlSort(files []string) {
 	for _, file := range files {
 		sortedFileName := file + ".xmlsorted"
@@ -484,7 +487,9 @@ func (dbsteward *DBSteward) doXmlSlonyId(files []string, slonyOut string) {
 	outputPrefix := dbsteward.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
 	dbsteward.Info("Saving composite as %s", compositeFile)
-	err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, dbDoc)
+	enc, err := lib.GetEncoding("xml")
+	dbsteward.fatalIfError(err, "saving file")
+	err = saveDefinition(dbsteward.Logger(), enc(), compositeFile, dbDoc)
 	dbsteward.fatalIfError(err, "saving file")
 
 	dbsteward.Info("Slony ID numbering any missing attributes")
@@ -496,9 +501,10 @@ func (dbsteward *DBSteward) doXmlSlonyId(files []string, slonyOut string) {
 		slonyIdNumberedFile = slonyOut
 	}
 	dbsteward.Info("Saving Slony ID numbered XML as %s", slonyIdNumberedFile)
-	err = xml.SaveDefinition(dbsteward.Logger(), slonyIdNumberedFile, slonyIdDoc)
+	err = saveDefinition(dbsteward.Logger(), enc(), slonyIdNumberedFile, slonyIdDoc)
 	dbsteward.fatalIfError(err, "saving file")
 }
+
 func (dbsteward *DBSteward) doBuild(files []string, dataFiles []string, addendums uint) {
 	dbsteward.Info("Compositing XML files...")
 	if addendums > 0 {
@@ -527,13 +533,15 @@ func (dbsteward *DBSteward) doBuild(files []string, dataFiles []string, addendum
 	outputPrefix := dbsteward.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
 	dbsteward.Info("Saving composite as %s", compositeFile)
-	err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, dbDoc)
+	enc, err := lib.GetEncoding("xml")
+	dbsteward.fatalIfError(err, "saving file")
+	err = saveDefinition(dbsteward.Logger(), enc(), compositeFile, dbDoc)
 	dbsteward.fatalIfError(err, "saving file")
 
 	if addendumsDoc != nil {
 		addendumsFile := outputPrefix + "_addendums.xml"
 		dbsteward.Info("Saving addendums as %s", addendumsFile)
-		err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, addendumsDoc)
+		err = saveDefinition(dbsteward.Logger(), enc(), compositeFile, addendumsDoc)
 		dbsteward.fatalIfError(err, "saving file")
 	}
 
@@ -542,6 +550,7 @@ func (dbsteward *DBSteward) doBuild(files []string, dataFiles []string, addendum
 	err = ops(dbsteward.config).Build(outputPrefix, dbDoc)
 	dbsteward.fatalIfError(err, "building")
 }
+
 func (dbsteward *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []string) {
 	dbsteward.Info("Compositing old XML files...")
 	oldDbDoc, err := xml.XmlComposite(dbsteward.Logger(), oldFiles)
@@ -561,13 +570,15 @@ func (dbsteward *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFil
 	oldOutputPrefix := dbsteward.calculateFileOutputPrefix(oldFiles)
 	oldCompositeFile := oldOutputPrefix + "_composite.xml"
 	dbsteward.Info("Saving composite as %s", oldCompositeFile)
-	err = xml.SaveDefinition(dbsteward.Logger(), oldCompositeFile, oldDbDoc)
+	enc, err := lib.GetEncoding("xml")
+	dbsteward.fatalIfError(err, "saving file")
+	err = saveDefinition(dbsteward.Logger(), enc(), oldCompositeFile, oldDbDoc)
 	dbsteward.fatalIfError(err, "saving file")
 
 	newOutputPrefix := dbsteward.calculateFileOutputPrefix(newFiles)
 	newCompositeFile := newOutputPrefix + "_composite.xml"
 	dbsteward.Info("Saving composite as %s", newCompositeFile)
-	err = xml.SaveDefinition(dbsteward.Logger(), newCompositeFile, newDbDoc)
+	err = saveDefinition(dbsteward.Logger(), enc(), newCompositeFile, newDbDoc)
 	dbsteward.fatalIfError(err, "saving file")
 
 	ops, err := lib.Format(lib.DefaultSqlFormat)
@@ -584,9 +595,12 @@ func (dbsteward *DBSteward) doExtract(dbHost string, dbPort uint, dbName, dbUser
 	output, err := ops(dbsteward.config).ExtractSchema(dbHost, dbPort, dbName, dbUser, dbPass)
 	dbsteward.fatalIfError(err, "extracting")
 	dbsteward.Info("Saving extracted database schema to %s", outputFile)
-	err = xml.SaveDefinition(dbsteward.Logger(), outputFile, output)
+	enc, err := lib.GetEncoding("xml")
+	dbsteward.fatalIfError(err, "saving file")
+	err = saveDefinition(dbsteward.Logger(), enc(), outputFile, output)
 	dbsteward.fatalIfError(err, "saving file")
 }
+
 func (dbsteward *DBSteward) doDbDataDiff(files []string, dataFiles []string, addendums uint, dbHost string, dbPort uint, dbName, dbUser, dbPass string) {
 	dbsteward.Info("Compositing XML files...")
 	if addendums > 0 {
@@ -607,14 +621,16 @@ func (dbsteward *DBSteward) doDbDataDiff(files []string, dataFiles []string, add
 	outputPrefix := dbsteward.calculateFileOutputPrefix(files)
 	compositeFile := outputPrefix + "_composite.xml"
 	dbsteward.Info("Saving composite as %s", compositeFile)
-	err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, dbDoc)
+	enc, err := lib.GetEncoding("xml")
+	dbsteward.fatalIfError(err, "saving file")
+	err = saveDefinition(dbsteward.Logger(), enc(), compositeFile, dbDoc)
 	dbsteward.fatalIfError(err, "saving file")
 
 	ops, err := lib.Format(lib.DefaultSqlFormat)
 	dbsteward.fatalIfError(err, "loading default format")
 	output, err := ops(dbsteward.config).CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
 	dbsteward.fatalIfError(err, "comparing data")
-	err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, output)
+	err = saveDefinition(dbsteward.Logger(), enc(), compositeFile, output)
 	dbsteward.fatalIfError(err, "saving file")
 }
 func (dbsteward *DBSteward) doSqlDiff(oldSql, newSql []string, outputFile string) {
@@ -706,5 +722,19 @@ func (h *logHandler) Handle(ctx context.Context, r slog.Record) error {
 		h.dbsteward.logger.Error().Msgf(msg)
 	}
 	h.output.Reset()
+	return nil
+}
+
+func saveDefinition(l *slog.Logger, enc lib.Encoding, filename string, def *ir.Definition) error {
+	l = l.With(slog.String("filename", filename))
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("could not open file %s for writing: %w", filename, err)
+	}
+	defer f.Close()
+	err = enc.Export(l, def, f)
+	if err != nil {
+		return fmt.Errorf("could not write document to '%s': %w", filename, err)
+	}
 	return nil
 }

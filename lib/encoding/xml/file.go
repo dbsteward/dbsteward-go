@@ -23,21 +23,6 @@ func LoadDefintion(file string) (*ir.Definition, error) {
 	return ReadDef(f)
 }
 
-func SaveDefinition(l *slog.Logger, filename string, def *ir.Definition) error {
-	l = l.With(slog.String("filename", filename))
-	f, err := os.Create(filename)
-	if err != nil {
-		return fmt.Errorf("could not open file %s for writing: %w", filename, err)
-	}
-	defer f.Close()
-
-	err = WriteDef(l, f, def)
-	if err != nil {
-		return fmt.Errorf("could not write XML document to '%s': %w", filename, err)
-	}
-	return nil
-}
-
 func FormatXml(l *slog.Logger, def *ir.Definition) (string, error) {
 	buf := &bytes.Buffer{}
 	err := WriteDef(l, buf, def)

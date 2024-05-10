@@ -2,11 +2,40 @@ package lib
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
 	"sync"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
+
+var extensionMutex sync.Mutex
+
+type EncodingFormat string
+
+type Encoding interface {
+	Import(*slog.Logger, io.Reader) (*ir.Definition, error)
+	Export(*slog.Logger, *ir.Definition, io.Writer) error
+}
+
+var encodings = make(map[EncodingFormat]func() Encoding)
+
+func RegisterEncoding(id EncodingFormat, constructor func() Encoding) {
+	extensionMutex.Lock()
+	defer extensionMutex.Unlock()
+	encodings[id] = constructor
+}
+
+func GetEncoding(id EncodingFormat) (func() Encoding, error) {
+	extensionMutex.Lock()
+	defer extensionMutex.Unlock()
+	constructor, exists := encodings[id]
+	if !exists {
+		return nil, fmt.Errorf("no such encoding as %s", id)
+	}
+	return constructor, nil
+}
 
 type Operations interface {
 	Build(outputPrefix string, dbDoc *ir.Definition) error
@@ -21,22 +50,17 @@ type Operations interface {
 	GetQuoter() output.Quoter
 }
 
-type Encoding interface {
-}
-
 var formats = make(map[ir.SqlFormat]func(Config) Operations)
 
-var formatMutex sync.Mutex
-
 func RegisterFormat(id ir.SqlFormat, constructor func(Config) Operations) {
-	formatMutex.Lock()
-	defer formatMutex.Unlock()
+	extensionMutex.Lock()
+	defer extensionMutex.Unlock()
 	formats[id] = constructor
 }
 
 func Format(id ir.SqlFormat) (func(Config) Operations, error) {
-	formatMutex.Lock()
-	defer formatMutex.Unlock()
+	extensionMutex.Lock()
+	defer extensionMutex.Unlock()
 	constructor, exists := formats[id]
 	if !exists {
 		return nil, fmt.Errorf("no such format as %s", id)

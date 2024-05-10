@@ -15,9 +15,38 @@ import (
 	"io"
 	"log/slog"
 
+	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/pkg/errors"
 )
+
+const EncodingXML = lib.EncodingFormat("xml")
+
+func init() {
+	lib.RegisterEncoding(EncodingXML, NewXMLEncoding)
+}
+
+type XMLEncoding struct{}
+
+func NewXMLEncoding() lib.Encoding {
+	return XMLEncoding{}
+}
+
+func (e XMLEncoding) Import(l *slog.Logger, r io.Reader) (*ir.Definition, error) {
+	doc, err := ReadDoc(r)
+	if err != nil {
+		return nil, err
+	}
+	return doc.ToIR()
+}
+
+func (e XMLEncoding) Export(l *slog.Logger, def *ir.Definition, w io.Writer) error {
+	doc, err := FromIR(l, def)
+	if err != nil {
+		return err
+	}
+	return WriteDoc(l, w, doc)
+}
 
 // ReadDoc parses a `Definition` from an `io.Reader` that returns
 // XML that conforms to the DTD at the project root
