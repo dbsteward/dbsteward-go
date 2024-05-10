@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 )
@@ -113,7 +112,7 @@ func (ri *roleIndex) get(r string) string {
 	return r
 }
 
-func roleEnum(l *slog.Logger, doc *ir.Definition, role string) (string, error) {
+func roleEnum(l *slog.Logger, doc *ir.Definition, role string, ignoreCustomRoles bool) (string, error) {
 	if doc.Database == nil {
 		// TODO(go,nth) somehow was incompletely constructed
 		doc.Database = &ir.Database{
@@ -146,7 +145,7 @@ func roleEnum(l *slog.Logger, doc *ir.Definition, role string) (string, error) {
 		return role, nil
 	}
 
-	if !lib.GlobalDBSteward.IgnoreCustomRoles {
+	if !ignoreCustomRoles {
 		l.Error(fmt.Sprintf("'%s' not in %+v", role, roles))
 		return "", fmt.Errorf("failed to confirm custom role: %s", role)
 	}

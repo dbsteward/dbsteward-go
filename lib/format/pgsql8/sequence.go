@@ -2,7 +2,6 @@ package pgsql8
 
 import (
 	"fmt"
-	"log/slog"
 
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
@@ -11,7 +10,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-func getCreateSequenceSql(l *slog.Logger, schema *ir.Schema, sequence *ir.Sequence) ([]output.ToSql, error) {
+func getCreateSequenceSql(dbs *lib.DBSteward, schema *ir.Schema, sequence *ir.Sequence) ([]output.ToSql, error) {
 	// TODO(go,3) put validation elsewhere
 	cache, cacheValueSet := sequence.Cache.Maybe()
 	if !cacheValueSet {
@@ -39,7 +38,7 @@ func getCreateSequenceSql(l *slog.Logger, schema *ir.Schema, sequence *ir.Sequen
 	if sequence.Owner != "" {
 		// NOTE: Old dbsteward uses ALTER TABLE for this, which is valid according to docs, however
 		// ALTER SEQUENCE also works in pgsql 8, and that's more correct
-		role, err := roleEnum(l, lib.GlobalDBSteward.NewDatabase, sequence.Owner)
+		role, err := roleEnum(dbs.Logger(), dbs.NewDatabase, sequence.Owner, dbs.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}
@@ -67,11 +66,11 @@ func getDropSequenceSql(schema *ir.Schema, sequence *ir.Sequence) []output.ToSql
 	}
 }
 
-func getSequenceGrantSql(l *slog.Logger, schema *ir.Schema, seq *ir.Sequence, grant *ir.Grant) ([]output.ToSql, error) {
+func getSequenceGrantSql(dbs *lib.DBSteward, schema *ir.Schema, seq *ir.Sequence, grant *ir.Grant) ([]output.ToSql, error) {
 	roles := make([]string, len(grant.Roles))
 	var err error
 	for i, role := range grant.Roles {
-		roles[i], err = roleEnum(l, lib.GlobalDBSteward.NewDatabase, role)
+		roles[i], err = roleEnum(dbs.Logger(), dbs.NewDatabase, role, dbs.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}
@@ -100,7 +99,7 @@ func getSequenceGrantSql(l *slog.Logger, schema *ir.Schema, seq *ir.Sequence, gr
 	// SEQUENCE IMPLICIT GRANTS
 	// READYONLY USER PROVISION: generate a SELECT on the sequence for the readonly user
 	// TODO(go,3) move this out of here, let this create just a single grant
-	roRole, err := roleEnum(l, lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
+	roRole, err := roleEnum(dbs.Logger(), dbs.NewDatabase, ir.RoleReadOnly, dbs.IgnoreCustomRoles)
 	if err != nil {
 		return nil, err
 	}

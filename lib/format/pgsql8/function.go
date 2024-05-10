@@ -2,7 +2,6 @@ package pgsql8
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -35,7 +34,7 @@ func functionDefinitionReferencesTable(definition *ir.FunctionDefinition) *lib.Q
 	return &parsed
 }
 
-func getFunctionCreationSql(l *slog.Logger, schema *ir.Schema, function *ir.Function) ([]output.ToSql, error) {
+func getFunctionCreationSql(dbs *lib.DBSteward, schema *ir.Schema, function *ir.Function) ([]output.ToSql, error) {
 	ref := sql.FunctionRef{Schema: schema.Name, Function: function.Name, Params: function.ParamSigs()}
 	def := function.TryGetDefinition(ir.SqlFormatPgsql8)
 	out := []output.ToSql{
@@ -50,7 +49,7 @@ func getFunctionCreationSql(l *slog.Logger, schema *ir.Schema, function *ir.Func
 	}
 
 	if function.Owner != "" {
-		role, err := roleEnum(l, lib.GlobalDBSteward.NewDatabase, function.Owner)
+		role, err := roleEnum(dbs.Logger(), dbs.NewDatabase, function.Owner, dbs.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}
@@ -94,11 +93,11 @@ func normalizeFunctionParameterType(paramType string) string {
 	return paramType
 }
 
-func getFunctionGrantSql(l *slog.Logger, schema *ir.Schema, fn *ir.Function, grant *ir.Grant) ([]output.ToSql, error) {
+func getFunctionGrantSql(dbs *lib.DBSteward, schema *ir.Schema, fn *ir.Function, grant *ir.Grant) ([]output.ToSql, error) {
 	roles := make([]string, len(grant.Roles))
 	var err error
 	for i, role := range grant.Roles {
-		roles[i], err = roleEnum(l, lib.GlobalDBSteward.NewDatabase, role)
+		roles[i], err = roleEnum(dbs.Logger(), dbs.NewDatabase, role, dbs.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}

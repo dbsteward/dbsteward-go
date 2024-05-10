@@ -92,7 +92,6 @@ func TestOperations_ColumnValueDefault_UsesLiteralForInt(t *testing.T) {
 }
 
 func TestOperations_ColumnValueDefaultQuotesStrings(t *testing.T) {
-	defer resetGlobalDBSteward()
 	val, err := getColumnValueDefault(&ir.Column{
 		Name: "foo",
 		Type: "text",
@@ -128,14 +127,15 @@ func getColumnValueDefault(def *ir.Column, data *ir.DataCol) (string, error) {
 			},
 		},
 	}
-	lib.GlobalDBSteward.NewDatabase = doc
+	dbs := lib.NewDBSteward()
+	dbs.NewDatabase = doc
 	schema := doc.Schemas[0]
 	table := schema.Tables[0]
 
-	ops := NewOperations().(*Operations)
+	ops := NewOperations(dbs).(*Operations)
 
 	// TODO(go,nth) can we do this without also testing GetValueSql?
-	toVal, err := columnValueDefault(slog.Default(), schema, table, def.Name, data)
+	toVal, err := ops.columnValueDefault(slog.Default(), schema, table, def.Name, data)
 	if err != nil {
 		return "", err
 	}

@@ -95,7 +95,7 @@ func (p *XmlParser) createModuloPartitionTables(schema *ir.Schema, table *ir.Tab
 			Name: fmt.Sprintf("%s_p_%s_chk", table.Name, partNum),
 			Type: ir.ConstraintTypeCheck,
 			// TODO(go,3) use higher level rep instead of xml rep here to resolve need for string-level quoting at this point
-			Definition: fmt.Sprintf("((%s %% %d) = %d)", NewOperations().GetQuoter().QuoteColumn(opts.column), opts.parts, i),
+			Definition: fmt.Sprintf("((%s %% %d) = %d)", p.quoter.QuoteColumn(opts.column), opts.parts, i),
 		})
 
 		for _, index := range table.Indexes {
@@ -147,14 +147,14 @@ func (p *XmlParser) createModuloPartitionTables(schema *ir.Schema, table *ir.Tab
 
 func (p *XmlParser) createModuloPartitionTrigger(schema *ir.Schema, table *ir.Table, partSchema *ir.Schema, opts *moduloPartition) {
 	funcDef := fmt.Sprintf("DECLARE\n\tmod_result INT;\nBEGIN\n\tmod_result := NEW.%s %% %d;\n",
-		NewOperations().GetQuoter().QuoteColumn(opts.column), opts.parts)
+		quoter.QuoteColumn(opts.column), opts.parts)
 	for i := 0; i < opts.parts; i++ {
 		funcDef += "\t"
 		if i != 0 {
 			funcDef += "ELSE"
 		}
 		funcDef += fmt.Sprintf("IF (mod_result = %d) THEN\n\t\tINSERT INTO %s VALUES (NEW.*);\n",
-			i, NewOperations().GetQuoter().QualifyTable(partSchema.Name, opts.tableName(i)))
+			i, quoter.QualifyTable(partSchema.Name, opts.tableName(i)))
 	}
 	funcDef += "\tEND IF;\n\tRETURN NULL;\nEND;"
 

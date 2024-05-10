@@ -268,8 +268,8 @@ func getTableContraintCreationSql(constraint *sql99.TableConstraint) []output.To
 	return nil
 }
 
-func constraintDependsOnRenamedTable(l *slog.Logger, doc *ir.Definition, constraint *sql99.TableConstraint) (bool, error) {
-	if lib.GlobalDBSteward.IgnoreOldNames {
+func constraintDependsOnRenamedTable(dbs *lib.DBSteward, doc *ir.Definition, constraint *sql99.TableConstraint) (bool, error) {
+	if dbs.IgnoreOldNames {
 		return false, nil
 	}
 
@@ -294,16 +294,16 @@ func constraintDependsOnRenamedTable(l *slog.Logger, doc *ir.Definition, constra
 	if refTable == nil {
 		return false, nil
 	}
-	isRenamed := lib.GlobalDBSteward.IgnoreOldNames
+	isRenamed := dbs.IgnoreOldNames
 	if !isRenamed {
 		var err error
-		isRenamed, err = lib.GlobalDBSteward.OldDatabase.IsRenamedTable(slog.Default(), refSchema, refTable)
+		isRenamed, err = dbs.OldDatabase.IsRenamedTable(slog.Default(), refSchema, refTable)
 		if err != nil {
 			return false, fmt.Errorf("while checking if constraint depends on renamed table: %w", err)
 		}
 	}
 	if isRenamed {
-		l.Info(fmt.Sprintf("Constraint %s.%s.%s references renamed table %s.%s", constraint.Schema.Name, constraint.Table.Name, constraint.Name, refSchema.Name, refTable.Name))
+		dbs.Logger().Info(fmt.Sprintf("Constraint %s.%s.%s references renamed table %s.%s", constraint.Schema.Name, constraint.Table.Name, constraint.Name, refSchema.Name, refTable.Name))
 		return true, nil
 	}
 	return false, nil

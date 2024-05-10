@@ -1,9 +1,9 @@
 package pgsql8
 
 import (
-	"log/slog"
 	"testing"
 
+	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -19,7 +19,7 @@ func TestDiffTables_GetDataSql_EscapeCharacters(t *testing.T) {
 	schema := &ir.Schema{
 		Name: "public",
 		Tables: []*ir.Table{
-			&ir.Table{
+			{
 				Name:       "i_test",
 				PrimaryKey: []string{"pk"},
 				Columns: []*ir.Column{
@@ -29,7 +29,7 @@ func TestDiffTables_GetDataSql_EscapeCharacters(t *testing.T) {
 				Rows: &ir.DataRows{
 					Columns: []string{"pk", "col1"},
 					Rows: []*ir.DataRow{
-						&ir.DataRow{
+						{
 							Columns: []*ir.DataCol{
 								{Text: "1"},
 								{Text: "hi"},
@@ -40,18 +40,22 @@ func TestDiffTables_GetDataSql_EscapeCharacters(t *testing.T) {
 			},
 		},
 	}
-
-	ddl, err := getCreateDataSql(slog.Default(), nil, nil, schema, schema.Tables[0])
+	dbs := lib.NewDBSteward()
+	dbs.NewDatabase = &ir.Definition{
+		Schemas: []*ir.Schema{schema},
+	}
+	ops := NewOperations(dbs).(*Operations)
+	ddl, err := getCreateDataSql(ops, nil, nil, schema, schema.Tables[0])
 	if err != nil {
 		t.Fatal(err)
 	}
 	assert.Equal(t, []output.ToSql{
 		&sql.DataInsert{
-			Table:   sql.TableRef{"public", "i_test"},
+			Table:   sql.TableRef{Schema: "public", Table: "i_test"},
 			Columns: []string{"pk", "col1"},
 			Values: []sql.ToSqlValue{
-				&sql.TypedValue{"int", "1", false},
-				&sql.TypedValue{"char(10)", "hi", false},
+				&sql.TypedValue{Type: "int", Value: "1", IsNull: false},
+				&sql.TypedValue{Type: "char(10)", Value: "hi", IsNull: false},
 			},
 		},
 	}, ddl)

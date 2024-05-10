@@ -2,15 +2,15 @@ package pgsql8
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 
+	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-func diffTypes(l *slog.Logger, differ *diff, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) error {
+func diffTypes(dbs *lib.DBSteward, differ *diff, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) error {
 	dropTypes(ofs, oldSchema, newSchema)
 	err := createTypes(ofs, oldSchema, newSchema)
 	if err != nil {
@@ -33,7 +33,7 @@ func diffTypes(l *slog.Logger, differ *diff, ofs output.OutputFileSegmenter, old
 		}
 
 		// TODO(feat) what about functions in other schemas?
-		for _, oldFunc := range GlobalSchema.GetFunctionsDependingOnType(oldSchema, oldType) {
+		for _, oldFunc := range commonSchema.GetFunctionsDependingOnType(oldSchema, oldType) {
 			ofs.WriteSql(sql.NewComment(
 				"Type migration of %s.%s requires recreating dependent function %s.%s",
 				newSchema.Name, newType.Name, oldSchema.Name, oldFunc.Name,
@@ -41,7 +41,7 @@ func diffTypes(l *slog.Logger, differ *diff, ofs output.OutputFileSegmenter, old
 			ofs.WriteSql(getFunctionDropSql(oldSchema, oldFunc)...)
 		}
 
-		columns, sql, err := alterColumnTypePlaceholder(l, differ, oldType)
+		columns, sql, err := alterColumnTypePlaceholder(dbs, differ, oldType)
 		if err != nil {
 			return err
 		}
@@ -62,8 +62,8 @@ func diffTypes(l *slog.Logger, differ *diff, ofs output.OutputFileSegmenter, old
 		}
 
 		// functions are only recreated if they changed elsewise, so need to create them here
-		for _, newFunc := range GlobalSchema.GetFunctionsDependingOnType(newSchema, newType) {
-			s, err := getFunctionCreationSql(l, newSchema, newFunc)
+		for _, newFunc := range commonSchema.GetFunctionsDependingOnType(newSchema, newType) {
+			s, err := getFunctionCreationSql(dbs, newSchema, newFunc)
 			if err != nil {
 				return err
 			}

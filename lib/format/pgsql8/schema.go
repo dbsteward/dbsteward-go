@@ -2,7 +2,6 @@ package pgsql8
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib/ir"
@@ -20,12 +19,7 @@ func NewSchema() *Schema {
 	return &Schema{}
 }
 
-func (sc *Schema) logger() *slog.Logger {
-	// Hack until I can get proper constuctor ordering
-	return lib.GlobalDBSteward.Logger()
-}
-
-func (s *Schema) GetCreationSql(schema *ir.Schema) ([]output.ToSql, error) {
+func (s *Schema) GetCreationSql(dbs *lib.DBSteward, schema *ir.Schema) ([]output.ToSql, error) {
 	// don't create the public schema
 	if strings.EqualFold(schema.Name, "public") {
 		return nil, nil
@@ -36,7 +30,7 @@ func (s *Schema) GetCreationSql(schema *ir.Schema) ([]output.ToSql, error) {
 	}
 
 	if schema.Owner != "" {
-		owner, err := roleEnum(s.logger(), lib.GlobalDBSteward.NewDatabase, schema.Owner)
+		owner, err := roleEnum(dbs.Logger(), dbs.NewDatabase, schema.Owner, dbs.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}
@@ -59,11 +53,11 @@ func (s *Schema) GetDropSql(schema *ir.Schema) []output.ToSql {
 	}
 }
 
-func (s *Schema) GetGrantSql(doc *ir.Definition, schema *ir.Schema, grant *ir.Grant) ([]output.ToSql, error) {
+func (s *Schema) GetGrantSql(dbs *lib.DBSteward, doc *ir.Definition, schema *ir.Schema, grant *ir.Grant) ([]output.ToSql, error) {
 	roles := make([]string, len(grant.Roles))
 	var err error
 	for i, role := range grant.Roles {
-		roles[i], err = roleEnum(s.logger(), lib.GlobalDBSteward.NewDatabase, role)
+		roles[i], err = roleEnum(dbs.Logger(), dbs.NewDatabase, role, dbs.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +81,7 @@ func (s *Schema) GetGrantSql(doc *ir.Definition, schema *ir.Schema, grant *ir.Gr
 	// SCHEMA IMPLICIT GRANTS
 	// READYONLY USER PROVISION: grant usage on the schema for the readonly user
 	// TODO(go,3) move this out of here, let this create just a single grant
-	roRole, err := roleEnum(s.logger(), lib.GlobalDBSteward.NewDatabase, ir.RoleReadOnly)
+	roRole, err := roleEnum(dbs.Logger(), dbs.NewDatabase, ir.RoleReadOnly, dbs.IgnoreCustomRoles)
 	if err != nil {
 		return nil, err
 	}

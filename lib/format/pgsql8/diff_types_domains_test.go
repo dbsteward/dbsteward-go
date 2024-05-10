@@ -1,11 +1,11 @@
 package pgsql8
 
 import (
-	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -323,10 +323,12 @@ func diffTypesForTest(t *testing.T, oldSchema, newSchema *ir.Schema) []output.To
 	newDoc := &ir.Definition{
 		Schemas: []*ir.Schema{newSchema},
 	}
-	differ := newDiff(defaultQuoter(slog.Default()))
-	setOldNewDocs(differ, oldDoc, newDoc)
-	ofs := output.NewAnnotationStrippingSegmenter(defaultQuoter(slog.Default()))
-	err := diffTypes(slog.Default(), differ, ofs, oldSchema, newSchema)
+	dbs := lib.NewDBSteward()
+	ops := NewOperations(dbs).(*Operations)
+	differ := newDiff(ops, defaultQuoter(dbs))
+	setOldNewDocs(dbs, differ, oldDoc, newDoc)
+	ofs := output.NewAnnotationStrippingSegmenter(defaultQuoter(dbs))
+	err := diffTypes(dbs, differ, ofs, oldSchema, newSchema)
 	if err != nil {
 		t.Fatal(err)
 	}

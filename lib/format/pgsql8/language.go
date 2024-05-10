@@ -1,15 +1,13 @@
 package pgsql8
 
 import (
-	"log/slog"
-
 	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-func getCreateLanguageSql(l *slog.Logger, lang *ir.Language) ([]output.ToSql, error) {
+func getCreateLanguageSql(dbsteward *lib.DBSteward, lang *ir.Language) ([]output.ToSql, error) {
 	out := []output.ToSql{
 		&sql.LanguageCreate{
 			Language:   lang.Name,
@@ -21,7 +19,7 @@ func getCreateLanguageSql(l *slog.Logger, lang *ir.Language) ([]output.ToSql, er
 	}
 
 	if lang.Owner != "" {
-		role, err := roleEnum(l, lib.GlobalDBSteward.NewDatabase, lang.Owner)
+		role, err := roleEnum(dbsteward.Logger(), dbsteward.NewDatabase, lang.Owner, dbsteward.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}

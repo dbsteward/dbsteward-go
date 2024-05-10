@@ -1,7 +1,6 @@
 package pgsql8
 
 import (
-	"log/slog"
 	"strings"
 	"testing"
 
@@ -14,7 +13,6 @@ import (
 )
 
 func TestDiffTables_DiffTables_ColumnCaseChange(t *testing.T) {
-	defer resetGlobalDBSteward()
 	lower := &ir.Schema{
 		Name: "test0",
 		Tables: []*ir.Table{
@@ -51,19 +49,21 @@ func TestDiffTables_DiffTables_ColumnCaseChange(t *testing.T) {
 		},
 	}
 
-	lib.GlobalDBSteward.IgnoreOldNames = false
+	dbs := lib.NewDBSteward()
+	dbs.IgnoreOldNames = false
+	ops := NewOperations(dbs).(*Operations)
 
 	// when quoting is off, a change in case is a no-op
-	lib.GlobalDBSteward.QuoteAllNames = false
-	lib.GlobalDBSteward.QuoteColumnNames = false
-	ddl1, ddl3 := diffTablesCommon(t, lower, upperWithoutOldName)
+	dbs.QuoteAllNames = false
+	dbs.QuoteColumnNames = false
+	ddl1, ddl3 := diffTablesCommon(t, ops, lower, upperWithoutOldName)
 	assert.Empty(t, ddl1)
 	assert.Empty(t, ddl3)
 
 	// when quoting is on, a change in case results in a rename, if there's an oldname
-	lib.GlobalDBSteward.QuoteAllNames = true
-	lib.GlobalDBSteward.QuoteColumnNames = true
-	ddl1, ddl3 = diffTablesCommon(t, lower, upperWithOldName)
+	dbs.QuoteAllNames = true
+	dbs.QuoteColumnNames = true
+	ddl1, ddl3 = diffTablesCommon(t, ops, lower, upperWithOldName)
 	assert.Equal(t, []output.ToSql{
 		&sql.ColumnRename{
 			Column:  sql.ColumnRef{Schema: "test0", Table: "table", Column: "column"},
@@ -73,7 +73,7 @@ func TestDiffTables_DiffTables_ColumnCaseChange(t *testing.T) {
 	assert.Empty(t, ddl3)
 
 	// but, if oldColumnName is not given when doing case sensitive renames, it should error
-	_, _, err := diffTablesCommonErr(lower, upperWithoutOldName)
+	_, _, err := diffTablesCommonErr(ops, lower, upperWithoutOldName)
 	if assert.Error(t, err) {
 		assert.Contains(t, strings.ToLower(err.Error()), "ambiguous operation")
 	}
@@ -96,8 +96,9 @@ func TestDiffTables_DiffTables_TableOptions_NoChange(t *testing.T) {
 			},
 		},
 	}
-
-	ddl1, ddl3 := diffTablesCommon(t, schema, schema)
+	dbs := lib.NewDBSteward()
+	ops := NewOperations(dbs).(*Operations)
+	ddl1, ddl3 := diffTablesCommon(t, ops, schema, schema)
 	assert.Empty(t, ddl1)
 	assert.Empty(t, ddl3)
 }
@@ -128,8 +129,9 @@ func TestDiffTables_DiffTables_TableOptions_AddWith(t *testing.T) {
 			},
 		},
 	}
-
-	ddl1, ddl3 := diffTablesCommon(t, oldSchema, newSchema)
+	dbs := lib.NewDBSteward()
+	ops := NewOperations(dbs).(*Operations)
+	ddl1, ddl3 := diffTablesCommon(t, ops, oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		sql.NewTableAlter(
 			sql.TableRef{"public", "test"},
@@ -176,8 +178,9 @@ func TestDiffTables_DiffTables_TableOptions_AlterWith(t *testing.T) {
 			},
 		},
 	}
-
-	ddl1, ddl3 := diffTablesCommon(t, oldSchema, newSchema)
+	dbs := lib.NewDBSteward()
+	ops := NewOperations(dbs).(*Operations)
+	ddl1, ddl3 := diffTablesCommon(t, ops, oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		sql.NewTableAlter(
 			sql.TableRef{"public", "test"},
@@ -229,8 +232,9 @@ func TestDiffTables_DiffTables_TableOptions_AddTablespaceAlterWith(t *testing.T)
 			},
 		},
 	}
-
-	ddl1, ddl3 := diffTablesCommon(t, oldSchema, newSchema)
+	dbs := lib.NewDBSteward()
+	ops := NewOperations(dbs).(*Operations)
+	ddl1, ddl3 := diffTablesCommon(t, ops, oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.TableMoveTablespaceIndexes{
 			Table:      sql.TableRef{"public", "test"},
@@ -287,8 +291,9 @@ func TestDiffTables_DiffTables_TableOptions_DropTablespace(t *testing.T) {
 			},
 		},
 	}
-
-	ddl1, ddl3 := diffTablesCommon(t, oldSchema, newSchema)
+	dbs := lib.NewDBSteward()
+	ops := NewOperations(dbs).(*Operations)
+	ddl1, ddl3 := diffTablesCommon(t, ops, oldSchema, newSchema)
 	assert.Equal(t, []output.ToSql{
 		&sql.TableResetTablespace{
 			Table: sql.TableRef{"public", "test"},
@@ -339,12 +344,13 @@ func TestDiffTables_GetDeleteCreateDataSql_AddSerialColumn(t *testing.T) {
 			},
 		},
 	}
-
-	delddl, err := getDeleteDataSql(slog.Default(), oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
+	dbs := lib.NewDBSteward()
+	ops := NewOperations(dbs).(*Operations)
+	delddl, err := getDeleteDataSql(ops, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
 	if err != nil {
 		t.Fatal(err)
 	}
-	addddl, err := getCreateDataSql(slog.Default(), oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
+	addddl, err := getCreateDataSql(ops, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,33 +366,33 @@ func TestDiffTables_GetDeleteCreateDataSql_AddSerialColumn(t *testing.T) {
 	}, addddl)
 }
 
-func diffTablesCommon(t *testing.T, oldSchema, newSchema *ir.Schema) ([]output.ToSql, []output.ToSql) {
-	ofs1, ofs3, err := diffTablesCommonErr(oldSchema, newSchema)
+func diffTablesCommon(t *testing.T, ops *Operations, oldSchema, newSchema *ir.Schema) ([]output.ToSql, []output.ToSql) {
+	ofs1, ofs3, err := diffTablesCommonErr(ops, oldSchema, newSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return ofs1, ofs3
 }
 
-func diffTablesCommonErr(oldSchema, newSchema *ir.Schema) ([]output.ToSql, []output.ToSql, error) {
+func diffTablesCommonErr(ops *Operations, oldSchema, newSchema *ir.Schema) ([]output.ToSql, []output.ToSql, error) {
 	oldDoc := &ir.Definition{
 		Schemas: []*ir.Schema{oldSchema},
 	}
 	newDoc := &ir.Definition{
 		Schemas: []*ir.Schema{newSchema},
 	}
-	differ := newDiff(defaultQuoter(slog.Default()))
-	setOldNewDocs(differ, oldDoc, newDoc)
-	ofs1 := output.NewAnnotationStrippingSegmenter(defaultQuoter(slog.Default()))
-	ofs3 := output.NewAnnotationStrippingSegmenter(defaultQuoter(slog.Default()))
+	differ := newDiff(ops, defaultQuoter(ops.dbsteward))
+	setOldNewDocs(ops.dbsteward, differ, oldDoc, newDoc)
+	ofs1 := output.NewAnnotationStrippingSegmenter(defaultQuoter(ops.dbsteward))
+	ofs3 := output.NewAnnotationStrippingSegmenter(defaultQuoter(ops.dbsteward))
 
 	// note: v1 only used DiffTables, v2 split into CreateTables+DiffTables
-	err := createTables(slog.Default(), ofs1, oldSchema, newSchema)
+	err := createTables(ops.dbsteward, ofs1, oldSchema, newSchema)
 	if err != nil {
 		return ofs1.Body, ofs3.Body, err
 	}
 
-	err = diffTables(slog.Default(), ofs1, ofs3, oldSchema, newSchema)
+	err = diffTables(ops.dbsteward, ofs1, ofs3, oldSchema, newSchema)
 	if err != nil {
 		return ofs1.Body, ofs3.Body, err
 	}

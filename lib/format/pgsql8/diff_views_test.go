@@ -1,9 +1,9 @@
 package pgsql8
 
 import (
-	"log/slog"
 	"testing"
 
+	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -53,9 +53,10 @@ func newSingleView() *ir.Definition {
 }
 
 func TestCreateViewsOrdered(t *testing.T) {
-	q := defaultQuoter(slog.Default())
+	dbs := lib.NewDBSteward()
+	q := defaultQuoter(dbs)
 	ofs := output.NewAnnotationStrippingSegmenter(q)
-	err := createViewsOrdered(slog.Default(), ofs, oldSingleView(), newSingleView())
+	err := createViewsOrdered(dbs, ofs, oldSingleView(), newSingleView())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,14 +5,14 @@ import (
 	"log/slog"
 	"strconv"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/ir"
+	"github.com/dbsteward/dbsteward/lib/output"
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/pkg/errors"
 )
 
 type XmlParser struct {
-	logger *slog.Logger
+	quoter output.Quoter
 }
 
 type slonyRange struct {
@@ -49,23 +49,15 @@ func tryNewSlonyRange(firstStr, lastStr string, parts int) (*slonyRange, error) 
 	return &slonyRange{first, last}, nil
 }
 
-func NewXmlParser() *XmlParser {
-	return &XmlParser{}
+func NewXmlParser(quoter output.Quoter) *XmlParser {
+	return &XmlParser{quoter: quoter}
 }
 
-// @hack until we get proper instantiation ordering (i.e. remove all globals)
-func (parser *XmlParser) Logger() *slog.Logger {
-	if parser.logger == nil {
-		parser.logger = lib.GlobalDBSteward.Logger()
-	}
-	return parser.logger
-}
-
-func (parser *XmlParser) Process(doc *ir.Definition) error {
+func (parser *XmlParser) Process(l *slog.Logger, doc *ir.Definition) error {
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
 			if table.Partitioning != nil {
-				parser.Logger().Warn(fmt.Sprintf("Table %s.%s definies partition which is only partially supported at this time", schema.Name, table.Name))
+				l.Warn(fmt.Sprintf("Table %s.%s definies partition which is only partially supported at this time", schema.Name, table.Name))
 				return parser.expandPartitionedTable(doc, schema, table)
 			}
 		}

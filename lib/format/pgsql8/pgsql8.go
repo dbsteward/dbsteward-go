@@ -1,11 +1,12 @@
 package pgsql8
 
-import "github.com/dbsteward/dbsteward/lib/format"
+import (
+	"github.com/dbsteward/dbsteward/lib"
+	"github.com/dbsteward/dbsteward/lib/ir"
+)
 
-var GlobalSchema = NewSchema()
-var GlobalXmlParser = NewXmlParser()
+var commonSchema = NewSchema()
 
-var GlobalLookup = &format.Lookup{
-	Schema:                GlobalSchema,
-	OperationsConstructor: NewOperations,
+func init() {
+	lib.RegisterFormat(ir.SqlFormatPgsql8, NewOperations)
 }

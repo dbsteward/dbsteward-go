@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/dbsteward/dbsteward/lib"
-	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/stretchr/testify/assert"
 )
@@ -29,11 +28,9 @@ func TestOneEighty(t *testing.T) {
 	}
 	defer Teardowndb(t, c, "pg")
 	role := os.Getenv("DB_USER")
-	lib.GlobalDBSteward = lib.NewDBSteward(format.LookupMap{
-		ir.SqlFormatPgsql8: GlobalLookup,
-	})
-	lib.GlobalDBSteward.SqlFormat = ir.SqlFormatPgsql8
-	ops := NewOperations().(*Operations)
+	dbs := lib.NewDBSteward()
+	dbs.SqlFormat = ir.SqlFormatPgsql8
+	ops := NewOperations(dbs).(*Operations)
 	statements, err := ops.CreateStatements(ir.FullFeatureSchema(role))
 	if err != nil {
 		t.Fatal(err)

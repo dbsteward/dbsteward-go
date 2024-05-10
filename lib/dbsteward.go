@@ -10,7 +10,6 @@ import (
 
 	"github.com/dbsteward/dbsteward/lib/config"
 	"github.com/dbsteward/dbsteward/lib/encoding/xml"
-	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/hashicorp/go-multierror"
@@ -19,19 +18,20 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type SlonyOperations interface {
+	SlonyCompare(file string)
+	SlonyDiff(oldFile, newFile string)
+}
+
 // NOTE: 2.0.0 is the intended golang release. 3.0.0 is the intended refactor/modernization
-var Version = "2.0.0"
+const Version = "2.0.0"
 
 // NOTE: we're attempting to maintain "api" compat with legacy dbsteward for now
-var ApiVersion = "1.4"
-
-// TODO(go,3) no globals
-var GlobalDBSteward *DBSteward
+const ApiVersion = "1.4"
 
 type DBSteward struct {
 	logger     zerolog.Logger
 	slogLogger *slog.Logger
-	lookupMap  format.LookupMap
 
 	SqlFormat ir.SqlFormat
 
@@ -67,10 +67,9 @@ type DBSteward struct {
 	NewDatabase *ir.Definition
 }
 
-func NewDBSteward(lookupMap format.LookupMap) *DBSteward {
+func NewDBSteward() *DBSteward {
 	dbsteward := &DBSteward{
-		logger:    zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
-		lookupMap: lookupMap,
+		logger: zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
 
 		SqlFormat: ir.SqlFormatUnknown,
 
@@ -106,10 +105,6 @@ func NewDBSteward(lookupMap format.LookupMap) *DBSteward {
 	}
 
 	return dbsteward
-}
-
-func (dbsteward *DBSteward) Lookup() *format.Lookup {
-	return dbsteward.lookupMap[dbsteward.SqlFormat]
 }
 
 // correlates to dbsteward->arg_parse()
@@ -554,7 +549,9 @@ func (dbsteward *DBSteward) doBuild(files []string, dataFiles []string, addendum
 		dbsteward.fatalIfError(err, "saving file")
 	}
 
-	err = dbsteward.Lookup().OperationsConstructor().Build(outputPrefix, dbDoc)
+	ops, err := Format(DefaultSqlFormat)
+	dbsteward.fatalIfError(err, "loading default format")
+	err = ops(dbsteward).Build(outputPrefix, dbDoc)
 	dbsteward.fatalIfError(err, "building")
 }
 func (dbsteward *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []string) {
@@ -585,14 +582,18 @@ func (dbsteward *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFil
 	err = xml.SaveDefinition(dbsteward.Logger(), newCompositeFile, newDbDoc)
 	dbsteward.fatalIfError(err, "saving file")
 
-	err = dbsteward.Lookup().OperationsConstructor().BuildUpgrade(
+	ops, err := Format(DefaultSqlFormat)
+	dbsteward.fatalIfError(err, "loading default format")
+	err = ops(dbsteward).BuildUpgrade(
 		oldOutputPrefix, oldCompositeFile, oldDbDoc, oldFiles,
 		newOutputPrefix, newCompositeFile, newDbDoc, newFiles,
 	)
 	dbsteward.fatalIfError(err, "building upgrade")
 }
 func (dbsteward *DBSteward) doExtract(dbHost string, dbPort uint, dbName, dbUser, dbPass string, outputFile string) {
-	output, err := dbsteward.Lookup().OperationsConstructor().ExtractSchema(dbHost, dbPort, dbName, dbUser, dbPass)
+	ops, err := Format(DefaultSqlFormat)
+	dbsteward.fatalIfError(err, "loading default format")
+	output, err := ops(dbsteward).ExtractSchema(dbHost, dbPort, dbName, dbUser, dbPass)
 	dbsteward.fatalIfError(err, "extracting")
 	dbsteward.Info("Saving extracted database schema to %s", outputFile)
 	err = xml.SaveDefinition(dbsteward.Logger(), outputFile, output)
@@ -621,13 +622,17 @@ func (dbsteward *DBSteward) doDbDataDiff(files []string, dataFiles []string, add
 	err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, dbDoc)
 	dbsteward.fatalIfError(err, "saving file")
 
-	output, err := dbsteward.Lookup().OperationsConstructor().CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
+	ops, err := Format(DefaultSqlFormat)
+	dbsteward.fatalIfError(err, "loading default format")
+	output, err := ops(dbsteward).CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
 	dbsteward.fatalIfError(err, "comparing data")
 	err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, output)
 	dbsteward.fatalIfError(err, "saving file")
 }
 func (dbsteward *DBSteward) doSqlDiff(oldSql, newSql []string, outputFile string) {
-	dbsteward.Lookup().OperationsConstructor().SqlDiff(oldSql, newSql, outputFile)
+	ops, err := Format(DefaultSqlFormat)
+	dbsteward.fatalIfError(err, "loading default format")
+	ops(dbsteward).SqlDiff(oldSql, newSql, outputFile)
 }
 func (dbsteward *DBSteward) doSlonikConvert(file string, outputFile string) {
 	// TODO(go,nth) is there a nicer way to handle this output idiom?
@@ -640,8 +645,12 @@ func (dbsteward *DBSteward) doSlonikConvert(file string, outputFile string) {
 	}
 }
 func (dbsteward *DBSteward) doSlonyCompare(file string) {
-	dbsteward.lookupMap[ir.SqlFormatPgsql8].OperationsConstructor().(format.SlonyOperations).SlonyCompare(file)
+	ops, err := Format(DefaultSqlFormat)
+	dbsteward.fatalIfError(err, "loading default format")
+	ops(dbsteward).(SlonyOperations).SlonyCompare(file)
 }
 func (dbsteward *DBSteward) doSlonyDiff(oldFile string, newFile string) {
-	dbsteward.lookupMap[ir.SqlFormatPgsql8].OperationsConstructor().(format.SlonyOperations).SlonyDiff(oldFile, newFile)
+	ops, err := Format(DefaultSqlFormat)
+	dbsteward.fatalIfError(err, "loading default format")
+	ops(dbsteward).(SlonyOperations).SlonyDiff(oldFile, newFile)
 }

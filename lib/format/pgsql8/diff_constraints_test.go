@@ -1,9 +1,9 @@
 package pgsql8
 
 import (
-	"log/slog"
 	"testing"
 
+	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 
@@ -135,14 +135,15 @@ func TestDiffConstraints_DropCreate_ChangePrimaryKeyNameAndTable(t *testing.T) {
 	newDoc := &ir.Definition{
 		Schemas: []*ir.Schema{newSchema},
 	}
-	ofs := output.NewSegmenter(defaultQuoter(slog.Default()))
-	differ := newDiff(defaultQuoter(slog.Default()))
-	setOldNewDocs(differ, oldDoc, newDoc)
-	err := dropConstraintsTable(slog.Default(), ofs, oldSchema, oldSchema.Tables[0], newSchema, nil, sql99.ConstraintTypePrimaryKey)
+	dbs := lib.NewDBSteward()
+	ofs := output.NewSegmenter(defaultQuoter(dbs))
+	differ := newDiff(NewOperations(dbs).(*Operations), defaultQuoter(dbs))
+	setOldNewDocs(dbs, differ, oldDoc, newDoc)
+	err := dropConstraintsTable(dbs, ofs, oldSchema, oldSchema.Tables[0], newSchema, nil, sql99.ConstraintTypePrimaryKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = createConstraintsTable(slog.Default(), ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], sql99.ConstraintTypePrimaryKey)
+	err = createConstraintsTable(dbs, ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], sql99.ConstraintTypePrimaryKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -381,14 +382,15 @@ func diffConstraintsTableCommon(t *testing.T, oldSchema, newSchema *ir.Schema, c
 	newDoc := &ir.Definition{
 		Schemas: []*ir.Schema{newSchema},
 	}
-	ofs := output.NewSegmenter(defaultQuoter(slog.Default()))
-	differ := newDiff(defaultQuoter(slog.Default()))
-	setOldNewDocs(differ, oldDoc, newDoc)
-	err := dropConstraintsTable(slog.Default(), ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
+	dbs := lib.NewDBSteward()
+	ofs := output.NewSegmenter(defaultQuoter(dbs))
+	differ := newDiff(NewOperations(dbs).(*Operations), defaultQuoter(dbs))
+	setOldNewDocs(dbs, differ, oldDoc, newDoc)
+	err := dropConstraintsTable(dbs, ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = createConstraintsTable(slog.Default(), ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
+	err = createConstraintsTable(dbs, ofs, oldSchema, oldSchema.Tables[0], newSchema, newSchema.Tables[0], ctype)
 	if err != nil {
 		t.Fatal(err)
 	}

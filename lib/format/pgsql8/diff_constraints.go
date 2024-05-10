@@ -10,25 +10,25 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-func createConstraints(l *slog.Logger, ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, constraintType sql99.ConstraintType) {
+func createConstraints(dbs *lib.DBSteward, ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, constraintType sql99.ConstraintType) {
 	for _, newTable := range newSchema.Tables {
 		var oldTable *ir.Table
 		if oldSchema != nil {
 			// TODO(feat) what about renames?
 			oldTable = oldSchema.TryGetTableNamed(newTable.Name)
 		}
-		createConstraintsTable(l, ofs, oldSchema, oldTable, newSchema, newTable, constraintType)
+		createConstraintsTable(dbs, ofs, oldSchema, oldTable, newSchema, newTable, constraintType)
 	}
 }
 
-func createConstraintsTable(l *slog.Logger, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) error {
-	isRenamed, err := lib.GlobalDBSteward.OldDatabase.IsRenamedTable(slog.Default(), newSchema, newTable)
+func createConstraintsTable(dbs *lib.DBSteward, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) error {
+	isRenamed, err := dbs.OldDatabase.IsRenamedTable(slog.Default(), newSchema, newTable)
 	if err != nil {
 		return fmt.Errorf("while checking if table was renamed: %w", err)
 	}
 	if isRenamed {
 		// remove all constraints and recreate with new table name conventions
-		constraints, err := getTableConstraints(lib.GlobalDBSteward.OldDatabase, oldSchema, oldTable, constraintType)
+		constraints, err := getTableConstraints(dbs.OldDatabase, oldSchema, oldTable, constraintType)
 		if err != nil {
 			return err
 		}
@@ -42,7 +42,7 @@ func createConstraintsTable(l *slog.Logger, ofs output.OutputFileSegmenter, oldS
 		}
 
 		// add all still-defined constraints back and any new ones to the table
-		constraints, err = getTableConstraints(lib.GlobalDBSteward.NewDatabase, newSchema, newTable, constraintType)
+		constraints, err = getTableConstraints(dbs.NewDatabase, newSchema, newTable, constraintType)
 		if err != nil {
 			return err
 		}
@@ -52,7 +52,7 @@ func createConstraintsTable(l *slog.Logger, ofs output.OutputFileSegmenter, oldS
 
 		return nil
 	}
-	constraints, err := getNewConstraints(l, oldSchema, oldTable, newSchema, newTable, constraintType)
+	constraints, err := getNewConstraints(dbs, oldSchema, oldTable, newSchema, newTable, constraintType)
 	if err != nil {
 		return err
 	}
@@ -62,14 +62,14 @@ func createConstraintsTable(l *slog.Logger, ofs output.OutputFileSegmenter, oldS
 	return nil
 }
 
-func dropConstraints(l *slog.Logger, ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, constraintType sql99.ConstraintType) error {
+func dropConstraints(dbs *lib.DBSteward, ofs output.OutputFileSegmenter, oldSchema, newSchema *ir.Schema, constraintType sql99.ConstraintType) error {
 	for _, newTable := range newSchema.Tables {
 		var oldTable *ir.Table
 		if oldSchema != nil {
 			// TODO(feat) what about renames?
 			oldTable = oldSchema.TryGetTableNamed(newTable.Name)
 		}
-		err := dropConstraintsTable(l, ofs, oldSchema, oldTable, newSchema, newTable, constraintType)
+		err := dropConstraintsTable(dbs, ofs, oldSchema, oldTable, newSchema, newTable, constraintType)
 		if err != nil {
 			return err
 		}
@@ -77,8 +77,8 @@ func dropConstraints(l *slog.Logger, ofs output.OutputFileSegmenter, oldSchema, 
 	return nil
 }
 
-func dropConstraintsTable(l *slog.Logger, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) error {
-	constraints, err := getOldConstraints(l, oldSchema, oldTable, newSchema, newTable, constraintType)
+func dropConstraintsTable(dbs *lib.DBSteward, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) error {
+	constraints, err := getOldConstraints(dbs, oldSchema, oldTable, newSchema, newTable, constraintType)
 	if err != nil {
 		return err
 	}
@@ -88,11 +88,11 @@ func dropConstraintsTable(l *slog.Logger, ofs output.OutputFileSegmenter, oldSch
 	return nil
 }
 
-func getOldConstraints(l *slog.Logger, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) ([]*sql99.TableConstraint, error) {
+func getOldConstraints(dbs *lib.DBSteward, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) ([]*sql99.TableConstraint, error) {
 	out := []*sql99.TableConstraint{}
 	if newTable != nil && oldTable != nil {
-		oldDb := lib.GlobalDBSteward.OldDatabase
-		newDb := lib.GlobalDBSteward.NewDatabase
+		oldDb := dbs.OldDatabase
+		newDb := dbs.NewDatabase
 		constraints, err := getTableConstraints(oldDb, oldSchema, oldTable, constraintType)
 		if err != nil {
 			return nil, err
@@ -106,11 +106,11 @@ func getOldConstraints(l *slog.Logger, oldSchema *ir.Schema, oldTable *ir.Table,
 				out = append(out, oldConstraint)
 				continue
 			}
-			oldConstraintWithRenamedTable, err := constraintDependsOnRenamedTable(l, newDb, oldConstraint)
+			oldConstraintWithRenamedTable, err := constraintDependsOnRenamedTable(dbs, newDb, oldConstraint)
 			if err != nil {
 				return nil, err
 			}
-			newConstraintWithRenamedTable, err := constraintDependsOnRenamedTable(l, newDb, newConstraint)
+			newConstraintWithRenamedTable, err := constraintDependsOnRenamedTable(dbs, newDb, newConstraint)
 			if err != nil {
 				return nil, err
 			}
@@ -122,11 +122,11 @@ func getOldConstraints(l *slog.Logger, oldSchema *ir.Schema, oldTable *ir.Table,
 	return out, nil
 }
 
-func getNewConstraints(l *slog.Logger, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) ([]*sql99.TableConstraint, error) {
+func getNewConstraints(dbs *lib.DBSteward, oldSchema *ir.Schema, oldTable *ir.Table, newSchema *ir.Schema, newTable *ir.Table, constraintType sql99.ConstraintType) ([]*sql99.TableConstraint, error) {
 	out := []*sql99.TableConstraint{}
 	if newTable != nil {
-		oldDb := lib.GlobalDBSteward.OldDatabase
-		newDb := lib.GlobalDBSteward.NewDatabase
+		oldDb := dbs.OldDatabase
+		newDb := dbs.NewDatabase
 		newConstraints, err := getTableConstraints(newDb, newSchema, newTable, constraintType)
 		if err != nil {
 			return nil, err
@@ -136,7 +136,7 @@ func getNewConstraints(l *slog.Logger, oldSchema *ir.Schema, oldTable *ir.Table,
 			if err != nil {
 				return nil, err
 			}
-			renamedTable, err := constraintDependsOnRenamedTable(l, newDb, newConstraint)
+			renamedTable, err := constraintDependsOnRenamedTable(dbs, newDb, newConstraint)
 			if err != nil {
 				return nil, err
 			}

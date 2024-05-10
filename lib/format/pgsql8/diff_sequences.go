@@ -1,14 +1,13 @@
 package pgsql8
 
 import (
-	"log/slog"
-
+	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-func diffSequences(l *slog.Logger, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) error {
+func diffSequences(dbs *lib.DBSteward, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) error {
 	// drop old sequences
 	if oldSchema != nil {
 		for _, oldSeq := range oldSchema.Sequences {
@@ -21,7 +20,7 @@ func diffSequences(l *slog.Logger, ofs output.OutputFileSegmenter, oldSchema *ir
 	for _, newSeq := range newSchema.Sequences {
 		oldSeq := oldSchema.TryGetSequenceNamed(newSeq.Name)
 		if oldSeq == nil {
-			sql, err := getCreateSequenceSql(l, newSchema, newSeq)
+			sql, err := getCreateSequenceSql(dbs, newSchema, newSeq)
 			if err != nil {
 				return err
 			}

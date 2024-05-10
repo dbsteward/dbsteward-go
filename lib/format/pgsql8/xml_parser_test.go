@@ -1,10 +1,11 @@
-package pgsql8_test
+package pgsql8
 
 import (
 	"fmt"
+	"log/slog"
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib/format/pgsql8"
+	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/stretchr/testify/assert"
 )
@@ -162,7 +163,8 @@ END;`,
 	}
 
 	// note that Process mutates the document in place
-	err := pgsql8.GlobalXmlParser.Process(doc)
+	xmlParser := NewXmlParser(defaultQuoter(lib.NewDBSteward()))
+	err := xmlParser.Process(slog.Default(), doc)
 	if err != nil {
 		t.Fatal(err)
 	}

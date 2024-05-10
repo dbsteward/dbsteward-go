@@ -2,7 +2,6 @@ package pgsql8
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/dbsteward/dbsteward/lib"
@@ -12,7 +11,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/util"
 )
 
-func getCreateViewSql(l *slog.Logger, schema *ir.Schema, view *ir.View) ([]output.ToSql, error) {
+func getCreateViewSql(dbs *lib.DBSteward, schema *ir.Schema, view *ir.View) ([]output.ToSql, error) {
 	ref := sql.ViewRef{Schema: schema.Name, View: view.Name}
 	query := view.TryGetViewQuery(ir.SqlFormatPgsql8)
 	util.Assert(query != nil, "Calling View.GetCreationSql for a view not defined for this sqlformat")
@@ -31,7 +30,7 @@ func getCreateViewSql(l *slog.Logger, schema *ir.Schema, view *ir.View) ([]outpu
 		})
 	}
 	if view.Owner != "" {
-		role, err := roleEnum(l, lib.GlobalDBSteward.NewDatabase, view.Owner)
+		role, err := roleEnum(dbs.Logger(), dbs.NewDatabase, view.Owner, dbs.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}
@@ -52,12 +51,12 @@ func getDropViewSql(schema *ir.Schema, view *ir.View) []output.ToSql {
 	}
 }
 
-func getViewGrantSql(l *slog.Logger, doc *ir.Definition, schema *ir.Schema, view *ir.View, grant *ir.Grant) ([]output.ToSql, error) {
+func getViewGrantSql(dbs *lib.DBSteward, doc *ir.Definition, schema *ir.Schema, view *ir.View, grant *ir.Grant) ([]output.ToSql, error) {
 	// NOTE: pgsql views use table grants!
 	roles := make([]string, len(grant.Roles))
 	var err error
 	for i, role := range grant.Roles {
-		roles[i], err = roleEnum(l, lib.GlobalDBSteward.NewDatabase, role)
+		roles[i], err = roleEnum(dbs.Logger(), dbs.NewDatabase, role, dbs.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}

@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dbsteward/dbsteward/lib/format"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/format/sql99"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -23,17 +22,16 @@ import (
 )
 
 type Operations struct {
-	*sql99.Operations
-	logger *slog.Logger
-	differ *diff
+	logger    *slog.Logger
+	dbsteward *lib.DBSteward
+	differ    *diff
 }
 
 var quoter output.Quoter
 
-func defaultQuoter(logger *slog.Logger) output.Quoter {
-	dbsteward := lib.GlobalDBSteward
+func defaultQuoter(dbsteward *lib.DBSteward) output.Quoter {
 	return &sql.Quoter{
-		Logger:                         logger,
+		Logger:                         dbsteward.Logger(),
 		ShouldQuoteSchemaNames:         dbsteward.QuoteAllNames || dbsteward.QuoteSchemaNames,
 		ShouldQuoteTableNames:          dbsteward.QuoteAllNames || dbsteward.QuoteTableNames,
 		ShouldQuoteColumnNames:         dbsteward.QuoteAllNames || dbsteward.QuoteColumnNames,
@@ -45,15 +43,14 @@ func defaultQuoter(logger *slog.Logger) output.Quoter {
 	}
 }
 
-func NewOperations() format.Operations {
-	quoter = defaultQuoter(lib.GlobalDBSteward.Logger())
-	pgsql := &Operations{
-		Operations: sql99.NewOperations(),
-		logger:     lib.GlobalDBSteward.Logger(),
-		differ:     newDiff(quoter),
+func NewOperations(dbs *lib.DBSteward) lib.Operations {
+	quoter = defaultQuoter(dbs)
+	ops := &Operations{
+		logger:    dbs.Logger(),
+		dbsteward: dbs,
 	}
-	pgsql.Operations.Operations = pgsql
-	return pgsql
+	ops.differ = newDiff(ops, quoter)
+	return ops
 }
 
 func (ops *Operations) GetQuoter() output.Quoter {
@@ -71,8 +68,6 @@ func (ops *Operations) CreateStatements(def ir.Definition) ([]output.DDLStatemen
 }
 
 func (ops *Operations) Build(outputPrefix string, dbDoc *ir.Definition) error {
-	dbsteward := lib.GlobalDBSteward
-
 	buildFileName := outputPrefix + "_build.sql"
 	ops.logger.Info(fmt.Sprintf("Building complete file %s", buildFileName))
 
@@ -81,7 +76,7 @@ func (ops *Operations) Build(outputPrefix string, dbDoc *ir.Definition) error {
 		return fmt.Errorf("failed to open file %s for output: %w", buildFileName, err)
 	}
 
-	buildFileOfs := output.NewOutputFileSegmenterToFile(ops.logger, ops.GetQuoter(), buildFileName, 1, buildFile, buildFileName, dbsteward.OutputFileStatementLimit)
+	buildFileOfs := output.NewOutputFileSegmenterToFile(ops.logger, ops.GetQuoter(), buildFileName, 1, buildFile, buildFileName, ops.dbsteward.OutputFileStatementLimit)
 	err = ops.build(buildFileOfs, dbDoc)
 	if err != nil {
 		return err
@@ -91,13 +86,11 @@ func (ops *Operations) Build(outputPrefix string, dbDoc *ir.Definition) error {
 
 func (ops *Operations) build(buildFileOfs output.OutputFileSegmenter, dbDoc *ir.Definition) error {
 	// TODO(go,4) can we just consider a build(def) to be diff(null, def)?
-	// some shortcuts, since we're going to be typing a lot here
-	dbsteward := lib.GlobalDBSteward
 
-	if len(dbsteward.LimitToTables) == 0 {
+	if len(ops.dbsteward.LimitToTables) == 0 {
 		buildFileOfs.WriteSql(sql.NewComment("full database definition file generated %s\n", time.Now().Format(time.RFC1123Z)))
 	}
-	if !dbsteward.GenerateSlonik {
+	if !ops.dbsteward.GenerateSlonik {
 		buildFileOfs.WriteSql(output.NewRawSQL("BEGIN;\n\n"))
 	}
 
@@ -108,12 +101,12 @@ func (ops *Operations) build(buildFileOfs output.OutputFileSegmenter, dbDoc *ir.
 	}
 
 	// database-specific implementation code refers to dbsteward::$new_database when looking up roles/values/conflicts etc
-	dbsteward.NewDatabase = dbDoc
+	ops.dbsteward.NewDatabase = dbDoc
 
 	// language definitions
-	if dbsteward.CreateLanguages {
+	if ops.dbsteward.CreateLanguages {
 		for _, language := range dbDoc.Languages {
-			s, err := getCreateLanguageSql(ops.logger, language)
+			s, err := getCreateLanguageSql(ops.dbsteward, language)
 			if err != nil {
 				return err
 			}
@@ -166,23 +159,23 @@ outer:
 		ops.logger.Info(setCheckFunctionBodiesInfo)
 	}
 
-	if dbsteward.OnlySchemaSql || !dbsteward.OnlyDataSql {
+	if ops.dbsteward.OnlySchemaSql || !ops.dbsteward.OnlyDataSql {
 		ops.logger.Info("Defining structure")
 		err := ops.buildSchema(dbDoc, buildFileOfs, tableDependency)
 		if err != nil {
 			return err
 		}
 	}
-	if !dbsteward.OnlySchemaSql || dbsteward.OnlyDataSql {
+	if !ops.dbsteward.OnlySchemaSql || ops.dbsteward.OnlyDataSql {
 		ops.logger.Info("Defining data inserts")
-		err = buildData(ops.logger, dbDoc, buildFileOfs, tableDependency)
+		err = ops.buildData(ops.logger, dbDoc, buildFileOfs, tableDependency)
 		if err != nil {
 			return err
 		}
 	}
-	dbsteward.NewDatabase = nil
+	ops.dbsteward.NewDatabase = nil
 
-	if !dbsteward.GenerateSlonik {
+	if !ops.dbsteward.GenerateSlonik {
 		buildFileOfs.WriteSql(output.NewRawSQL("COMMIT;\n\n"))
 	}
 
@@ -230,8 +223,8 @@ func (ops *Operations) Upgrade(l *slog.Logger, oldDoc *ir.Definition, newDoc *ir
 	if err != nil {
 		return nil, fmt.Errorf("new document: %w", err)
 	}
-	lib.GlobalDBSteward.OldDatabase = oldDoc
-	lib.GlobalDBSteward.NewDatabase = newDoc
+	ops.dbsteward.OldDatabase = oldDoc
+	ops.dbsteward.NewDatabase = newDoc
 
 	stage1 := output.NewSegmenter(ops.GetQuoter())
 	stage2 := output.NewSegmenter(ops.GetQuoter())
@@ -964,7 +957,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 	// TODO(go,3) roll this into diffing nil -> doc
 	// schema creation
 	for _, schema := range doc.Schemas {
-		s, err := GlobalSchema.GetCreationSql(schema)
+		s, err := commonSchema.GetCreationSql(ops.dbsteward, schema)
 		if err != nil {
 			return err
 		}
@@ -972,7 +965,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 
 		// schema grants
 		for _, grant := range schema.Grants {
-			s, err := GlobalSchema.GetGrantSql(doc, schema, grant)
+			s, err := commonSchema.GetGrantSql(ops.dbsteward, doc, schema, grant)
 			if err != nil {
 				return err
 			}
@@ -997,7 +990,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 		includeColumnDefaultNextvalInCreateSql = false
 		for _, table := range schema.Tables {
 			// table definition
-			s, err := getCreateTableSql(ops.logger, schema, table)
+			s, err := getCreateTableSql(ops.dbsteward, schema, table)
 			if err != nil {
 				return err
 			}
@@ -1011,7 +1004,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 
 			// table grants
 			for _, grant := range table.Grants {
-				s, err := getTableGrantSql(ops.logger, schema, table, grant)
+				s, err := getTableGrantSql(ops.dbsteward, schema, table, grant)
 				if err != nil {
 					return err
 				}
@@ -1023,7 +1016,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 		// sequences contained in the schema
 		for _, sequence := range schema.Sequences {
 			if sequence.OwnedByColumn == "" {
-				sql, err := getCreateSequenceSql(ops.logger, schema, sequence)
+				sql, err := getCreateSequenceSql(ops.dbsteward, schema, sequence)
 				if err != nil {
 					return err
 				}
@@ -1036,7 +1029,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 
 			// sequence permission grants
 			for _, grant := range sequence.Grants {
-				s, err := getSequenceGrantSql(ops.logger, schema, sequence, grant)
+				s, err := getSequenceGrantSql(ops.dbsteward, schema, sequence, grant)
 				if err != nil {
 					return err
 				}
@@ -1056,7 +1049,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 	for _, schema := range doc.Schemas {
 		for _, function := range schema.Functions {
 			if function.HasDefinition(ir.SqlFormatPgsql8) {
-				s, err := getFunctionCreationSql(ops.logger, schema, function)
+				s, err := getFunctionCreationSql(ops.dbsteward, schema, function)
 				if err != nil {
 					return err
 				}
@@ -1065,7 +1058,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 				// they are not included in pg_function::get_creation_sql()
 
 				for _, grant := range function.Grants {
-					grant, err := getFunctionGrantSql(ops.logger, schema, function, grant)
+					grant, err := getFunctionGrantSql(ops.dbsteward, schema, function, grant)
 					if err != nil {
 						return err
 					}
@@ -1086,7 +1079,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 	// define table primary keys before foreign keys so unique requirements are always met for FOREIGN KEY constraints
 	for _, schema := range doc.Schemas {
 		for _, table := range schema.Tables {
-			err := createConstraintsTable(ops.logger, ofs, nil, nil, schema, table, sql99.ConstraintTypePrimaryKey)
+			err := createConstraintsTable(ops.dbsteward, ofs, nil, nil, schema, table, sql99.ConstraintTypePrimaryKey)
 			if err != nil {
 				return err
 			}
@@ -1097,7 +1090,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 	// use the dependency order to specify foreign keys in an order that will satisfy nested foreign keys and etc
 	// TODO(feat) shouldn't this consider GlobalDBSteward.LimitToTables like BuildData does?
 	for _, entry := range tableDep {
-		err := createConstraintsTable(ops.logger, ofs, nil, nil, entry.Schema, entry.Table, sql99.ConstraintTypeConstraint)
+		err := createConstraintsTable(ops.dbsteward, ofs, nil, nil, entry.Schema, entry.Table, sql99.ConstraintTypeConstraint)
 		if err != nil {
 			return err
 		}
@@ -1116,7 +1109,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 		}
 	}
 
-	err := createViewsOrdered(ops.logger, ofs, nil, doc)
+	err := createViewsOrdered(ops.dbsteward, ofs, nil, doc)
 	if err != nil {
 		return err
 	}
@@ -1125,7 +1118,7 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 	for _, schema := range doc.Schemas {
 		for _, view := range schema.Views {
 			for _, grant := range view.Grants {
-				s, err := getViewGrantSql(ops.logger, doc, schema, view, grant)
+				s, err := getViewGrantSql(ops.dbsteward, doc, schema, view, grant)
 				if err != nil {
 					return err
 				}
@@ -1138,8 +1131,8 @@ func (ops *Operations) buildSchema(doc *ir.Definition, ofs output.OutputFileSegm
 	return nil
 }
 
-func buildData(l *slog.Logger, doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) error {
-	limitToTables := lib.GlobalDBSteward.LimitToTables
+func (ops *Operations) buildData(_ *slog.Logger, doc *ir.Definition, ofs output.OutputFileSegmenter, tableDep []*ir.TableRef) error {
+	limitToTables := ops.dbsteward.LimitToTables
 
 	// use the dependency order to then write out the actual data inserts into the data sql file
 	for _, entry := range tableDep {
@@ -1157,7 +1150,7 @@ func buildData(l *slog.Logger, doc *ir.Definition, ofs output.OutputFileSegmente
 				continue
 			}
 		}
-		s, err := getCreateDataSql(l, nil, nil, schema, table)
+		s, err := getCreateDataSql(ops, nil, nil, schema, table)
 		if err != nil {
 			return err
 		}
@@ -1211,7 +1204,7 @@ func buildData(l *slog.Logger, doc *ir.Definition, ofs output.OutputFileSegmente
 	return nil
 }
 
-func columnValueDefault(l *slog.Logger, schema *ir.Schema, table *ir.Table, columnName string, dataCol *ir.DataCol) (sql.ToSqlValue, error) {
+func (ops *Operations) columnValueDefault(l *slog.Logger, schema *ir.Schema, table *ir.Table, columnName string, dataCol *ir.DataCol) (sql.ToSqlValue, error) {
 	// if the column represents NULL, return a NULL value
 	if dataCol.Null {
 		return sql.ValueNull, nil
@@ -1229,7 +1222,7 @@ func columnValueDefault(l *slog.Logger, schema *ir.Schema, table *ir.Table, colu
 		}
 	}
 
-	col, err := lib.GlobalDBSteward.NewDatabase.TryInheritanceGetColumn(schema, table, columnName)
+	col, err := ops.dbsteward.NewDatabase.TryInheritanceGetColumn(schema, table, columnName)
 	if err != nil {
 		return nil, fmt.Errorf("TryInheritanceGetColumn %w", err)
 	}
@@ -1251,7 +1244,7 @@ func columnValueDefault(l *slog.Logger, schema *ir.Schema, table *ir.Table, colu
 		return sql.RawSql(col.Default), nil
 	}
 
-	colType, err := getColumnType(l, lib.GlobalDBSteward.NewDatabase, schema, table, col)
+	colType, err := getColumnType(l, ops.dbsteward.NewDatabase, schema, table, col)
 	if err != nil {
 		return nil, err
 	}
