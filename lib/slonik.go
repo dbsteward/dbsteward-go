@@ -1,5 +1,10 @@
 package lib
 
+type SlonyOperations interface {
+	SlonyCompare(file string)
+	SlonyDiff(oldFile, newFile string)
+}
+
 type Slonik struct{}
 
 func NewSlonik() *Slonik {
