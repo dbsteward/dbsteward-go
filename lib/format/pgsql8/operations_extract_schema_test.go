@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/util"
 	"github.com/jackc/pgtype"
@@ -107,7 +106,7 @@ func TestOperations_ExtractSchema_Indexes(t *testing.T) {
 			},
 		},
 	}
-	ops := NewOperations(lib.NewDBSteward()).(*Operations)
+	ops := NewOperations(DefaultConfig).(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -163,7 +162,7 @@ func TestOperations_ExtractSchema_CompoundUniqueConstraint(t *testing.T) {
 			},
 		},
 	}
-	ops := NewOperations(lib.NewDBSteward()).(*Operations)
+	ops := NewOperations(DefaultConfig).(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -217,7 +216,7 @@ func TestOperations_ExtractSchema_TableComments(t *testing.T) {
 			},
 		},
 	}
-	ops := NewOperations(lib.NewDBSteward()).(*Operations)
+	ops := NewOperations(DefaultConfig).(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -259,7 +258,7 @@ END;
 			},
 		},
 	}
-	ops := NewOperations(lib.NewDBSteward()).(*Operations)
+	ops := NewOperations(DefaultConfig).(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -343,7 +342,7 @@ func TestOperations_ExtractSchema_FunctionArgs(t *testing.T) {
 			},
 		},
 	}
-	ops := NewOperations(lib.NewDBSteward()).(*Operations)
+	ops := NewOperations(DefaultConfig).(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -386,7 +385,7 @@ func TestOperations_ExtractSchema_TableArrayType(t *testing.T) {
 			},
 		},
 	}
-	ops := NewOperations(lib.NewDBSteward()).(*Operations)
+	ops := NewOperations(DefaultConfig).(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -446,7 +445,7 @@ func TestOperations_ExtractSchema_FKReferentialConstraints(t *testing.T) {
 			},
 		},
 	}
-	ops := NewOperations(lib.NewDBSteward()).(*Operations)
+	ops := NewOperations(DefaultConfig).(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)
@@ -505,7 +504,7 @@ func TestOperations_ExtractSchema_Sequences(t *testing.T) {
 			{Schema: "public", Table: "user", Name: "user_pkey", Type: "p", Columns: []string{"user_id"}},
 		},
 	}
-	ops := NewOperations(lib.NewDBSteward()).(*Operations)
+	ops := NewOperations(DefaultConfig).(*Operations)
 	actual, err := ops.pgToIR(pgDoc)
 	if err != nil {
 		t.Fatalf("Conversion failed: %+v", err)

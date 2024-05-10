@@ -7,7 +7,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-func getCreateLanguageSql(dbsteward *lib.DBSteward, lang *ir.Language) ([]output.ToSql, error) {
+func getCreateLanguageSql(conf lib.Config, lang *ir.Language) ([]output.ToSql, error) {
 	out := []output.ToSql{
 		&sql.LanguageCreate{
 			Language:   lang.Name,
@@ -19,7 +19,7 @@ func getCreateLanguageSql(dbsteward *lib.DBSteward, lang *ir.Language) ([]output
 	}
 
 	if lang.Owner != "" {
-		role, err := roleEnum(dbsteward.Logger(), dbsteward.NewDatabase, lang.Owner, dbsteward.IgnoreCustomRoles)
+		role, err := roleEnum(conf.Logger, conf.NewDatabase, lang.Owner, conf.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}

@@ -3,7 +3,6 @@ package pgsql8
 import (
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 	"github.com/dbsteward/dbsteward/lib/ir"
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -94,10 +93,9 @@ func TestDiffTypes_DiffTypes_RecreateDependentFunctions(t *testing.T) {
 		},
 	}
 
-	dbs := lib.NewDBSteward()
-	ops := NewOperations(dbs).(*Operations)
-	ofs := output.NewAnnotationStrippingSegmenter(defaultQuoter(dbs))
-	err := diffTypes(dbs, newDiff(ops, defaultQuoter(dbs)), ofs, oldSchema, newSchema)
+	ops := NewOperations(DefaultConfig).(*Operations)
+	ofs := output.NewAnnotationStrippingSegmenter(defaultQuoter(DefaultConfig))
+	err := diffTypes(DefaultConfig, newDiff(ops, defaultQuoter(DefaultConfig)), ofs, oldSchema, newSchema)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,7 +3,6 @@ package pgsql8
 import (
 	"testing"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/format/pgsql8/sql"
 
 	"github.com/dbsteward/dbsteward/lib/output"
@@ -40,11 +39,11 @@ func TestDiffTables_GetDataSql_EscapeCharacters(t *testing.T) {
 			},
 		},
 	}
-	dbs := lib.NewDBSteward()
-	dbs.NewDatabase = &ir.Definition{
+	conf := DefaultConfig
+	conf.NewDatabase = &ir.Definition{
 		Schemas: []*ir.Schema{schema},
 	}
-	ops := NewOperations(dbs).(*Operations)
+	ops := NewOperations(conf).(*Operations)
 	ddl, err := getCreateDataSql(ops, nil, nil, schema, schema.Tables[0])
 	if err != nil {
 		t.Fatal(err)

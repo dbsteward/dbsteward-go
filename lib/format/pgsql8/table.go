@@ -15,8 +15,8 @@ import (
 
 var includeColumnDefaultNextvalInCreateSql bool
 
-func getCreateTableSql(dbs *lib.DBSteward, schema *ir.Schema, table *ir.Table) ([]output.ToSql, error) {
-	l := dbs.Logger().With(
+func getCreateTableSql(conf lib.Config, schema *ir.Schema, table *ir.Table) ([]output.ToSql, error) {
+	l := conf.Logger.With(
 		slog.String("table", table.Name),
 		slog.String("schema", schema.Name),
 	)
@@ -24,7 +24,7 @@ func getCreateTableSql(dbs *lib.DBSteward, schema *ir.Schema, table *ir.Table) (
 	colSetup := []output.ToSql{}
 	for _, col := range table.Columns {
 		ll := l.With(slog.String("column", col.Name))
-		newCol, err := getReducedColumnDefinition(ll, dbs.NewDatabase, schema, table, col)
+		newCol, err := getReducedColumnDefinition(ll, conf.NewDatabase, schema, table, col)
 		if err != nil {
 			return nil, err
 		}
@@ -67,7 +67,7 @@ func getCreateTableSql(dbs *lib.DBSteward, schema *ir.Schema, table *ir.Table) (
 	ddl = append(ddl, colSetup...)
 
 	if table.Owner != "" {
-		role, err := roleEnum(l, dbs.NewDatabase, table.Owner, dbs.IgnoreCustomRoles)
+		role, err := roleEnum(l, conf.NewDatabase, table.Owner, conf.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}
@@ -125,11 +125,11 @@ func defineTableColumnDefaults(l *slog.Logger, schema *ir.Schema, table *ir.Tabl
 	return out
 }
 
-func getTableGrantSql(dbs *lib.DBSteward, schema *ir.Schema, table *ir.Table, grant *ir.Grant) ([]output.ToSql, error) {
+func getTableGrantSql(conf lib.Config, schema *ir.Schema, table *ir.Table, grant *ir.Grant) ([]output.ToSql, error) {
 	roles := make([]string, len(grant.Roles))
 	var err error
 	for i, role := range grant.Roles {
-		roles[i], err = roleEnum(dbs.Logger(), dbs.NewDatabase, role, dbs.IgnoreCustomRoles)
+		roles[i], err = roleEnum(conf.Logger, conf.NewDatabase, role, conf.IgnoreCustomRoles)
 		if err != nil {
 			return nil, err
 		}
@@ -155,7 +155,7 @@ func getTableGrantSql(dbs *lib.DBSteward, schema *ir.Schema, table *ir.Table, gr
 	// TABLE IMPLICIT GRANTS
 	// READYONLY USER PROVISION: grant select on the table for the readonly user
 	// TODO(go,3) move this out of here, let this create just a single grant
-	roRole, err := roleEnum(dbs.Logger(), dbs.NewDatabase, ir.RoleReadOnly, dbs.IgnoreCustomRoles)
+	roRole, err := roleEnum(conf.Logger, conf.NewDatabase, ir.RoleReadOnly, conf.IgnoreCustomRoles)
 	if err != nil {
 		return nil, err
 	}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dbsteward/dbsteward/lib"
 	"github.com/dbsteward/dbsteward/lib/ir"
 )
 
@@ -127,12 +126,11 @@ func getColumnValueDefault(def *ir.Column, data *ir.DataCol) (string, error) {
 			},
 		},
 	}
-	dbs := lib.NewDBSteward()
-	dbs.NewDatabase = doc
 	schema := doc.Schemas[0]
 	table := schema.Tables[0]
-
-	ops := NewOperations(dbs).(*Operations)
+	conf := DefaultConfig
+	conf.NewDatabase = doc
+	ops := NewOperations(conf).(*Operations)
 
 	// TODO(go,nth) can we do this without also testing GetValueSql?
 	toVal, err := ops.columnValueDefault(slog.Default(), schema, table, def.Name, data)

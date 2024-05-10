@@ -7,7 +7,7 @@ import (
 	"github.com/dbsteward/dbsteward/lib/output"
 )
 
-func diffSequences(dbs *lib.DBSteward, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) error {
+func diffSequences(conf lib.Config, ofs output.OutputFileSegmenter, oldSchema *ir.Schema, newSchema *ir.Schema) error {
 	// drop old sequences
 	if oldSchema != nil {
 		for _, oldSeq := range oldSchema.Sequences {
@@ -20,7 +20,7 @@ func diffSequences(dbs *lib.DBSteward, ofs output.OutputFileSegmenter, oldSchema
 	for _, newSeq := range newSchema.Sequences {
 		oldSeq := oldSchema.TryGetSequenceNamed(newSeq.Name)
 		if oldSeq == nil {
-			sql, err := getCreateSequenceSql(dbs, newSchema, newSeq)
+			sql, err := getCreateSequenceSql(conf, newSchema, newSeq)
 			if err != nil {
 				return err
 			}

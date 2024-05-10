@@ -24,17 +24,17 @@ type Operations interface {
 type Encoding interface {
 }
 
-var formats = make(map[ir.SqlFormat]func(*DBSteward) Operations)
+var formats = make(map[ir.SqlFormat]func(Config) Operations)
 
 var formatMutex sync.Mutex
 
-func RegisterFormat(id ir.SqlFormat, constructor func(*DBSteward) Operations) {
+func RegisterFormat(id ir.SqlFormat, constructor func(Config) Operations) {
 	formatMutex.Lock()
 	defer formatMutex.Unlock()
 	formats[id] = constructor
 }
 
-func Format(id ir.SqlFormat) (func(*DBSteward) Operations, error) {
+func Format(id ir.SqlFormat) (func(Config) Operations, error) {
 	formatMutex.Lock()
 	defer formatMutex.Unlock()
 	constructor, exists := formats[id]

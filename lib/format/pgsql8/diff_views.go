@@ -10,8 +10,8 @@ import (
 
 // TODO(go,core) lift some of these to sql99
 
-func createViewsOrdered(dbs *lib.DBSteward, ofs output.OutputFileSegmenter, oldDoc *ir.Definition, newDoc *ir.Definition) error {
-	l := dbs.Logger()
+func createViewsOrdered(conf lib.Config, ofs output.OutputFileSegmenter, oldDoc *ir.Definition, newDoc *ir.Definition) error {
+	l := conf.Logger
 	return forEachViewInDepOrder(newDoc, func(newRef ir.ViewRef) error {
 		ll := l.With(slog.String("view", newRef.String()))
 		ll.Debug("consider creating")
@@ -24,11 +24,11 @@ func createViewsOrdered(dbs *lib.DBSteward, ofs output.OutputFileSegmenter, oldD
 		if oldView != nil {
 			ll = ll.With(slog.String("old view", oldView.Name))
 		}
-		if shouldCreateView(dbs, oldView, newRef.View) {
+		if shouldCreateView(conf, oldView, newRef.View) {
 			ll.Debug("shouldCreateView returned true")
-			s, err := getCreateViewSql(dbs, newRef.Schema, newRef.View)
+			s, err := getCreateViewSql(conf, newRef.Schema, newRef.View)
 			for _, s1 := range s {
-				ll.Debug(s1.ToSql(defaultQuoter(dbs)))
+				ll.Debug(s1.ToSql(defaultQuoter(conf)))
 			}
 			if err != nil {
 				return err
@@ -41,8 +41,8 @@ func createViewsOrdered(dbs *lib.DBSteward, ofs output.OutputFileSegmenter, oldD
 	})
 }
 
-func shouldCreateView(dbs *lib.DBSteward, oldView, newView *ir.View) bool {
-	return oldView == nil || dbs.AlwaysRecreateViews || !oldView.Equals(newView, ir.SqlFormatPgsql8)
+func shouldCreateView(conf lib.Config, oldView, newView *ir.View) bool {
+	return oldView == nil || conf.AlwaysRecreateViews || !oldView.Equals(newView, ir.SqlFormatPgsql8)
 }
 
 func dropViewsOrdered(ofs output.OutputFileSegmenter, oldDoc *ir.Definition, newDoc *ir.Definition) error {

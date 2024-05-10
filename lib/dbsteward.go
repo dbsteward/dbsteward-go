@@ -30,78 +30,44 @@ const Version = "2.0.0"
 const ApiVersion = "1.4"
 
 type DBSteward struct {
-	logger     zerolog.Logger
-	slogLogger *slog.Logger
-
-	SqlFormat ir.SqlFormat
-
-	CreateLanguages                bool
-	requireSlonyId                 bool
-	requireSlonySetId              bool
-	GenerateSlonik                 bool
-	slonyIdStartValue              uint
-	slonyIdSetValue                uint
-	OutputFileStatementLimit       uint
-	IgnoreCustomRoles              bool
-	ignorePrimaryKeyErrors         bool
-	RequireVerboseIntervalNotation bool
-	QuoteSchemaNames               bool
-	QuoteObjectNames               bool
-	QuoteTableNames                bool
-	QuoteFunctionNames             bool
-	QuoteColumnNames               bool
-	QuoteAllNames                  bool
-	QuoteIllegalIdentifiers        bool
-	QuoteReservedIdentifiers       bool
-	OnlySchemaSql                  bool
-	OnlyDataSql                    bool
-	LimitToTables                  map[string][]string
-	SingleStageUpgrade             bool
-	fileOutputDirectory            string
-	fileOutputPrefix               string
-	IgnoreOldNames                 bool
-	AlwaysRecreateViews            bool
-
-	// TODO(go,3) just pass these explicitly!
-	OldDatabase *ir.Definition
-	NewDatabase *ir.Definition
+	logger zerolog.Logger
+	config Config
 }
 
 func NewDBSteward() *DBSteward {
 	dbsteward := &DBSteward{
 		logger: zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
-
-		SqlFormat: ir.SqlFormatUnknown,
-
-		CreateLanguages:                false,
-		requireSlonyId:                 false,
-		requireSlonySetId:              false,
-		GenerateSlonik:                 false,
-		slonyIdStartValue:              1,
-		slonyIdSetValue:                1,
-		OutputFileStatementLimit:       900,
-		IgnoreCustomRoles:              false,
-		ignorePrimaryKeyErrors:         false,
-		RequireVerboseIntervalNotation: false,
-		QuoteSchemaNames:               false,
-		QuoteObjectNames:               false,
-		QuoteTableNames:                false,
-		QuoteFunctionNames:             false,
-		QuoteColumnNames:               false,
-		QuoteAllNames:                  false,
-		QuoteIllegalIdentifiers:        false,
-		QuoteReservedIdentifiers:       false,
-		OnlySchemaSql:                  false,
-		OnlyDataSql:                    false,
-		LimitToTables:                  map[string][]string{},
-		SingleStageUpgrade:             false,
-		fileOutputDirectory:            "",
-		fileOutputPrefix:               "",
-		IgnoreOldNames:                 false,
-		AlwaysRecreateViews:            true,
-
-		OldDatabase: nil,
-		NewDatabase: nil,
+		config: Config{
+			SqlFormat:                      DefaultSqlFormat,
+			CreateLanguages:                false,
+			RequireSlonyId:                 false,
+			RequireSlonySetId:              false,
+			GenerateSlonik:                 false,
+			SlonyIdStartValue:              1,
+			SlonyIdSetValue:                1,
+			OutputFileStatementLimit:       900,
+			IgnoreCustomRoles:              false,
+			IgnorePrimaryKeyErrors:         false,
+			RequireVerboseIntervalNotation: false,
+			QuoteSchemaNames:               false,
+			QuoteObjectNames:               false,
+			QuoteTableNames:                false,
+			QuoteFunctionNames:             false,
+			QuoteColumnNames:               false,
+			QuoteAllNames:                  false,
+			QuoteIllegalIdentifiers:        false,
+			QuoteReservedIdentifiers:       false,
+			OnlySchemaSql:                  false,
+			OnlyDataSql:                    false,
+			LimitToTables:                  map[string][]string{},
+			SingleStageUpgrade:             false,
+			FileOutputDirectory:            "",
+			FileOutputPrefix:               "",
+			IgnoreOldNames:                 false,
+			AlwaysRecreateViews:            true,
+			OldDatabase:                    nil,
+			NewDatabase:                    nil,
+		},
 	}
 
 	return dbsteward
@@ -130,7 +96,7 @@ func (dbsteward *DBSteward) ArgParse() {
 	if len(args.NewXmlFiles) > 0 && len(args.OldXmlFiles) == 0 {
 		dbsteward.fatal("Parameter error: oldxml needs newxml specified for differencing to occur")
 	}
-
+	dbsteward.config.Logger = slog.New(newLogHandler(dbsteward))
 	// database connectivity values
 	// dbsteward.dbHost = args.DbHost
 	// dbsteward.dbPort = args.DbPort
@@ -139,28 +105,28 @@ func (dbsteward *DBSteward) ArgParse() {
 	// dbsteward.dbPass = args.DbPassword
 
 	// SQL DDL DML DCL output flags
-	dbsteward.OnlySchemaSql = args.OnlySchemaSql
-	dbsteward.OnlyDataSql = args.OnlyDataSql
+	dbsteward.config.OnlySchemaSql = args.OnlySchemaSql
+	dbsteward.config.OnlyDataSql = args.OnlyDataSql
 	for _, onlyTable := range args.OnlyTables {
 		table := ParseQualifiedTableName(onlyTable)
-		dbsteward.LimitToTables[table.Schema] = append(dbsteward.LimitToTables[table.Schema], table.Table)
+		dbsteward.config.LimitToTables[table.Schema] = append(dbsteward.config.LimitToTables[table.Schema], table.Table)
 	}
 
 	// XML parsing switches
-	dbsteward.SingleStageUpgrade = args.SingleStageUpgrade
-	if dbsteward.SingleStageUpgrade {
+	dbsteward.config.SingleStageUpgrade = args.SingleStageUpgrade
+	if dbsteward.config.SingleStageUpgrade {
 		// don't recreate views when in single stage upgrade mode
 		// TODO(feat) make view diffing smart enough that this doesn't need to be done
-		dbsteward.AlwaysRecreateViews = false
+		dbsteward.config.AlwaysRecreateViews = false
 	}
-	dbsteward.IgnoreOldNames = args.IgnoreOldNames
-	dbsteward.IgnoreCustomRoles = args.IgnoreCustomRoles
-	dbsteward.ignorePrimaryKeyErrors = args.IgnorePrimaryKeyErrors
-	dbsteward.requireSlonyId = args.RequireSlonyId
-	dbsteward.requireSlonySetId = args.RequireSlonySetId
-	dbsteward.GenerateSlonik = args.GenerateSlonik
-	dbsteward.slonyIdStartValue = args.SlonyIdStartValue
-	dbsteward.slonyIdSetValue = args.SlonyIdSetValue
+	dbsteward.config.IgnoreOldNames = args.IgnoreOldNames
+	dbsteward.config.IgnoreCustomRoles = args.IgnoreCustomRoles
+	dbsteward.config.IgnorePrimaryKeyErrors = args.IgnorePrimaryKeyErrors
+	dbsteward.config.RequireSlonyId = args.RequireSlonyId
+	dbsteward.config.RequireSlonySetId = args.RequireSlonySetId
+	dbsteward.config.GenerateSlonik = args.GenerateSlonik
+	dbsteward.config.SlonyIdStartValue = args.SlonyIdStartValue
+	dbsteward.config.SlonyIdSetValue = args.SlonyIdSetValue
 
 	// determine operation and check arguments for each
 	mode := ModeUnknown
@@ -234,9 +200,9 @@ func (dbsteward *DBSteward) ArgParse() {
 		if !util.IsDir(args.OutputDir) {
 			dbsteward.fatal("outputdir is not a directory, must be a writable directory")
 		}
-		dbsteward.fileOutputDirectory = args.OutputDir
+		dbsteward.config.FileOutputDirectory = args.OutputDir
 	}
-	dbsteward.fileOutputPrefix = args.OutputFilePrefix
+	dbsteward.config.FileOutputPrefix = args.OutputFilePrefix
 
 	if args.XmlCollectDataAddendums > 0 {
 		if mode != ModeDbDataDiff {
@@ -252,16 +218,16 @@ func (dbsteward *DBSteward) ArgParse() {
 	dbsteward.Info("DBSteward Version %s", Version)
 
 	// set the global sql format
-	dbsteward.SqlFormat = dbsteward.reconcileSqlFormat(ir.SqlFormatPgsql8, args.SqlFormat)
-	dbsteward.Info("Using sqlformat=%s", dbsteward.SqlFormat)
-	dbsteward.defineSqlFormatDefaultValues(dbsteward.SqlFormat, args)
+	dbsteward.config.SqlFormat = dbsteward.reconcileSqlFormat(ir.SqlFormatPgsql8, args.SqlFormat)
+	dbsteward.Info("Using sqlformat=%s", dbsteward.config.SqlFormat)
+	dbsteward.defineSqlFormatDefaultValues(dbsteward.config.SqlFormat, args)
 
-	dbsteward.QuoteSchemaNames = args.QuoteSchemaNames
-	dbsteward.QuoteTableNames = args.QuoteTableNames
-	dbsteward.QuoteColumnNames = args.QuoteColumnNames
-	dbsteward.QuoteAllNames = args.QuoteAllNames
-	dbsteward.QuoteIllegalIdentifiers = args.QuoteIllegalNames
-	dbsteward.QuoteReservedIdentifiers = args.QuoteReservedNames
+	dbsteward.config.QuoteSchemaNames = args.QuoteSchemaNames
+	dbsteward.config.QuoteTableNames = args.QuoteTableNames
+	dbsteward.config.QuoteColumnNames = args.QuoteColumnNames
+	dbsteward.config.QuoteAllNames = args.QuoteAllNames
+	dbsteward.config.QuoteIllegalIdentifiers = args.QuoteIllegalNames
+	dbsteward.config.QuoteReservedIdentifiers = args.QuoteReservedNames
 
 	// TODO(go,3) move all of these to separate subcommands
 	switch mode {
@@ -299,10 +265,10 @@ func (dbsteward *DBSteward) Logger() *slog.Logger {
 	if dbsteward == nil {
 		panic("dbsteward is nil")
 	}
-	if dbsteward.slogLogger == nil {
-		dbsteward.slogLogger = slog.New(newLogHandler(dbsteward))
+	if dbsteward.config.Logger == nil {
+		dbsteward.config.Logger = slog.New(newLogHandler(dbsteward))
 	}
-	return dbsteward.slogLogger
+	return dbsteward.config.Logger
 }
 
 func (dbsteward *DBSteward) fatal(s string, args ...interface{}) {
@@ -385,10 +351,10 @@ func (dbsteward *DBSteward) reconcileSqlFormat(target, requested ir.SqlFormat) i
 func (dbsteward *DBSteward) defineSqlFormatDefaultValues(SqlFormat ir.SqlFormat, args *config.Args) {
 	switch SqlFormat {
 	case ir.SqlFormatPgsql8:
-		dbsteward.CreateLanguages = true
-		dbsteward.QuoteSchemaNames = false
-		dbsteward.QuoteTableNames = false
-		dbsteward.QuoteColumnNames = false
+		dbsteward.config.CreateLanguages = true
+		dbsteward.config.QuoteSchemaNames = false
+		dbsteward.config.QuoteTableNames = false
+		dbsteward.config.QuoteColumnNames = false
 		if args.DbPort == 0 {
 			args.DbPort = 5432
 		}
@@ -404,11 +370,11 @@ func (dbsteward *DBSteward) defineSqlFormatDefaultValues(SqlFormat ir.SqlFormat,
 func (dbsteward *DBSteward) calculateFileOutputPrefix(files []string) string {
 	return path.Join(
 		dbsteward.calculateFileOutputDirectory(files[0]),
-		util.CoalesceStr(dbsteward.fileOutputPrefix, util.Basename(files[0], ".xml")),
+		util.CoalesceStr(dbsteward.config.FileOutputPrefix, util.Basename(files[0], ".xml")),
 	)
 }
 func (dbsteward *DBSteward) calculateFileOutputDirectory(file string) string {
-	return util.CoalesceStr(dbsteward.fileOutputDirectory, path.Dir(file))
+	return util.CoalesceStr(dbsteward.config.FileOutputDirectory, path.Dir(file))
 }
 
 // Append columns in a table's rows collection, based on a simplified XML definition of what to insert
@@ -500,8 +466,8 @@ func (dbsteward *DBSteward) doXmlSlonyId(files []string, slonyOut string) {
 	dbsteward.fatalIfError(err, "saving file")
 
 	dbsteward.Info("Slony ID numbering any missing attributes")
-	dbsteward.Info("slonyidstartvalue = %d", dbsteward.slonyIdStartValue)
-	dbsteward.Info("slonyidsetvalue = %d", dbsteward.slonyIdSetValue)
+	dbsteward.Info("slonyidstartvalue = %d", dbsteward.config.SlonyIdStartValue)
+	dbsteward.Info("slonyidsetvalue = %d", dbsteward.config.SlonyIdSetValue)
 	slonyIdDoc := xml.SlonyIdNumber(dbDoc)
 	slonyIdNumberedFile := outputPrefix + "_slonyid_numbered.xml"
 	if len(slonyOut) > 0 {
@@ -551,7 +517,7 @@ func (dbsteward *DBSteward) doBuild(files []string, dataFiles []string, addendum
 
 	ops, err := Format(DefaultSqlFormat)
 	dbsteward.fatalIfError(err, "loading default format")
-	err = ops(dbsteward).Build(outputPrefix, dbDoc)
+	err = ops(dbsteward.config).Build(outputPrefix, dbDoc)
 	dbsteward.fatalIfError(err, "building")
 }
 func (dbsteward *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFiles []string) {
@@ -584,7 +550,7 @@ func (dbsteward *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFil
 
 	ops, err := Format(DefaultSqlFormat)
 	dbsteward.fatalIfError(err, "loading default format")
-	err = ops(dbsteward).BuildUpgrade(
+	err = ops(dbsteward.config).BuildUpgrade(
 		oldOutputPrefix, oldCompositeFile, oldDbDoc, oldFiles,
 		newOutputPrefix, newCompositeFile, newDbDoc, newFiles,
 	)
@@ -593,7 +559,7 @@ func (dbsteward *DBSteward) doDiff(oldFiles []string, newFiles []string, dataFil
 func (dbsteward *DBSteward) doExtract(dbHost string, dbPort uint, dbName, dbUser, dbPass string, outputFile string) {
 	ops, err := Format(DefaultSqlFormat)
 	dbsteward.fatalIfError(err, "loading default format")
-	output, err := ops(dbsteward).ExtractSchema(dbHost, dbPort, dbName, dbUser, dbPass)
+	output, err := ops(dbsteward.config).ExtractSchema(dbHost, dbPort, dbName, dbUser, dbPass)
 	dbsteward.fatalIfError(err, "extracting")
 	dbsteward.Info("Saving extracted database schema to %s", outputFile)
 	err = xml.SaveDefinition(dbsteward.Logger(), outputFile, output)
@@ -624,7 +590,7 @@ func (dbsteward *DBSteward) doDbDataDiff(files []string, dataFiles []string, add
 
 	ops, err := Format(DefaultSqlFormat)
 	dbsteward.fatalIfError(err, "loading default format")
-	output, err := ops(dbsteward).CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
+	output, err := ops(dbsteward.config).CompareDbData(dbDoc, dbHost, dbPort, dbName, dbUser, dbPass)
 	dbsteward.fatalIfError(err, "comparing data")
 	err = xml.SaveDefinition(dbsteward.Logger(), compositeFile, output)
 	dbsteward.fatalIfError(err, "saving file")
@@ -632,7 +598,7 @@ func (dbsteward *DBSteward) doDbDataDiff(files []string, dataFiles []string, add
 func (dbsteward *DBSteward) doSqlDiff(oldSql, newSql []string, outputFile string) {
 	ops, err := Format(DefaultSqlFormat)
 	dbsteward.fatalIfError(err, "loading default format")
-	ops(dbsteward).SqlDiff(oldSql, newSql, outputFile)
+	ops(dbsteward.config).SqlDiff(oldSql, newSql, outputFile)
 }
 func (dbsteward *DBSteward) doSlonikConvert(file string, outputFile string) {
 	// TODO(go,nth) is there a nicer way to handle this output idiom?
@@ -647,10 +613,10 @@ func (dbsteward *DBSteward) doSlonikConvert(file string, outputFile string) {
 func (dbsteward *DBSteward) doSlonyCompare(file string) {
 	ops, err := Format(DefaultSqlFormat)
 	dbsteward.fatalIfError(err, "loading default format")
-	ops(dbsteward).(SlonyOperations).SlonyCompare(file)
+	ops(dbsteward.config).(SlonyOperations).SlonyCompare(file)
 }
 func (dbsteward *DBSteward) doSlonyDiff(oldFile string, newFile string) {
 	ops, err := Format(DefaultSqlFormat)
 	dbsteward.fatalIfError(err, "loading default format")
-	ops(dbsteward).(SlonyOperations).SlonyDiff(oldFile, newFile)
+	ops(dbsteward.config).(SlonyOperations).SlonyDiff(oldFile, newFile)
 }
